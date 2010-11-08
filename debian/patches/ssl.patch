@@ -1,0 +1,464 @@
+ssl.patch by Mikael Magnusson <mikma@users.sourceforge.net>
+
+Patch adds support for IPv6 to the ssl application.
+
+--- erlang-13.b.3-dfsg.orig/erts/configure.in
++++ erlang-13.b.3-dfsg/erts/configure.in
+@@ -1577,6 +1577,8 @@
+ 	fi
+ fi
+ AC_CHECK_FUNCS([getnameinfo getipnodebyname getipnodebyaddr gethostbyname2])
++AC_CHECK_FUNCS([inet_pton])
++AC_CHECK_TYPES([struct sockaddr_storage],,,[#include <netinet/in.h>])
+ 
+ AC_CHECK_FUNCS([ieee_handler fpsetmask finite isnan isinf res_gethostbyname dlopen \
+ 		pread pwrite writev memmove strerror strerror_r strncasecmp \
+--- erlang-13.b.3-dfsg.orig/erts/config.h.in
++++ erlang-13.b.3-dfsg/erts/config.h.in
+@@ -253,6 +253,9 @@
+ /* Define if ipv6 is present */
+ #undef HAVE_IN6
+ 
++/* Define to 1 if you have the `inet_pton' function. */
++#undef HAVE_INET_PTON
++
+ /* Define to 1 if you have the <inttypes.h> header file. */
+ #undef HAVE_INTTYPES_H
+ 
+@@ -424,6 +427,9 @@
+ /* Define to 1 if `ssf_data' is member of `struct sctp_send_failed'. */
+ #undef HAVE_STRUCT_SCTP_SEND_FAILED_SSF_DATA
+ 
++/* Define to 1 if the system has the type `struct sockaddr_storage'. */
++#undef HAVE_STRUCT_SOCKADDR_STORAGE
++
+ /* Define to 1 if you have the <syslog.h> header file. */
+ #undef HAVE_SYSLOG_H
+ 
+--- erlang-13.b.3-dfsg.orig/lib/ssl/c_src/esock.c
++++ erlang-13.b.3-dfsg/lib/ssl/c_src/esock.c
+@@ -132,6 +132,11 @@
+ #define INADDR_NONE 0xffffffff  /* Should be in <netinet/in.h>.  */
+ #endif
+ 
++#if defined(HAVE_STRUCT_SOCKADDR_STORAGE) && defined(HAVE_GETNAMEINFO) && \
++    defined(HAVE_INET_PTON)
++# define USE_IPV6
++#endif
++
+ #include "esock.h"
+ #include "debuglog.h"
+ #include "esock_utils.h"
+@@ -178,6 +183,15 @@
+ static void dump_connections(void);
+ static int check_num_sock_fds(FD fd); 
+ static void safe_close(FD fd);
++
++#if defined(USE_IPV6)
++static FD do_connect6(char *lipstring, int lport, char *fipstring, int fport);
++static FD do_listen6(char *ipstring, int lport, int backlog, int *aport);
++static int ss_getport(const struct sockaddr *sa, socklen_t size);
++static int reply_sockaddr(int cmd, int fd, const struct sockaddr *sa,
++			  socklen_t size);
++#endif
++
+ static Connection *new_connection(int state, FD fd);
+ static Connection *get_connection(FD fd);
+ static void remove_connection(Connection *conn);
+@@ -366,7 +380,11 @@
+     char *protocol_vsn, *cipher;
+     unsigned char *cert, *bin;
+     int certlen, binlen;
++#if defined(USE_IPV6)
++    struct sockaddr_storage iserv_addr;
++#else
+     struct sockaddr_in iserv_addr;
++#endif
+     int sret = 1;
+     Connection *cp, *cpnext, *newcp;
+     Proxy *pp;
+@@ -443,7 +461,12 @@
+ 			/* Add to pending proxy connections */
+ 			SET_NONBLOCKING(proxysock);
+ 			pp = new_proxy(proxysock);
++#if defined(USE_IPV6)
++			pp->peer_port =
++			    ss_getport((struct sockaddr *)&iserv_addr, length);
++#else
+ 			pp->peer_port = ntohs(iserv_addr.sin_port);
++#endif
+ 			DEBUGF(("-----------------------------------\n"));
+ 			DEBUGF(("[PROXY_LISTEN_SOCK] conn accepted: "
+ 				"proxyfd = %d, "
+@@ -498,9 +521,14 @@
+ 			 * reply  = {cmd(1), fd(4), port(2), 
+ 			 * 	    ipstring(N), 0(1)}
+ 			 */
++#if defined(USE_IPV6)
++			reply_sockaddr(ESOCK_GETPEERNAME_REP, fd,
++				       (struct sockaddr*)&iserv_addr, length);
++#else
+ 			reply(ESOCK_GETPEERNAME_REP, "42s", fd, 
+ 			      ntohs(iserv_addr.sin_port), 
+ 			      inet_ntoa(iserv_addr.sin_addr));
++#endif
+ 		    }
+ 		    break;
+ 
+@@ -524,9 +552,14 @@
+ 			 * reply  = {cmd(1), fd(4), port(2), 
+ 			 * 	    ipstring(N), 0(1)}
+ 			 */
++#if defined(USE_IPV6)
++			reply_sockaddr(ESOCK_GETSOCKNAME_REP, fd,
++				       (struct sockaddr*)&iserv_addr, length);
++#else
+ 			reply(ESOCK_GETSOCKNAME_REP, "42s", fd, 
+ 			      ntohs(iserv_addr.sin_port),
+ 			      inet_ntoa(iserv_addr.sin_addr));
++#endif
+ 		    }
+ 		    break;
+ 
+@@ -701,8 +734,7 @@
+ 		    }
+ 		    DEBUGF(("-> PASSIVE_LISTENING (fd = %d)\n", listensock));
+ 		    /* Publish listensock */
+-		    reply(ESOCK_LISTEN_REP, "442", intref, listensock,
+-			  ntohs(iserv_addr.sin_port));
++		    reply(ESOCK_LISTEN_REP, "442", intref, listensock, lport);
+ 		    break;
+ 
+ 		case ESOCK_TRANSPORT_ACCEPT_CMD:
+@@ -1516,6 +1548,11 @@
+     struct sockaddr_in sock_addr;
+     long inaddr;
+     FD fd;
++
++#if defined(USE_IPV6)
++    if (strchr(fipstring, ':'))
++	return do_connect6(lipstring, lport, fipstring, fport);
++#endif
+    
+     if ((fd = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_FD) {
+ 	DEBUGF(("Error calling socket()\n"));
+@@ -1573,9 +1610,14 @@
+     static int one = 1;		/* Type must be int, not long */
+     struct sockaddr_in sock_addr;
+     long inaddr;
+-    int length;
++    unsigned int length;
+     FD fd;
+     
++#if defined(USE_IPV6)
++    if (strchr(ipstring, ':'))
++	return do_listen6(ipstring, lport, backlog, aport);
++#endif
++
+     if ((fd = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_FD) {
+ 	DEBUGF(("Error calling socket()\n"));
+ 	return fd;
+@@ -1631,6 +1673,145 @@
+     return fd;
+ }
+ 
++#if defined(USE_IPV6)
++static FD do_connect6(char *lipstring, int lport, char *fipstring, int fport)
++{
++    struct sockaddr_in6 sock_addr;
++    FD fd;
++
++    if ((fd = socket(AF_INET6, SOCK_STREAM, 0)) == INVALID_FD) {
++	DEBUGF(("Error calling socket()\n"));
++	return fd;
++    }
++    if (check_num_sock_fds(fd) < 0) 
++	return INVALID_FD;
++    DEBUGF(("  fd = %d\n", fd));
++
++    memset(&sock_addr, 0, sizeof(sock_addr));
++    /* local */
++    if (inet_pton(AF_INET6, lipstring, &sock_addr.sin6_addr) <= 0) {
++	DEBUGF(("Error in inet_pton(): lipstring = %s\n", lipstring));
++	safe_close(fd);
++	sock_set_errno(ERRNO_ADDRNOTAVAIL);
++	return INVALID_FD;
++    }
++    sock_addr.sin6_family = AF_INET6;
++    sock_addr.sin6_port = htons(lport);
++    if(bind(fd, (struct sockaddr*) &sock_addr, sizeof(sock_addr)) < 0) {
++	DEBUGF(("Error in bind()\n"));
++	safe_close(fd);
++	/* XXX Set error code for bind error */
++	return INVALID_FD;
++    }
++
++    /* foreign */
++    memset(&sock_addr, 0, sizeof(sock_addr));
++    if (inet_pton(AF_INET6, fipstring, &sock_addr.sin6_addr) <= 0) {
++	DEBUGF(("Error in inet_pton(): fipstring = %s\n", fipstring));
++	safe_close(fd);
++	sock_set_errno(ERRNO_ADDRNOTAVAIL);
++	return INVALID_FD;
++    }
++    sock_addr.sin6_family = AF_INET6;
++    sock_addr.sin6_port = htons(fport);
++
++    SET_NONBLOCKING(fd);
++
++    if(connect(fd, (struct sockaddr*)&sock_addr, sizeof(sock_addr)) < 0) {
++	if (sock_errno() != ERRNO_PROGRESS && /* UNIX */
++	    sock_errno() != ERRNO_BLOCK) { /* WIN32 */
++	    DEBUGF(("Error in connect()\n"));
++	    safe_close(fd);
++	    return INVALID_FD;
++	}
++    }
++    return fd;
++}
++
++static FD do_listen6(char *ipstring, int lport, int backlog, int *aport)
++{
++    static int one = 1;		/* Type must be int, not long */
++    struct sockaddr_in6 sock_addr;
++    socklen_t length;
++    FD fd;
++    
++    if ((fd = socket(AF_INET6, SOCK_STREAM, 0)) == INVALID_FD) {
++	DEBUGF(("Error calling socket()\n"));
++	return fd;
++    }
++    if (check_num_sock_fds(fd) < 0) 
++	return INVALID_FD;
++    DEBUGF(("  fd = %d\n", fd));
++    memset(&sock_addr, 0, sizeof(sock_addr));
++    if (inet_pton(AF_INET6, ipstring, &sock_addr.sin6_addr) <= 0) {
++	DEBUGF(("Error in inet_pton(): ipstring = %s\n", ipstring));
++	safe_close(fd);
++	sock_set_errno(ERRNO_ADDRNOTAVAIL);
++	return INVALID_FD;
++    }
++    sock_addr.sin6_family = AF_INET6;
++    sock_addr.sin6_port = htons(lport);
++
++    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (void *)&one, sizeof(one));
++
++    if(bind(fd, (struct sockaddr*) &sock_addr, sizeof(sock_addr)) < 0) {
++	DEBUGF(("Error in bind()\n"));
++	safe_close(fd);
++	return INVALID_FD;
++    }
++    if (listen(fd, backlog) < 0) {
++	DEBUGF(("Error in listen()\n"));
++	safe_close(fd);
++	return INVALID_FD;
++    }
++    /* find out assigned local port number */
++    length = sizeof(sock_addr);
++    if (getsockname(fd, (struct sockaddr *)&sock_addr, &length) < 0) {
++	DEBUGF(("Error in getsockname()\n"));
++	safe_close(fd);
++	return INVALID_FD;
++    }
++    if (aport)
++	*aport = ntohs(sock_addr.sin6_port);
++    return fd;
++}
++
++static int reply_sockaddr(int cmd, int fd, const struct sockaddr *sa,
++			  socklen_t size)
++{
++    char addr[INET6_ADDRSTRLEN+1] = "";
++    char port[10] = "";
++    int res;
++
++    res = getnameinfo(sa, size,
++		      addr, sizeof(addr), port, sizeof(port),
++		      NI_NUMERICHOST | NI_NUMERICSERV);
++    if (res) {
++	if (res != EAI_SYSTEM) {
++	    sock_set_errno(ERRNO_INVAL);
++	}
++	return reply(cmd, "4s", fd, psx_errstr());
++    } else {
++	return reply(cmd, "42s", fd, atoi(port), addr);
++    }
++}
++
++static int ss_getport(const struct sockaddr *sa, socklen_t size)
++{
++    char port[10] = "";
++    int res;
++
++    res = getnameinfo(sa, size,
++		      NULL, 0, port, sizeof(port), NI_NUMERICSERV);
++    if (res) {
++	return -1;
++    } else {
++	return atoi(port);
++    }
++}
++#endif
++
++
+ static Connection *new_connection(int state, FD fd)
+ {
+     Connection *cp;
+--- erlang-13.b.3-dfsg.orig/lib/ssl/src/ssl_broker.erl
++++ erlang-13.b.3-dfsg/lib/ssl/src/ssl_broker.erl
+@@ -471,7 +471,7 @@
+     debug(St, "peername: client = ~w~n", [Client]),
+     Reply = case ssl_server:peername(St#st.fd) of
+ 		{ok, {Address, Port}} ->
+-		    {ok, At} = inet_parse:ipv4_address(Address),
++		    {ok, At} = inet_parse:address(Address),
+ 		    {ok, {At, Port}};
+ 		Error ->
+ 		    Error
+@@ -527,7 +527,7 @@
+     debug(St, "sockname: client = ~w~n", [Client]),
+     Reply = case ssl_server:sockname(St#st.fd) of
+ 		{ok, {Address, Port}} ->
+-		    {ok, At} = inet_parse:ipv4_address(Address),
++		    {ok, At} = inet_parse:address(Address),
+ 		    {ok, {At, Port}};
+ 		Error ->
+ 		    Error
+@@ -684,7 +684,8 @@
+     SSLOpts = get_ssl_opts(Opts),
+     FlagStr =mk_ssl_optstr(SSLOpts),
+     BackLog = get_backlog(LOpts),
+-    IP = get_ip(LOpts),
++    Family = get_family(Opts),
++    IP = get_ip(LOpts, Family),
+     case ssl_server:listen_prim(ServerName, IP, Port, FlagStr, BackLog) of
+ 	{ok, ListenFd, _Port0} ->
+ 	    ThisSocket = #sslsocket{fd = ListenFd, pid = self()},
+@@ -707,10 +708,11 @@
+     COpts = get_tcp_connect_opts(Opts),
+     SSLOpts = get_ssl_opts(Opts),
+     FlagStr = mk_ssl_optstr(SSLOpts),
+-    case inet:getaddr(FAddress, inet) of
++    Family = get_family(Opts),
++    case inet:getaddr(FAddress, Family) of
+ 	{ok, FIP} ->
+ 	    %% Timeout is gen_server timeout - hence catch
+-	    LIP = get_ip(COpts),
++	    LIP = get_ip(COpts, Family),
+ 	    LPort = get_port(COpts),
+ 	    case (catch ssl_server:connect_prim(ServerName, 
+ 						LIP, LPort, FIP, FPort, 
+@@ -997,8 +999,13 @@
+ get_backlog(Opts) ->
+     get_tagged_opt(backlog, Opts, ?DEF_BACKLOG).
+ 
+-get_ip(Opts) ->
+-    get_tagged_opt(ip, Opts, {0, 0, 0, 0}).
++get_ip(Opts, Family) ->
++    DefaultIp =
++	case Family of
++	    inet -> {0, 0, 0, 0};
++	    inet6 -> {0, 0, 0, 0, 0, 0, 0, 0}
++	end,
++    get_tagged_opt(ip, Opts, DefaultIp).
+ 
+ get_port(Opts) ->
+     get_tagged_opt(port, Opts, 0).
+@@ -1006,6 +1013,9 @@
+ get_nodelay(Opts) ->
+     get_tagged_opt(nodelay, Opts, empty).
+ 
++get_family(Opts) ->
++    get_tagged_opt(family, transform_opts(Opts), inet).
++
+ %%
+ %% add_default_*_opts(Opts) -> NOpts
+ %%
+@@ -1054,6 +1064,8 @@
+ transform_opt(binary) -> 	[{mode, binary}];
+ transform_opt(list) -> 		[{mode, list}];
+ transform_opt({packet, raw}) ->	[{packet, 0}];
++transform_opt(inet) -> 	[{family, inet}];
++transform_opt(inet6) -> 	[{family, inet6}];
+ transform_opt(raw) -> 		[];
+ transform_opt(Opt) -> 		[Opt].
+ 
+@@ -1061,10 +1073,10 @@
+ %% only.
+ 
+ is_connect_opt(Opt) ->
+-    is_tcp_connect_opt(Opt) or is_ssl_opt(Opt).
++    is_tcp_connect_opt(Opt) or is_ssl_opt(Opt) or is_family_opt(Opt).
+ 
+ is_listen_opt(Opt) ->
+-    is_tcp_listen_opt(Opt) or is_ssl_opt(Opt).
++    is_tcp_listen_opt(Opt) or is_ssl_opt(Opt) or is_family_opt(Opt).
+ 
+ is_tcp_accept_opt(Opt) ->
+     is_tcp_gen_opt(Opt).
+@@ -1120,6 +1132,10 @@
+ is_ssl_opt({cachetimeout, Timeout}) when Timeout >= 0 -> true;
+ is_ssl_opt(_Opt) -> false.
+ 
++is_family_opt({family, inet}) -> true;
++is_family_opt({family, inet6}) -> true;
++is_family_opt(_Opt) -> false.
++
+ %% Various types
+ is_string(String) when is_list(String) ->
+     lists:all(fun (C) when is_integer(C), 0 =< C, C =< 255 -> true; 
+@@ -1130,11 +1146,20 @@
+ 
+ is_ip_address(Addr) when tuple_size(Addr) =:= 4 ->
+     is_string(tuple_to_list(Addr));
++is_ip_address(Addr) when is_tuple(Addr), size(Addr) == 8 ->
++    is_ip6_string(tuple_to_list(Addr));
+ is_ip_address(Addr) when is_list(Addr) ->
+     is_string(Addr);
+ is_ip_address(_) ->
+     false.
+ 
++is_ip6_string(String) when is_list(String) ->
++    lists:all(fun (C) when is_integer(C), 0 =< C, C =< 65535 -> true; 
++		  (_C) -> false end, 
++	      String);
++is_ip6_string(_) ->
++    false.
++
+ get_tagged_opt(Tag, Opts, Default) ->
+     case lists:keysearch(Tag, 1, Opts) of
+ 	{value, {_, Value}} ->
+--- erlang-13.b.3-dfsg.orig/lib/ssl/src/ssl_prim.erl
++++ erlang-13.b.3-dfsg/lib/ssl/src/ssl_prim.erl
+@@ -118,7 +118,7 @@
+ peername(#st{fd = Fd, status = open}) ->
+     case ssl_server:peername_prim(ssl_server_prim, Fd) of
+ 	{ok, {Address, Port}} ->
+-	    {ok, At} = inet_parse:ipv4_address(Address),
++	    {ok, At} = inet_parse:address(Address),
+ 	    {ok, {At, Port}};
+ 	Error ->
+ 	    Error
+@@ -129,7 +129,7 @@
+ sockname(#st{fd = Fd, status = open}) ->
+     case ssl_server:sockname_prim(ssl_server_prim, Fd) of
+ 	{ok, {Address, Port}} ->
+-	    {ok, At} = inet_parse:ipv4_address(Address),
++	    {ok, At} = inet_parse:address(Address),
+ 	    {ok, {At, Port}};
+ 	Error ->
+ 	    Error
+--- erlang-13.b.3-dfsg.orig/lib/ssl/src/ssl_server.erl
++++ erlang-13.b.3-dfsg/lib/ssl/src/ssl_server.erl
+@@ -1363,7 +1363,10 @@
+ 
+ ip_to_string({A,B,C,D}) ->
+     [integer_to_list(A),$.,integer_to_list(B),$.,
+-     integer_to_list(C),$.,integer_to_list(D)].
++     integer_to_list(C),$.,integer_to_list(D)];
++
++ip_to_string(Addr) when is_tuple(Addr), size(Addr) == 8 ->
++    inet_parse:ntoa(Addr).
+ 
+ debug(St, Format, Args) ->
+     debug1(St#st.debug, Format, Args).

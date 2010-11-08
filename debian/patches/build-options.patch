@@ -1,0 +1,88 @@
+build-options.patch by James Henstridge <james.henstridge@canonical.com>
+and Sergei Golovan
+
+Set ERL_COMPILE_FLAGS based on DEB_BUILD_OPTIONS instead of hard coding
+it based on the platform.  By default, we'll generate compressed stripped
+BEAM files.
+
+Also, add debug info to VM binaries if DEB_BUILD_OPTIONS contains "debug".
+
+--- erlang-13.b.3-dfsg.orig/Makefile.in
++++ erlang-13.b.3-dfsg/Makefile.in
+@@ -16,6 +16,9 @@
+ # 
+ # %CopyrightEnd%
+ 
++ifeq ($(TYPE),debug)
++TYPEMARKER = .debug
++endif
+ # Toplevel makefile for building the Erlang system
+ #
+ 
+--- erlang-13.b.3-dfsg.orig/erts/etc/common/Makefile.in
++++ erlang-13.b.3-dfsg/erts/etc/common/Makefile.in
+@@ -494,13 +494,13 @@
+ 
+ Install:	../unix/Install.src ../../vsn.mk $(TARGET)/Makefile
+ 	sed -e 's;%I_VSN%;$(VSN);' \
+-	    -e 's;%EMULATOR%;$(EMULATOR);' \
++	    -e 's;%EMULATOR%;$(EMULATOR)$(TYPEMARKER);' \
+             -e 's;%EMULATOR_NUMBER%;$(EMULATOR_NUMBER);' \
+ 	    -e 's;%I_SYSTEM_VSN%;$(SYSTEM_VSN);' \
+           ../unix/Install.src > Install
+ 
+ erl.src: ../unix/erl.src.src ../../vsn.mk $(TARGET)/Makefile
+-	sed -e 's;%EMULATOR%;$(EMULATOR);' \
++	sed -e 's;%EMULATOR%;$(EMULATOR)$(TYPEMARKER);' \
+             -e 's;%EMULATOR_NUMBER%;$(EMULATOR_NUMBER);' \
+             -e 's;%VSN%;$(VSN);' \
+                   ../unix/erl.src.src > erl.src
+--- erlang-13.b.3-dfsg.orig/erts/emulator/Makefile.in
++++ erlang-13.b.3-dfsg/erts/emulator/Makefile.in
+@@ -258,7 +258,7 @@
+ CS_CFLAGS = $(CS_CFLAGS_)
+ endif
+ CS_LDFLAGS = $(LDFLAGS)
+-CS_LIBS = -L../lib/internal/$(TARGET) -lerts_internal @ERTS_INTERNAL_X_LIBS@
++CS_LIBS = -L../lib/internal/$(TARGET) -lerts_internal$(TYPEMARKER) @ERTS_INTERNAL_X_LIBS@
+ 
+ LIBS	+= @TERMCAP_LIB@ -L../lib/internal/$(TARGET) @ERTS_INTERNAL_X_LIBS@
+ 
+@@ -284,7 +284,7 @@
+ LIBS    += $(ERL_TOP)/erts/emulator/pcre/obj/$(TARGET)/$(TYPE)/libepcre.a
+ DEPLIBS += \
+ 	$(ERL_TOP)/erts/emulator/pcre/obj/$(TARGET)/$(TYPE)/libepcre.a \
+-	$(ERL_TOP)/erts/lib/internal/$(TARGET)/liberts_internal.a 
++	$(ERL_TOP)/erts/lib/internal/$(TARGET)/liberts_internal$(TYPEMARKER).a 
+ # rem liberts_internal.a
+ endif
+ 
+--- erlang-13.b.3-dfsg.orig/make/otp.mk.in
++++ erlang-13.b.3-dfsg/make/otp.mk.in
+@@ -71,18 +71,17 @@
+ #	Erlang language section
+ # ----------------------------------------------------
+ EMULATOR = beam
+-ifeq ($(findstring vxworks,$(TARGET)),vxworks)
+-# VxWorks object files should be compressed.
+-# Other object files should have debug_info.
+-  ERL_COMPILE_FLAGS += +compressed
++ifdef BOOTSTRAP
++  ERL_COMPILE_FLAGS += +slim
+ else
+-  ifeq ($(findstring ose_ppc750,$(TARGET)),ose_ppc750)
+-    ERL_COMPILE_FLAGS += +compressed
++  ERL_COMPILE_FLAGS += +compressed
++  ifeq ($(findstring debug,$(DEB_BUILD_OPTIONS)),debug)
++    ERL_COMPILE_FLAGS += +debug_info
+   else
+-    ifdef BOOTSTRAP
+-      ERL_COMPILE_FLAGS += +slim
+-    else
++    ifeq ($(findstring nostrip,$(DEB_BUILD_OPTIONS)),nostrip)
+       ERL_COMPILE_FLAGS += +debug_info
++    else
++      ERL_COMPILE_FLAGS += +slim
+     endif
+   endif
+ endif

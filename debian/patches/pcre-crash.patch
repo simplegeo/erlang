@@ -1,0 +1,68 @@
+Origin: upstream http://github.com/erlang/otp/commit/bb6370a20be07e6bd0c9f6e89a3cd9719dccbfd3
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/535090 
+Author: Michael Santos <michael.santos@gmail.com>
+Date:   Wed Feb 10 15:19:48 2010 -0500
+
+    Fix CVE-2008-2371 (outer level option with alternatives caused crash).
+    
+    The patch is from:
+    http://vcs.pcre.org/viewvc?revision=360&view=revision
+    
+    Test case:
+    re:compile(<<"(?i)[\xc3\xa9\xc3\xbd]|[\xc3\xa9\xc3\xbdA]">>, [unicode]).
+    
+    An option change at the start of a pattern that had top-level
+    alternatives could cause overwriting and/or a crash.
+    
+    This potential security problem was recorded as CVE-2008-2371.
+
+diff --git a/erts/emulator/pcre/pcre_compile.c b/erts/emulator/pcre/pcre_compile.c
+index 235617f..2974336 100644
+--- a/erts/emulator/pcre/pcre_compile.c
++++ b/erts/emulator/pcre/pcre_compile.c
+@@ -4820,10 +4820,8 @@ we set the flag only if there is a literal "\r" or "\n" in the class. */
+         both phases.
+ 
+         If we are not at the pattern start, compile code to change the ims
+-        options if this setting actually changes any of them. We also pass the
+-        new setting back so that it can be put at the start of any following
+-        branches, and when this group ends (if we are in a group), a resetting
+-        item can be compiled. */
++        options if this setting actually changes any of them, and reset the
++        greedy defaults and the case value for firstbyte and reqbyte. */
+ 
+         if (*ptr == ')')
+           {
+@@ -4831,7 +4829,6 @@ we set the flag only if there is a literal "\r" or "\n" in the class. */
+                (lengthptr == NULL || *lengthptr == 2 + 2*LINK_SIZE))
+             {
+             cd->external_options = newoptions;
+-            options = newoptions;
+             }
+          else
+             {
+@@ -4840,17 +4837,17 @@ we set the flag only if there is a literal "\r" or "\n" in the class. */
+               *code++ = OP_OPT;
+               *code++ = newoptions & PCRE_IMS;
+               }
+-
+-            /* Change options at this level, and pass them back for use
+-            in subsequent branches. Reset the greedy defaults and the case
+-            value for firstbyte and reqbyte. */
+-
+-            *optionsptr = options = newoptions;
+             greedy_default = ((newoptions & PCRE_UNGREEDY) != 0);
+             greedy_non_default = greedy_default ^ 1;
+-            req_caseopt = ((options & PCRE_CASELESS) != 0)? REQ_CASELESS : 0;
++            req_caseopt = ((newoptions & PCRE_CASELESS) != 0)? REQ_CASELESS : 0;
+             }
+ 
++          /* Change options at this level, and pass them back for use
++          in subsequent branches. When not at the start of the pattern, this
++          information is also necessary so that a resetting item can be
++          compiled at the end of a group (if we are in a group). */
++
++          *optionsptr = options = newoptions;
+           previous = NULL;       /* This item can't be repeated */
+           continue;              /* It is complete */
+           }

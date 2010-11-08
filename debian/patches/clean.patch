@@ -1,0 +1,187 @@
+clean.patch by Sergei Golovan <sgolovan@nes.ru>
+
+Erlang leaves many files after make clean. This patch contains
+a hack to remove them.
+
+--- erlang-13.b.3-dfsg.orig/Makefile.in
++++ erlang-13.b.3-dfsg/Makefile.in
+@@ -777,6 +777,7 @@
+ 	cd erts && ERL_TOP=$(ERL_TOP) $(MAKE) clean
+ 	cd lib  && ERL_TOP=$(ERL_TOP) $(MAKE) clean BUILD_ALL=true
+ 	cd lib/dialyzer && ERL_TOP=$(ERL_TOP) $(MAKE) clean
++	$(MAKE) additional_clean
+ 
+ #
+ # Just wipe out emulator, not libraries
+@@ -811,3 +812,171 @@
+ 		|| $(MAKE) BOOTSTRAP_ROOT=$(BOOTSTRAP_ROOT) bootstrap_root_clean
+ 
+ # ----------------------------------------------------------------------
++
++additional_clean:
++	rm -rf $(ERL_TOP)/bin
++	rm -rf $(ERL_TOP)/bootstrap/bin/erl
++	rm -rf $(ERL_TOP)/bootstrap/bin/erlc
++	rm -rf $(ERL_TOP)/bootstrap/lib/asn1
++	rm -rf $(ERL_TOP)/bootstrap/lib/hipe
++	rm -rf $(ERL_TOP)/bootstrap/lib/ic
++	rm -rf $(ERL_TOP)/bootstrap/lib/parsetools
++	rm -rf $(ERL_TOP)/bootstrap/lib/sasl
++	rm -rf $(ERL_TOP)/bootstrap/lib/snmp
++	rm -rf $(ERL_TOP)/bootstrap/lib/syntax_tools
++	rm -rf $(ERL_TOP)/bootstrap/lib/wx
++	rm -rf $(ERL_TOP)/erts/config.log
++	rm -rf $(ERL_TOP)/erts/config.status
++	rm -rf $(ERL_TOP)/erts/emulator/$(TARGET)
++	rm -rf $(ERL_TOP)/erts/emulator/obj
++	rm -rf $(ERL_TOP)/erts/emulator/zlib/$(TARGET)
++	rm -rf $(ERL_TOP)/erts/epmd/src/$(TARGET)
++	rm -rf $(ERL_TOP)/erts/etc/common/erl.src
++	rm -rf $(ERL_TOP)/erts/etc/common/$(TARGET)
++	rm -rf $(ERL_TOP)/erts/etc/common/Install
++	rm -rf $(ERL_TOP)/erts/$(TARGET)
++	rm -rf $(ERL_TOP)/erts/include/$(TARGET)
++	rm -rf $(ERL_TOP)/erts/include/internal/$(TARGET)
++	rm -rf $(ERL_TOP)/erts/lib/$(TARGET)
++	rm -rf $(ERL_TOP)/erts/lib/internal/$(TARGET)
++	rm -rf $(ERL_TOP)/erts/lib_src/$(TARGET)
++	rm -rf $(ERL_TOP)/erts/lib_src/obj
++	rm -rf $(ERL_TOP)/erts/Makefile
++	rm -rf $(ERL_TOP)/erts/obj/$(TARGET)
++	rm -rf $(ERL_TOP)/erts/obj.debug/$(TARGET)
++	rm -rf $(ERL_TOP)/erts/start_scripts/RELEASES.src
++	rm -rf $(ERL_TOP)/erts/start_scripts/tmp
++	rm -rf $(ERL_TOP)/lib/asn1/c_src/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/asn1/priv/lib/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/asn1/priv/obj/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/common_test/install.sh
++	rm -rf $(ERL_TOP)/lib/common_test/priv/lib/erl_rx_driver.so
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/config.log
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/config.status
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/Makefile
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/rx/config.log
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/rx/config.status
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/rx/hashrexp.o
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/rx/librx.a
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/rx/Makefile
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/rx/rxanal.o
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/rx/rxbasic.o
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/rx/rxbitset.o
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/rx/rxcset.o
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/rx/rxdbug.o
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/rx/rxgnucomp.o
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/rx/rxhash.o
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/rx/rxnfa.o
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/rx/rxnode.o
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/rx/rx.o
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/rx/rxposix.o
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/rx/rxsimp.o
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/rx/rxspencer.o
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/rx/rxstr.o
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/rx/rxsuper.o
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-*/rx/rxunfa.o
++	rm -rf $(ERL_TOP)/lib/config.log
++	rm -rf $(ERL_TOP)/lib/config.status
++	rm -rf $(ERL_TOP)/lib/cosEventDomain/include/CosEventDomainAdmin_EventDomainFactory.hrl
++	rm -rf $(ERL_TOP)/lib/cosEventDomain/include/CosEventDomainAdmin_EventDomain.hrl
++	rm -rf $(ERL_TOP)/lib/cosEventDomain/include/CosEventDomainAdmin.hrl
++	rm -rf $(ERL_TOP)/lib/cosEventDomain/include/oe_CosEventDomainAdmin.hrl
++	rm -rf $(ERL_TOP)/lib/crypto/c_src/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/crypto/priv/lib/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/crypto/priv/obj/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/docbuilder/ebin/docbuilder.appup
++	rm -rf $(ERL_TOP)/lib/erl_interface/bin/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/erl_interface/config.log
++	rm -rf $(ERL_TOP)/lib/erl_interface/config.status
++	rm -rf $(ERL_TOP)/lib/erl_interface/obj/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/erl_interface/obj.mt/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/erl_interface/obj.st/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/erl_interface/src/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/eunit/doc/src/eunit_surefire.xml
++	rm -rf $(ERL_TOP)/lib/eunit/doc/src/eunit.xml
++	rm -rf $(ERL_TOP)/lib/gs/config.log
++	rm -rf $(ERL_TOP)/lib/gs/config.status
++	rm -rf $(ERL_TOP)/lib/gs/tcl/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/gs/tcl/win32
++	rm -rf $(ERL_TOP)/lib/ic/c_src/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/ic/priv/com
++	rm -rf $(ERL_TOP)/lib/ic/priv/ic.jar
++	rm -rf $(ERL_TOP)/lib/ic/priv/lib/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/ic/priv/obj/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/jinterface/priv/com
++	rm -rf $(ERL_TOP)/lib/jinterface/priv/OtpErlang.jar
++	rm -rf $(ERL_TOP)/lib/kernel/ebin/*.beam
++	rm -rf $(ERL_TOP)/lib/kernel/ebin/*.app
++	rm -rf $(ERL_TOP)/lib/kernel/ebin/*.appup
++	rm -rf $(ERL_TOP)/lib/kernel/src/inet_dns_record_adts.hrl
++	rm -rf $(ERL_TOP)/lib/megaco/config.log
++	rm -rf $(ERL_TOP)/lib/megaco/config.status
++	rm -rf $(ERL_TOP)/lib/megaco/priv/lib/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/megaco/src/flex/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/mnesia_session/src/mnesia_AttrNames.erl
++	rm -rf $(ERL_TOP)/lib/mnesia_session/src/mnesia_Checkpoints.erl
++	rm -rf $(ERL_TOP)/lib/mnesia_session/src/mnesia_Indices.erl
++	rm -rf $(ERL_TOP)/lib/mnesia_session/src/mnesia_KeyList.erl
++	rm -rf $(ERL_TOP)/lib/mnesia_session/src/mnesia_NodeList.erl
++	rm -rf $(ERL_TOP)/lib/mnesia_session/src/mnesia_Recordlist.erl
++	rm -rf $(ERL_TOP)/lib/mnesia_session/src/mnesia_TableList.erl
++	rm -rf $(ERL_TOP)/lib/odbc/config.log
++	rm -rf $(ERL_TOP)/lib/odbc/config.status
++	rm -rf $(ERL_TOP)/lib/odbc/c_src/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/odbc/priv/bin/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/odbc/priv/obj/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/orber/COSS/CosNaming/CosNaming_NamingContextExt_AlreadyBound.erl
++	rm -rf $(ERL_TOP)/lib/orber/COSS/CosNaming/CosNaming_NamingContextExt_CannotProceed.erl
++	rm -rf $(ERL_TOP)/lib/orber/COSS/CosNaming/CosNaming_NamingContextExt_InvalidName.erl
++	rm -rf $(ERL_TOP)/lib/orber/COSS/CosNaming/CosNaming_NamingContextExt_NotEmpty.erl
++	rm -rf $(ERL_TOP)/lib/orber/COSS/CosNaming/CosNaming_NamingContextExt_NotFound.erl
++	rm -rf $(ERL_TOP)/lib/orber/c_src/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/orber/priv/bin/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/orber/priv/obj/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/orber/src/OrberCSIv2.beam
++	rm -rf $(ERL_TOP)/lib/orber/src/PKIX1Explicit88.asn1db
++	rm -rf $(ERL_TOP)/lib/orber/src/PKIX1Implicit88.asn1db
++	rm -rf $(ERL_TOP)/lib/orber/src/PKIXAttributeCertificate.asn1db
++	rm -rf $(ERL_TOP)/lib/os_mon/c_src/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/os_mon/doc/man6/os_mon.6
++	rm -rf $(ERL_TOP)/lib/os_mon/priv/bin/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/os_mon/priv/obj/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/otp_mibs/ebin/otp_mib.beam
++	rm -rf $(ERL_TOP)/lib/percept/c_src/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/percept/priv/lib
++	rm -rf $(ERL_TOP)/lib/percept/priv/obj/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/runtime_tools/c_src/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/runtime_tools/priv/lib/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/runtime_tools/priv/obj/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/snmp/config.log
++	rm -rf $(ERL_TOP)/lib/snmp/config.status
++	rm -rf $(ERL_TOP)/lib/snmp/mibs/Makefile
++	rm -rf $(ERL_TOP)/lib/ssl/c_src/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/ssl/doc/man6/ssl.6
++	rm -rf $(ERL_TOP)/lib/ssl/examples/certs/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/ssl/pkix/OTP-PKIX.asn1db
++	rm -rf $(ERL_TOP)/lib/ssl/priv/bin/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/ssl/priv/obj/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/test_server/src/configure
++	rm -rf $(ERL_TOP)/lib/tools/c_src/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/tools/src/xref_parser.erl
++	rm -rf $(ERL_TOP)/lib/webtool/ebin/webtool.appup
++	rm -rf $(ERL_TOP)/lib/wx/config.log
++	rm -rf $(ERL_TOP)/lib/wx/config.mk
++	rm -rf $(ERL_TOP)/lib/wx/c_src/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/wx/c_src/Makefile
++	rm -rf $(ERL_TOP)/lib/wx/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/wx/priv/$(TARGET)
++	rm -rf $(ERL_TOP)/make/$(TARGET)
++	rm -rf $(ERL_TOP)/Makefile
++	rm -rf $(ERL_TOP)/erts/emulator/pcre/$(TARGET)
++	rm -rf $(ERL_TOP)/erts/emulator/pcre/obj
++	rm -rf $(ERL_TOP)/erts/emulator/pcre/pcre_exec_loop_break_cases.inc
++	rm -rf $(ERL_TOP)/erts/emulator/zlib/obj
++	rm -rf $(ERL_TOP)/lib/common_test/config.log
++	rm -rf $(ERL_TOP)/lib/common_test/config.status
++	rm -rf $(ERL_TOP)/lib/common_test/c_src/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/common_test/priv/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/common_test/priv/lib/$(TARGET)
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-1.5/configure
++	rm -rf $(ERL_TOP)/lib/common_test/priv/rx-1.5/rx/configure

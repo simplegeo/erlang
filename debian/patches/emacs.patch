@@ -1,0 +1,33 @@
+Patch by Balint Reczey <balint@balintreczey.hu> fixes backquote
+syntax (see http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=494823).
+
+--- erlang-13.b.3-dfsg.orig/lib/tools/emacs/erlang.el
++++ erlang-13.b.3-dfsg/lib/tools/emacs/erlang.el
+@@ -2367,23 +2367,22 @@
+ (or (fboundp 'eval-when-compile)
+     (defmacro eval-when-compile (&rest rest) nil))
+ 
+-;; These umm...functions are new in Emacs 20. And, yes, until version
+-;; 19.27 Emacs backquotes were this ugly.
++;; These umm...functions are new in Emacs 20.
+ 
+ (or (fboundp 'unless)
+     (defmacro unless (condition &rest body)
+       "(unless CONDITION BODY...): If CONDITION is false, do BODY, else return nil."
+-      `((if (, condition) nil ,@body))))
++      (cons 'if  (cons condition (cons nil body)))))
+ 
+ (or (fboundp 'when)
+     (defmacro when (condition &rest body)
+       "(when CONDITION BODY...): If CONDITION is true, do BODY, else return nil."
+-      `((if (, condition) (progn ,@body) nil))))
++      (list 'if condition (cons 'progn body) nil)))
+ 
+ (or (fboundp 'char-before)
+     (defmacro char-before (&optional pos)
+       "Return the character in the current buffer just before POS."
+-      `( (char-after (1- (or ,pos (point)))))))
++      (list 'char-after (list '1- (list 'or  pos '(point))))))
+ 
+ ;; defvar some obsolete variables, which we still support for
+ ;; backwardscompatibility reasons.

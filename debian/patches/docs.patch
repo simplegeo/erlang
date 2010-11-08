@@ -1,0 +1,126 @@
+Patch by sergei Golovan fixes several bugs with . and ' at the
+beginning of a line in Erlang manpages. It simply escapes all dots
+and apostrophes by adding \& before them. Also, it fixes whatis entries
+for module and application definitions.
+
+--- erlang-13.b.3-dfsg.orig/lib/erl_docgen/priv/xsl/db_man.xsl
++++ erlang-13.b.3-dfsg/lib/erl_docgen/priv/xsl/db_man.xsl
+@@ -192,7 +192,7 @@
+   <!-- Erlref -->
+   <xsl:template match="/erlref">
+       <xsl:text>.TH </xsl:text><xsl:value-of select="module"/><xsl:text> 3 "</xsl:text><xsl:value-of select="$appname"/><xsl:text> </xsl:text><xsl:value-of select="$appver"/><xsl:text>" "Ericsson AB" "Erlang Module Definition"&#10;</xsl:text>
+-      <xsl:text>.SH MODULE&#10;</xsl:text>
++      <xsl:text>.SH NAME&#10;</xsl:text>
+       <xsl:value-of select="module"/><xsl:text> \- </xsl:text><xsl:value-of select="modulesummary"/><xsl:text>&#10;</xsl:text>  
+       <xsl:apply-templates/>
+   </xsl:template>
+@@ -225,7 +225,7 @@
+   <xsl:template match="/appref">
+       <xsl:text>.TH </xsl:text><xsl:value-of select="app"/><xsl:text> 6 "</xsl:text><xsl:value-of select="$appname"/><xsl:text> </xsl:text><xsl:value-of select="$appver"/><xsl:text>" "Ericsson AB" "Erlang Application Definition"&#10;</xsl:text>
+       <xsl:text>.SH NAME&#10;</xsl:text>
+-      <xsl:value-of select="file"/><xsl:text> \- </xsl:text><xsl:value-of select="filesummary"/><xsl:text>&#10;</xsl:text>  
++      <xsl:value-of select="app"/><xsl:text> \- </xsl:text><xsl:value-of select="appsummary"/><xsl:text>&#10;</xsl:text>  
+       <xsl:apply-templates/>
+   </xsl:template>
+ 
+@@ -268,7 +268,7 @@
+     <xsl:text>&#10;.TP</xsl:text>
+     <xsl:text>&#10;Types</xsl:text>
+     <xsl:apply-templates/>
+-    <xsl:text>&#10;.RE</xsl:text>
++    <xsl:text>&#10;.RE </xsl:text>
+   </xsl:template>
+ 
+ 
+@@ -288,7 +288,7 @@
+   <xsl:template match="desc">
+     <xsl:text>&#10;.RS</xsl:text>
+     <xsl:apply-templates/>
+-    <xsl:text>&#10;.RE</xsl:text>
++    <xsl:text>&#10;.RE </xsl:text>
+   </xsl:template>
+ 
+ 
+@@ -305,4 +305,60 @@
+     <xsl:value-of select="normalize-space()"/>
+   </xsl:template>
+ 
++  <!-- Authors -->
++  <xsl:template match="authors">
++    <xsl:text>&#10;.SH AUTHORS</xsl:text>
++    <xsl:apply-templates/>
++  </xsl:template>
++
++  <!-- Aname -->
++  <xsl:template match="authors/aname">
++    <xsl:text>&#10;.LP&#10;</xsl:text>
++    <xsl:apply-templates/>
++  </xsl:template>
++
++  <!-- Email -->
++  <xsl:template match="authors/email">
++    <xsl:text>&#10;.I&#10;&lt;</xsl:text>
++    <xsl:apply-templates/>
++    <xsl:text>&gt;</xsl:text>
++  </xsl:template>
++
++  <!-- Replace ' by \&' ans . by \&. -->
++  <xsl:template match="text()">
++    <xsl:variable name="rep1">
++      <xsl:call-template name="replace-string">
++        <xsl:with-param name="text" select="." />
++        <xsl:with-param name="replace" select="&quot;&apos;&quot;" />
++        <xsl:with-param name="with" select="&quot;\&amp;&apos;&quot;" />
++      </xsl:call-template>
++    </xsl:variable>
++    <xsl:call-template name="replace-string">
++      <xsl:with-param name="text" select="$rep1" />
++      <xsl:with-param name="replace" select="&quot;.&quot;" />
++      <xsl:with-param name="with" select="&quot;\&amp;.&quot;" />
++    </xsl:call-template>
++  </xsl:template>
++
++  <!-- Template replace-string is borrowed at http://www.dpawson.co.uk/xsl/sect2/replace.html -->
++  <xsl:template name="replace-string">
++    <xsl:param name="text"/>
++    <xsl:param name="replace"/>
++    <xsl:param name="with"/>
++    <xsl:choose>
++      <xsl:when test="contains($text,$replace)">
++        <xsl:value-of select="substring-before($text,$replace)"/>
++        <xsl:value-of select="$with"/>
++        <xsl:call-template name="replace-string">
++          <xsl:with-param name="text" select="substring-after($text,$replace)"/>
++          <xsl:with-param name="replace" select="$replace"/>
++          <xsl:with-param name="with" select="$with"/>
++        </xsl:call-template>
++      </xsl:when>
++      <xsl:otherwise>
++        <xsl:value-of select="$text"/>
++      </xsl:otherwise>
++    </xsl:choose>
++  </xsl:template>
++
+ </xsl:stylesheet>
+--- erlang-13.b.3-dfsg.orig/lib/stdlib/doc/src/re.xml
++++ erlang-13.b.3-dfsg/lib/stdlib/doc/src/re.xml
+@@ -349,7 +349,7 @@
+       metacharacter should not match before it. Setting this without
+       <c>multiline</c> (at compile time) causes circumflex never to
+       match. This option affects only the behavior of the circumflex
+-      metacharacter. It does not affect \A.</item>
++      metacharacter. It does not affect \\A.</item>
+ 
+       <tag><c>noteol</c></tag>
+ 
+@@ -358,8 +358,8 @@
+       match it nor (except in multiline mode) a newline immediately
+       before it. Setting this without <c>multiline</c> (at compile time)
+       causes dollar never to match. This option affects only the
+-      behavior of the dollar metacharacter. It does not affect \Z or
+-      \z.</item>
++      behavior of the dollar metacharacter. It does not affect \\Z or
++      \\z.</item>
+ 
+       <tag><c>{offset, int()}</c></tag>
+ 
