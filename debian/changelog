@@ -1,3 +1,9 @@
+erlang (1:13.b.3-dfsg-2sg4) lucid; urgency=low
+
+  * SimpleGeo build
+
+ -- Jeremy Grosser <jeremy@simplegeo.com>  Mon, 08 Nov 2010 15:25:25 -0800
+
 erlang (1:13.b.3-dfsg-2ubuntu3) maverick; urgency=low
 
   * fix for ssl certificate verification in newSSL: ssl_cacertfile_fix.patch
