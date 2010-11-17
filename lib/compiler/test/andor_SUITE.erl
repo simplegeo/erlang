@@ -1,32 +1,33 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 2001-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 2001-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 -module(andor_SUITE).
 
 -export([all/1,
 	 t_case/1,t_and_or/1,t_andalso/1,t_orelse/1,inside/1,overlap/1,
-	 combined/1,in_case/1]).
+	 combined/1,in_case/1,before_and_inside_if/1]).
 	 
 -include("test_server.hrl").
 
 all(suite) ->
     test_lib:recompile(?MODULE),
-    [t_case,t_and_or,t_andalso,t_orelse,inside,overlap,combined,in_case].
+    [t_case,t_and_or,t_andalso,t_orelse,inside,overlap,combined,in_case,
+     before_and_inside_if].
 
 t_case(Config) when is_list(Config) ->
     %% We test boolean cases almost but not quite like cases
@@ -140,6 +141,10 @@ t_and_or(Config) when is_list(Config) ->
 
    ok.
 
+-define(GUARD(E), if E -> true;
+		     true -> false
+		  end).
+
 t_andalso(Config) when is_list(Config) ->
     Bs = [true,false],
     Ps = [{X,Y} || X <- Bs, Y <- Bs],
@@ -149,6 +154,11 @@ t_andalso(Config) when is_list(Config) ->
     ?line false = true andalso false,
     ?line false = false andalso true,
     ?line false = false andalso false,
+
+    ?line true = ?GUARD(true andalso true),
+    ?line false = ?GUARD(true andalso false),
+    ?line false = ?GUARD(false andalso true),
+    ?line false = ?GUARD(false andalso false),
 
     ?line false = false andalso glurf,
     ?line false = false andalso exit(exit_now),
@@ -174,6 +184,11 @@ t_orelse(Config) when is_list(Config) ->
     ?line true = true orelse false,
     ?line true = false orelse true,
     ?line false = false orelse false,
+
+    ?line true = ?GUARD(true orelse true),
+    ?line true = ?GUARD(true orelse false),
+    ?line true = ?GUARD(false orelse true),
+    ?line false = ?GUARD(false orelse false),
 
     ?line true = true orelse glurf,
     ?line true = true orelse exit(exit_now),
@@ -380,6 +395,65 @@ in_case_1_guard(LenUp, LenDw, LenN, Rotation, Count) ->
 	false -> loop
     end.
 
+before_and_inside_if(Config) when is_list(Config) ->
+    ?line no = before_and_inside_if([a], [b], delete),
+    ?line no = before_and_inside_if([a], [b], x),
+    ?line no = before_and_inside_if([a], [], delete),
+    ?line no = before_and_inside_if([a], [], x),
+    ?line no = before_and_inside_if([], [], delete),
+    ?line yes = before_and_inside_if([], [], x),
+    ?line yes = before_and_inside_if([], [b], delete),
+    ?line yes = before_and_inside_if([], [b], x),
+
+    ?line {ch1,ch2} = before_and_inside_if_2([a], [b], blah),
+    ?line {ch1,ch2} = before_and_inside_if_2([a], [b], xx),
+    ?line {ch1,ch2} = before_and_inside_if_2([a], [], blah),
+    ?line {ch1,ch2} = before_and_inside_if_2([a], [], xx),
+    ?line {no,no} = before_and_inside_if_2([], [b], blah),
+    ?line {no,no} = before_and_inside_if_2([], [b], xx),
+    ?line {ch1,no} = before_and_inside_if_2([], [], blah),
+    ?line {no,ch2} = before_and_inside_if_2([], [], xx),
+    ok.
+
+%% Thanks to Simon Cornish and Kostis Sagonas.
+%% Used to crash beam_bool.
+before_and_inside_if(XDo1, XDo2, Do3) ->
+    Do1 = (XDo1 =/= []),
+    Do2 = (XDo2 =/= []),
+    if
+	%% This expression occurs in a try/catch (protected)
+	%% block, which cannot refer to variables outside of
+	%% the block that are boolean expressions.
+	Do1 =:= true;
+	Do1 =:= false, Do2 =:= false, Do3 =:= delete ->
+	    no;
+       true ->
+	    yes
+    end.
+
+%% Thanks to Simon Cornish.
+%% Used to generate code that would not set {y,0} on
+%% all paths before its use (and therefore fail
+%% validation by the beam_validator).
+before_and_inside_if_2(XDo1, XDo2, Do3) ->
+    Do1    = (XDo1 =/= []),
+    Do2    = (XDo2 =/= []),
+    CH1 = if Do1 == true;
+	     Do1 == false,Do2==false,Do3 == blah ->
+		  ch1;
+	     true ->
+		  no
+	  end,
+    CH2 = if Do1 == true;
+	     Do1 == false,Do2==false,Do3 == xx ->
+		  ch2;
+	     true ->
+		  no
+	  end,
+    {CH1,CH2}.
+
+%% Utilities.
+
 check(V1, V0) ->
     if V1 /= V0 ->
 	    io:fwrite("error: ~w.\n", [V1]),
@@ -393,5 +467,3 @@ echo(X) ->
     X.
 
 id(I) -> I.
-
-    

@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- * 
- * Copyright Ericsson AB 2008-2009. All Rights Reserved.
- * 
+ *
+ * Copyright Ericsson AB 2008-2010. All Rights Reserved.
+ *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- * 
+ *
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- * 
+ *
  * %CopyrightEnd%
  */
 
@@ -76,8 +76,8 @@ void erts_init_bif_re(void)
     re_exec_trap_export.code[0] = am_erlang;
     re_exec_trap_export.code[1] = am_re_run_trap;
     re_exec_trap_export.code[2] = 3;
-    re_exec_trap_export.code[3] = (Eterm) em_apply_bif;
-    re_exec_trap_export.code[4] = (Eterm) &re_exec_trap;
+    re_exec_trap_export.code[3] = (BeamInstr) em_apply_bif;
+    re_exec_trap_export.code[4] = (BeamInstr) &re_exec_trap;
 
     grun_trap_exportp =  erts_export_put(am_re,am_grun,3);
     urun_trap_exportp =  erts_export_put(am_re,am_urun,3);
@@ -103,7 +103,7 @@ Sint erts_re_set_loop_limit(Sint limit)
 
 static int term_to_int(Eterm term, int *sp)
 {
-#ifdef ARCH_64
+#if defined(ARCH_64) && !HALFWORD_HEAP
 
     if (is_small(term)) {
 	Uint x = signed_val(term);
@@ -154,7 +154,7 @@ static int term_to_int(Eterm term, int *sp)
 
 static Eterm make_signed_integer(int x, Process *p)
 {
-#ifdef ARCH_64
+#if defined(ARCH_64) && !HALFWORD_HEAP
     return make_small(x);
 #else
     Eterm* hp;
@@ -884,7 +884,7 @@ re_run_3(BIF_ALIST_3)
 	    int capture_count;
 
 	    if (pflags & PARSE_FLAG_UNICODE && 
-		(!is_binary(BIF_ARG_1) || 
+		(!is_binary(BIF_ARG_2) || !is_binary(BIF_ARG_1) ||
 		 (is_list_cap && !(pflags & PARSE_FLAG_GLOBAL)))) { 
 		BIF_TRAP3(urun_trap_exportp, BIF_P, BIF_ARG_1, BIF_ARG_2, BIF_ARG_3);
 	    }
@@ -1020,6 +1020,9 @@ re_run_3(BIF_ALIST_3)
 	    goto handle_iolist;
 	}
 	pb = (ProcBin *) bptr;
+	if (pb->flags) {
+	    erts_emasculate_writable_binary(pb);
+	}
 	restart.subject = (char *) (pb->bytes+offset);
 	restart.flags |= RESTART_FLAG_SUBJECT_IN_BINARY;
     } else {

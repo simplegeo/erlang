@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- * 
- * Copyright Ericsson AB 2000-2009. All Rights Reserved.
- * 
+ *
+ * Copyright Ericsson AB 2000-2010. All Rights Reserved.
+ *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- * 
+ *
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- * 
+ *
  * %CopyrightEnd%
  */
 #ifdef HAVE_CONFIG_H
@@ -70,7 +70,6 @@ static ErlAsync* async_ready_list = NULL;
 /* Detach from driver */
 static void async_detach(DE_Handle* dh)
 {
-    /* XXX:PaN what should happen here? we want to unload the driver or??? */
     return;
 }
 
@@ -176,7 +175,6 @@ int exit_async()
 
 static void async_add(ErlAsync* a, AsyncQueue* q)
 {
-    /* XXX:PaN Is this still necessary when ports lock drivers? */
     if (is_internal_port(a->port)) {
 	ERTS_LC_ASSERT(erts_drvportid2port(a->port));
 	/* make sure the driver will stay around */

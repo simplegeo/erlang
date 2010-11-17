@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 2004-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 2004-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 -module(snmpa).
@@ -47,6 +47,7 @@
 	 mib_of/1, mib_of/2, 
 	 me_of/1,  me_of/2, 
 	 invalidate_mibs_cache/0, invalidate_mibs_cache/1, 
+	 which_mibs_cache_size/0, which_mibs_cache_size/1, 
 	 enable_mibs_cache/0, enable_mibs_cache/1, 
 	 disable_mibs_cache/0, disable_mibs_cache/1,
 	 gc_mibs_cache/0, gc_mibs_cache/1, gc_mibs_cache/2, gc_mibs_cache/3,
@@ -60,7 +61,7 @@
 	 register_subagent/3, unregister_subagent/2, 
 
 	 send_notification/3, send_notification/4, send_notification/5,
-	 send_notification/6,
+	 send_notification/6, send_notification/7, 
 	 send_trap/3, send_trap/4,
 
 	 discovery/2, discovery/3, discovery/4, discovery/5, discovery/6, 
@@ -83,6 +84,7 @@
 %% Audit Trail Log functions
 -export([log_to_txt/2, log_to_txt/3, log_to_txt/4, 
 	 log_to_txt/5, log_to_txt/6, log_to_txt/7, 
+	 log_info/0, 
 	 change_log_size/1,
 	 get_log_type/0,    get_log_type/1, 
 	 change_log_type/1, change_log_type/2,
@@ -301,6 +303,13 @@ invalidate_mibs_cache(Agent) ->
     snmpa_agent:invalidate_mibs_cache(Agent).
 
 
+which_mibs_cache_size() ->
+    which_mibs_cache_size(snmp_master_agent).
+
+which_mibs_cache_size(Agent) ->
+    snmpa_agent:which_mibs_cache_size(Agent).
+
+
 enable_mibs_cache() ->
     enable_mibs_cache(snmp_master_agent).
 
@@ -414,13 +423,22 @@ send_notification(Agent, Notification, Recv, Varbinds) ->
 send_notification(Agent, Notification, Recv, NotifyName, Varbinds) ->
     send_notification(Agent, Notification, Recv, NotifyName, "", Varbinds).
 
-send_notification(Agent, Notification, Recv, 
-		  NotifyName, ContextName, Varbinds) 
+send_notification(Agent, Notification, Recv, NotifyName, 
+		  ContextName, Varbinds) 
   when (is_list(NotifyName)  andalso 
 	is_list(ContextName) andalso 
 	is_list(Varbinds)) ->
     snmpa_agent:send_trap(Agent, Notification, NotifyName, 
 			  ContextName, Recv, Varbinds).
+
+send_notification(Agent, Notification, Recv, 
+		  NotifyName, ContextName, Varbinds, LocalEngineID) 
+  when (is_list(NotifyName)  andalso 
+	is_list(ContextName) andalso 
+	is_list(Varbinds) andalso 
+	is_list(LocalEngineID)) ->
+    snmpa_agent:send_trap(Agent, Notification, NotifyName, 
+			  ContextName, Recv, Varbinds, LocalEngineID).
 
 %% Kept for backwards compatibility
 send_trap(Agent, Trap, Community) ->
@@ -535,6 +553,7 @@ get_agent_caps() ->
 %%%-----------------------------------------------------------------
 %%% Audit Trail Log functions 
 %%%-----------------------------------------------------------------
+
 log_to_txt(LogDir, Mibs) -> 
     OutFile = "snmpa_log.txt",       
     LogName = ?audit_trail_log_name, 
@@ -553,6 +572,11 @@ log_to_txt(LogDir, Mibs, OutFile, LogName, LogFile, Start) ->
     snmp:log_to_txt(LogDir, Mibs, OutFile, LogName, LogFile, Start).
 log_to_txt(LogDir, Mibs, OutFile, LogName, LogFile, Start, Stop) -> 
     snmp:log_to_txt(LogDir, Mibs, OutFile, LogName, LogFile, Start, Stop).
+
+
+log_info() ->
+    LogName = ?audit_trail_log_name, 
+    snmp_log:info(LogName).
 
 
 change_log_size(NewSize) -> 

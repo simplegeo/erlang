@@ -9,6 +9,8 @@ MODULES= \
 	array_SUITE \
 	base64_SUITE \
 	beam_lib_SUITE \
+	binary_module_SUITE \
+	binref \
 	c_SUITE \
 	calendar_SUITE \
 	dets_SUITE \
@@ -18,6 +20,7 @@ MODULES= \
 	digraph_utils_SUITE \
 	dummy1_h \
 	dummy_h \
+	edlin_expand_SUITE \
 	epp_SUITE \
 	erl_eval_helper \
 	erl_eval_SUITE \
@@ -29,6 +32,10 @@ MODULES= \
 	escript_SUITE \
 	ets_SUITE \
 	ets_tough_SUITE \
+	expand_test \
+	expand_test1 \
+	ExpandTestCaps \
+	ExpandTestCaps1 \
 	filelib_SUITE \
 	file_sorter_SUITE \
 	filename_SUITE \
@@ -105,7 +112,7 @@ COVERFILE=stdlib.cover
 
 make_emakefile:
 	$(ERL_TOP)/make/make_emakefile $(ERL_COMPILE_FLAGS) -o$(EBIN) $(MODULES) \
-	>> $(EMAKEFILE)
+	> $(EMAKEFILE)
 
 tests debug opt: make_emakefile
 	erl $(ERL_MAKE_FLAGS) -make

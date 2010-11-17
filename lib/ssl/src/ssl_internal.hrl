@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 2007-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 2007-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 
@@ -22,6 +22,8 @@
 
 -ifndef(ssl_internal).
 -define(ssl_internal, true).
+
+-include_lib("public_key/include/public_key.hrl"). 
 
 %% basic binary constructors
 -define(BOOLEAN(X),  X:8/unsigned-big-integer).
@@ -57,12 +59,18 @@
 	  verify_fun, % fun(CertVerifyErrors) -> boolean()
 	  fail_if_no_peer_cert, % boolean()
 	  verify_client_once,  % boolean()
+	  %% fun(Extensions, State, Verify, AccError) ->  {Extensions, State, AccError}
+	  validate_extensions_fun, 
 	  depth,      % integer()
 	  certfile,   % file()
+	  cert,       % der_encoded()
 	  keyfile,    % file()
-	  key,	      % 
+	  key,	      % der_encoded()
 	  password,   % 
+	  cacerts,    % [der_encoded()]
 	  cacertfile, % file()
+	  dh,         % der_encoded()
+	  dhfile,     % file()
 	  ciphers,    % 
 	  %% Local policy for the server if it want's to reuse the session
 	  %% or not. Defaluts to allways returning true.
@@ -71,6 +79,8 @@
 	  %% If false sessions will never be reused, if true they
 	  %% will be reused if possible.
 	  reuse_sessions, % boolean()
+	  renegotiate_at,
+	  secure_renegotiate,
 	  debug           %
 	  }).
 
@@ -82,6 +92,28 @@
 	  header = 0,
 	  active = true
 	 }).
+
+-type reason()            :: term().
+-type reply()             :: term().
+-type msg()               :: term().
+-type from()              :: term().
+-type host()		  :: string() | tuple().
+-type port_num()	  :: integer().
+-type session_id()        :: 0 | binary().
+-type tls_version()       :: {integer(), integer()}.
+-type tls_atom_version()  :: sslv3 | tlsv1.
+-type cache_ref()         :: term(). 
+-type certdb_ref()        :: term(). 
+-type key_algo()          :: null | rsa | dhe_rsa | dhe_dss.
+-type enum_algo()          :: integer().
+-type public_key()        :: #'RSAPublicKey'{} | integer().
+-type public_key_params() :: #'Dss-Parms'{} | term().
+-type public_key_info()   :: {enum_algo(), public_key(), public_key_params()}.
+-type der_cert()          :: binary().
+-type private_key()       :: #'RSAPrivateKey'{} | #'DSAPrivateKey'{}.
+-type issuer()            :: tuple().
+-type serialnumber()      :: integer().
+-type cert_key()          :: {reference(), integer(), issuer()}.
 
 -endif. % -ifdef(ssl_internal).
 

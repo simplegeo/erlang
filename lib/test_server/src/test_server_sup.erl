@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 1998-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 1998-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 
@@ -21,7 +21,7 @@
 %%% Purpose: Test server support functions.
 %%%-------------------------------------------------------------------
 -module(test_server_sup).
--export([timetrap/2, timetrap_cancel/1, capture_get/1, messages_get/1,
+-export([timetrap/2, timetrap/3, timetrap_cancel/1, capture_get/1, messages_get/1,
 	 timecall/3, call_crash/5, app_test/2, check_new_crash_dumps/0,
 	 cleanup_crash_dumps/0, crash_dump_dir/0, tar_crash_dumps/0,
 	 get_username/0, get_os_family/0, 
@@ -34,16 +34,23 @@
 -define(src_listing_ext, ".src.html").
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% timetrap(Timeout,Pid) -> Handle
+%% timetrap(Timeout,Scale,Pid) -> Handle
 %% Handle = term()
 %%
 %% Creates a time trap, that will kill the given process if the 
 %% trap is not cancelled with timetrap_cancel/1, within Timeout
 %% milliseconds.
+%% Scale says if the time should be scaled up to compensate for
+%% delays during the test (e.g. if cover is running).
 
 timetrap(Timeout0, Pid) ->
+    timetrap(Timeout0, true, Pid).
+
+timetrap(Timeout0, Scale, Pid) ->
     process_flag(priority, max),
-    Timeout = test_server:timetrap_scale_factor() * Timeout0,
+    Timeout = if not Scale -> Timeout0;
+		 true -> test_server:timetrap_scale_factor() * Timeout0
+	      end,
     receive
     after trunc(Timeout) ->
 	    Line = test_server:get_loc(Pid),
@@ -497,7 +504,19 @@ framework_call(Callback,Func,Args,DefaultReturn) ->
     end,
     case erlang:function_exported(Mod,Func,length(Args)) of
 	true ->
-	    apply(Mod,Func,Args);
+	    put(test_server_loc, {Mod,Func,framework}),
+	    EH = fun(Reason) -> exit({fw_error,{Mod,Func,Reason}}) end,
+	    try apply(Mod,Func,Args) of
+		Result ->
+		    Result
+	    catch
+		exit:Why ->
+		    EH(Why);
+		error:Why ->
+		    EH({Why,erlang:get_stacktrace()});
+		throw:Why ->
+		    EH(Why)
+	    end;
 	false ->
 	    DefaultReturn
     end.

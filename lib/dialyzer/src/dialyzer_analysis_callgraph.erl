@@ -1,20 +1,20 @@
 %% -*- erlang-indent-level: 2 -*-
 %%--------------------------------------------------------------------
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 2006-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 2006-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 
@@ -43,7 +43,8 @@
 	  parent                        :: pid(),
 	  plt                           :: dialyzer_plt:plt(),
 	  start_from     = byte_code    :: start_from(),
-	  use_contracts  = true         :: boolean()
+	  use_contracts  = true         :: boolean(),
+	  behaviours = {false,[]}   :: {boolean(),[atom()]}
 	 }).
 
 -record(server_state, {parent :: pid(), legal_warnings :: [dial_warn_tag()]}).
@@ -56,7 +57,9 @@
 
 start(Parent, LegalWarnings, Analysis) ->
   RacesOn = ordsets:is_element(?WARN_RACE_CONDITION, LegalWarnings),
-  Analysis0 = Analysis#analysis{race_detection = RacesOn},
+  BehavOn = ordsets:is_element(?WARN_BEHAVIOUR, LegalWarnings),
+  Analysis0 = Analysis#analysis{race_detection = RacesOn,
+				behaviours_chk = BehavOn},
   Analysis1 = expand_files(Analysis0),
   Analysis2 = run_analysis(Analysis1),
   State = #server_state{parent = Parent, legal_warnings = LegalWarnings},
@@ -93,6 +96,12 @@ loop(#server_state{parent = Parent, legal_warnings = LegalWarnings} = State,
       end;
     {AnalPid, ext_calls, NewExtCalls} ->
       loop(State, Analysis, NewExtCalls);
+    {AnalPid, ext_types, ExtTypes} ->
+      send_ext_types(Parent, ExtTypes),
+      loop(State, Analysis, ExtCalls);
+    {AnalPid, unknown_behaviours, UnknownBehaviour} ->
+      send_unknown_behaviours(Parent, UnknownBehaviour),
+      loop(State, Analysis, ExtCalls);
     {AnalPid, mod_deps, ModDeps} ->
       send_mod_deps(Parent, ModDeps),
       loop(State, Analysis, ExtCalls);
@@ -116,7 +125,8 @@ analysis_start(Parent, Analysis) ->
 			  plt = Plt,
 			  parent = Parent,
 			  start_from = Analysis#analysis.start_from,
-			  use_contracts = Analysis#analysis.use_contracts
+			  use_contracts = Analysis#analysis.use_contracts,
+			  behaviours = {Analysis#analysis.behaviours_chk, []}
 			 },
   Files = ordsets:from_list(Analysis#analysis.files),
   {Callgraph, NoWarn, TmpCServer0} = compile_and_store(Files, State),
@@ -124,22 +134,36 @@ analysis_start(Parent, Analysis) ->
   NewCServer =
     try
       NewRecords = dialyzer_codeserver:get_temp_records(TmpCServer0),
-      OldRecords = dialyzer_plt:get_types(State#analysis_state.plt),
+      NewExpTypes = dialyzer_codeserver:get_temp_exported_types(TmpCServer0),
+      OldRecords = dialyzer_plt:get_types(Plt),
+      OldExpTypes0 = dialyzer_plt:get_exported_types(Plt),
       MergedRecords = dialyzer_utils:merge_records(NewRecords, OldRecords),
+      RemMods =
+        [case Analysis#analysis.start_from of
+           byte_code -> list_to_atom(filename:basename(F, ".beam"));
+           src_code -> list_to_atom(filename:basename(F, ".erl"))
+         end || F <- Files],
+      OldExpTypes1 = dialyzer_utils:sets_filter(RemMods, OldExpTypes0),
+      MergedExpTypes = sets:union(NewExpTypes, OldExpTypes1),
       TmpCServer1 = dialyzer_codeserver:set_temp_records(MergedRecords, TmpCServer0),
-      TmpCServer2 = dialyzer_utils:process_record_remote_types(TmpCServer1),
-      dialyzer_contracts:process_contract_remote_types(TmpCServer2)
+      TmpCServer2 =
+        dialyzer_codeserver:insert_temp_exported_types(MergedExpTypes,
+                                                       TmpCServer1),
+      TmpCServer3 = dialyzer_utils:process_record_remote_types(TmpCServer2),
+      dialyzer_contracts:process_contract_remote_types(TmpCServer3)
     catch
       throw:{error, _ErrorMsg} = Error -> exit(Error)
     end,
-  NewPlt = dialyzer_plt:insert_types(Plt, dialyzer_codeserver:get_records(NewCServer)),
-  State0 = State#analysis_state{plt = NewPlt},
+  NewPlt0 = dialyzer_plt:insert_types(Plt, dialyzer_codeserver:get_records(NewCServer)),
+  ExpTypes =  dialyzer_codeserver:get_exported_types(NewCServer),
+  NewPlt1 = dialyzer_plt:insert_exported_types(NewPlt0, ExpTypes),
+  State0 = State#analysis_state{plt = NewPlt1},
   dump_callgraph(Callgraph, State0, Analysis),
   State1 = State0#analysis_state{codeserver = NewCServer},
   State2 = State1#analysis_state{no_warn_unused = NoWarn},
   %% Remove all old versions of the files being analyzed
   AllNodes = dialyzer_callgraph:all_nodes(Callgraph),
-  Plt1 = dialyzer_plt:delete_list(NewPlt, AllNodes),
+  Plt1 = dialyzer_plt:delete_list(NewPlt1, AllNodes),
   Exports = dialyzer_codeserver:get_exports(NewCServer),
   NewCallgraph =
     case Analysis#analysis.race_detection of
@@ -147,6 +171,7 @@ analysis_start(Parent, Analysis) ->
       false -> Callgraph
     end,
   State3 = analyze_callgraph(NewCallgraph, State2#analysis_state{plt = Plt1}),
+  rcv_and_send_ext_types(Parent),
   NonExports = sets:subtract(sets:from_list(AllNodes), Exports),
   NonExportsList = sets:to_list(NonExports),
   Plt3 = dialyzer_plt:delete_list(State3#analysis_state.plt, NonExportsList),
@@ -167,11 +192,13 @@ analyze_callgraph(Callgraph, State) ->
       State#analysis_state{plt = NewPlt};
     succ_typings ->
       NoWarn = State#analysis_state.no_warn_unused,
+      {BehavioursChk, _Known} = State#analysis_state.behaviours,
       DocPlt = State#analysis_state.doc_plt,
       Callgraph1 = dialyzer_callgraph:finalize(Callgraph),
       {Warnings, NewPlt, NewDocPlt} = 
 	dialyzer_succ_typings:get_warnings(Callgraph1, Plt, DocPlt,
-					   Codeserver, NoWarn, Parent),
+					   Codeserver, NoWarn, Parent,
+					   BehavioursChk),
       dialyzer_callgraph:delete(Callgraph1),
       send_warnings(State#analysis_state.parent, Warnings),
       State#analysis_state{plt = NewPlt, doc_plt = NewDocPlt}
@@ -186,7 +213,9 @@ compile_and_store(Files, #analysis_state{codeserver = CServer,
 					 include_dirs = Dirs,
 					 parent = Parent,
 					 use_contracts = UseContracts,
-					 start_from = StartFrom} = State) ->
+					 start_from = StartFrom,
+					 behaviours = {BehChk, _}
+					} = State) ->
   send_log(Parent, "Reading files and computing callgraph... "),
   {T1, _} = statistics(runtime),
   Includes = [{i, D} || D <- Dirs],
@@ -234,18 +263,37 @@ compile_and_store(Files, #analysis_state{codeserver = CServer,
   {T2, _} = statistics(runtime),
   Msg1 = io_lib:format("done in ~.2f secs\nRemoving edges... ", [(T2-T1)/1000]),
   send_log(Parent, Msg1),
-  NewCallgraph2 = cleanup_callgraph(State, NewCServer, NewCallgraph1, Modules),
+  {KnownBehaviours, UnknownBehaviours} =
+    dialyzer_behaviours:get_behaviours(Modules, NewCServer),
+  if UnknownBehaviours =:= [] -> ok;
+     true -> send_unknown_behaviours(Parent, UnknownBehaviours)
+  end,
+  State1 = State#analysis_state{behaviours = {BehChk,KnownBehaviours}},
+  NewCallgraph2 = cleanup_callgraph(State1, NewCServer, NewCallgraph1, Modules),
   {T3, _} = statistics(runtime),
   Msg2 = io_lib:format("done in ~.2f secs\n", [(T3-T2)/1000]),
   send_log(Parent, Msg2),  
   {NewCallgraph2, sets:from_list(NoWarn), NewCServer}.
 
 cleanup_callgraph(#analysis_state{plt = InitPlt, parent = Parent, 
-				  codeserver = CodeServer},
+				  codeserver = CodeServer,
+				  behaviours = {BehChk, KnownBehaviours}
+				 },
 		  CServer, Callgraph, Modules) ->
   ModuleDeps = dialyzer_callgraph:module_deps(Callgraph),
   send_mod_deps(Parent, ModuleDeps),
   {Callgraph1, ExtCalls} = dialyzer_callgraph:remove_external(Callgraph),
+  if BehChk ->
+      RelevantAPICalls =
+	dialyzer_behaviours:get_behaviour_apis(KnownBehaviours),
+      BehaviourAPICalls = [Call || {_From, To} = Call <- ExtCalls,
+				   lists:member(To, RelevantAPICalls)],
+      Callgraph2 =
+	dialyzer_callgraph:put_behaviour_api_calls(BehaviourAPICalls,
+						   Callgraph1);
+     true ->
+      Callgraph2 = Callgraph1
+  end,
   ExtCalls1 = [Call || Call = {_From, To} <- ExtCalls,
 		       not dialyzer_plt:contains_mfa(InitPlt, To)],
   {BadCalls1, RealExtCalls} =
@@ -268,7 +316,7 @@ cleanup_callgraph(#analysis_state{plt = InitPlt, parent = Parent,
      true ->
       send_ext_calls(Parent, lists:usort([To || {_From, To} <- RealExtCalls]))
   end,
-  Callgraph1.
+  Callgraph2.
 
 compile_src(File, Includes, Defines, Callgraph, CServer, UseContracts) ->
   DefaultIncludes = default_includes(filename:dirname(File)),
@@ -340,13 +388,27 @@ compile_byte(File, Callgraph, CServer, UseContracts) ->
 
 store_core(Mod, Core, NoWarn, Callgraph, CServer) ->
   Exp = get_exports_from_core(Core),
+  OldExpTypes = dialyzer_codeserver:get_temp_exported_types(CServer),
+  NewExpTypes = get_exported_types_from_core(Core),
+  MergedExpTypes = sets:union(NewExpTypes, OldExpTypes),
   CServer1 = dialyzer_codeserver:insert_exports(Exp, CServer),
-  {LabeledCore, CServer2} = label_core(Core, CServer1),
-  store_code_and_build_callgraph(Mod, LabeledCore, Callgraph, CServer2, NoWarn).
+  CServer2 = dialyzer_codeserver:insert_temp_exported_types(MergedExpTypes,
+                                                            CServer1),
+  {LabeledCore, CServer3} = label_core(Core, CServer2),
+  store_code_and_build_callgraph(Mod, LabeledCore, Callgraph, CServer3, NoWarn).
 
 abs_get_nowarn(Abs, M) ->
-  [{M, F, A} 
+  [{M, F, A}
    || {attribute, _, compile, {nowarn_unused_function, {F, A}}} <- Abs].
+
+get_exported_types_from_core(Core) ->
+  Attrs = cerl:module_attrs(Core),
+  ExpTypes1 = [cerl:concrete(L2) || {L1, L2} <- Attrs, cerl:is_literal(L1),
+                                    cerl:is_literal(L2),
+                                    cerl:concrete(L1) =:= 'export_type'],
+  ExpTypes2 = lists:flatten(ExpTypes1),
+  M = cerl:atom_val(cerl:module_name(Core)),
+  sets:from_list([{M, F, A} || {F, A} <- ExpTypes2]).
 
 get_exports_from_core(Core) ->
   Tree = cerl:from_records(Core),
@@ -359,7 +421,7 @@ label_core(Core, CServer) ->
   NextLabel = dialyzer_codeserver:get_next_core_label(CServer),
   CoreTree = cerl:from_records(Core),
   {LabeledTree, NewNextLabel} = cerl_trees:label(CoreTree, NextLabel),
-  {cerl:to_records(LabeledTree), 
+  {cerl:to_records(LabeledTree),
    dialyzer_codeserver:set_next_core_label(NewNextLabel, CServer)}.
 
 store_code_and_build_callgraph(Mod, Core, Callgraph, CServer, NoWarn) ->
@@ -423,6 +485,20 @@ default_includes(Dir) ->
 %% Handle Messages
 %%-------------------------------------------------------------------
 
+rcv_and_send_ext_types(Parent) ->
+  Self = self(),
+  Self ! {Self, done},
+  ExtTypes = rcv_ext_types(Self, []),
+  Parent ! {Self, ext_types, ExtTypes},
+  ok.
+
+rcv_ext_types(Self, ExtTypes) ->
+  receive
+    {Self, ext_types, ExtType} ->
+      rcv_ext_types(Self, [ExtType|ExtTypes]);
+    {Self, done} -> lists:usort(ExtTypes)
+  end.
+
 send_log(Parent, Msg) ->
   Parent ! {self(), log, Msg},
   ok.
@@ -440,9 +516,17 @@ filter_warnings(LegalWarnings, Warnings) ->
 send_analysis_done(Parent, Plt, DocPlt) ->
   Parent ! {self(), done, Plt, DocPlt},
   ok.
-  
+
 send_ext_calls(Parent, ExtCalls) ->
   Parent ! {self(), ext_calls, ExtCalls},
+  ok.
+
+send_ext_types(Parent, ExtTypes) ->
+  Parent ! {self(), ext_types, ExtTypes},
+  ok.
+
+send_unknown_behaviours(Parent, UnknownBehaviours) ->
+  Parent ! {self(), unknown_behaviours, UnknownBehaviours},
   ok.
 
 send_codeserver_plt(Parent, CServer, Plt ) ->
@@ -456,7 +540,7 @@ send_mod_deps(Parent, ModuleDeps) ->
   Parent ! {self(), mod_deps, ModuleDeps},
   ok.
 
-format_bad_calls([{{_, _, _}, {_, module_info, A}}|Left], CodeServer, Acc) 
+format_bad_calls([{{_, _, _}, {_, module_info, A}}|Left], CodeServer, Acc)
   when A =:= 0; A =:= 1 ->
   format_bad_calls(Left, CodeServer, Acc);
 format_bad_calls([{FromMFA, {M, F, A} = To}|Left], CodeServer, Acc) ->
@@ -469,7 +553,7 @@ format_bad_calls([], _CodeServer, Acc) ->
   Acc.
 
 find_call_file_and_line(Tree, MFA) ->
-  Fun = 
+  Fun =
     fun(SubTree, Acc) ->
 	case cerl:is_c_call(SubTree) of
 	  true ->

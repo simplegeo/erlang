@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 
@@ -49,24 +49,27 @@
          prim_read_file_info/2, prim_get_cwd/2]).
 
 %% Used by escript and code
--export([set_primary_archive/2, release_archives/0]).
-
-%% Internal function. Exported to avoid dialyzer warnings
--export([concat/1]).
+-export([set_primary_archive/3, release_archives/0]).
 
 -include_lib("kernel/include/file.hrl").
 
 -type host() :: atom().
 
+-record(prim_state, {debug :: boolean(),
+		     cache,
+		     primary_archive}).
+-type prim_state() :: #prim_state{}.
+
 -record(state, 
-        {loader              :: 'efile' | 'inet',
-         hosts = []          :: [host()], % hosts list (to boot from)
+        {loader            :: 'efile' | 'inet',
+         hosts = []        :: [host()], % hosts list (to boot from)
          id,                      % not used any more?
-         data,                    % data port etc
-         timeout,                 % idle timeout
-	 n_timeouts,              % Number of timeouts before archives are released
-         multi_get = false   :: boolean(),
-         prim_state}).            % state for efile code loader
+         data              :: 'noport' | port(), % data port etc
+         timeout           :: timeout(),         % idle timeout
+	 %% Number of timeouts before archives are released
+	 n_timeouts        :: non_neg_integer(),
+         multi_get = false :: boolean(),
+         prim_state        :: prim_state()}).    % state for efile code loader
 
 -define(IDLE_TIMEOUT, 60000).  %% tear inet connection after 1 minutes
 -define(N_TIMEOUTS, 6).        %% release efile archive after 6 minutes
@@ -88,8 +91,6 @@
                     XXXRes -> XXXRes
                 end
         end()).
-
--record(prim_state, {debug, cache, primary_archive}).
 
 debug(#prim_state{debug = Deb}, Term) ->
     case Deb of
@@ -124,7 +125,7 @@ start(Id, Pgm0, Hosts) ->
 
 start_it("ose_inet"=Cmd, Id, Pid, Hosts) ->
     %% Setup reserved port for ose_inet driver (only OSE)
-    case catch erlang:open_port({spawn,Cmd},[binary]) of
+    case catch erlang:open_port({spawn,Cmd}, [binary]) of
         {'EXIT',Why} ->
             ?dbg(ose_inet_port_open_fail, Why),
             Why;
@@ -220,14 +221,15 @@ get_cwd(Drive) ->
     check_file_result(get_cwd, Drive, request({get_cwd,[Drive]})).
 
 -spec set_primary_archive(File :: string() | 'undefined', 
-                          ArchiveBin :: binary() | 'undefined')
-      -> {ok, [string()]} | {error,_}.
+                          ArchiveBin :: binary() | 'undefined',
+			  FileInfo :: #file_info{} | 'undefined')
+			 -> {ok, [string()]} | {error,_}.
 
-set_primary_archive(undefined, undefined) ->
-    request({set_primary_archive, undefined, undefined});
-set_primary_archive(File, ArchiveBin)
-  when is_list(File), is_binary(ArchiveBin) ->
-    request({set_primary_archive, File, ArchiveBin}).
+set_primary_archive(undefined, undefined, undefined) ->
+    request({set_primary_archive, undefined, undefined, undefined});
+set_primary_archive(File, ArchiveBin, FileInfo)
+  when is_list(File), is_binary(ArchiveBin), is_record(FileInfo, file_info) ->
+    request({set_primary_archive, File, ArchiveBin, FileInfo}).
 
 -spec release_archives() -> 'ok' | {'error', _}.
 
@@ -315,8 +317,8 @@ loop(State, Parent, Paths) ->
                     {get_cwd,[_]=Args} ->
                         {Res,State1} = handle_get_cwd(State, Args),
                         {Res,State1,Paths};
-                    {set_primary_archive,File,Bin} ->
-                        {Res,State1} = handle_set_primary_archive(State, File, Bin),
+                    {set_primary_archive,File,Bin,FileInfo} ->
+                        {Res,State1} = handle_set_primary_archive(State, File, Bin, FileInfo),
                         {Res,State1,Paths};
                     release_archives ->
                         {Res,State1} = handle_release_archives(State),
@@ -325,7 +327,7 @@ loop(State, Parent, Paths) ->
                         {ignore,State,Paths}
                 end,
             if Resp =:= ignore -> ok;
-               true -> Pid ! {self(),Resp}
+               true -> Pid ! {self(),Resp}, ok
             end,
             if 
                 is_record(State2, state) ->
@@ -334,7 +336,7 @@ loop(State, Parent, Paths) ->
                     exit({bad_state, Req, State2})          
             end;
         {'EXIT',Parent,W} ->
-            handle_stop(State),
+            _State1 = handle_stop(State),
             exit(W);
         {'EXIT',P,W} ->
             State1 = handle_exit(State, P, W),
@@ -356,8 +358,8 @@ handle_get_file(State = #state{loader = efile}, Paths, File) ->
 handle_get_file(State = #state{loader = inet}, Paths, File) ->
     ?SAFE2(inet_get_file_from_port(State, File, Paths), State).
 
-handle_set_primary_archive(State= #state{loader = efile}, File, Bin) ->
-    ?SAFE2(efile_set_primary_archive(State, File, Bin), State).
+handle_set_primary_archive(State= #state{loader = efile}, File, Bin, FileInfo) ->
+    ?SAFE2(efile_set_primary_archive(State, File, Bin, FileInfo), State).
 
 handle_release_archives(State= #state{loader = efile}) ->
     ?SAFE2(efile_release_archives(State), State).
@@ -403,7 +405,7 @@ handle_timeout(State = #state{loader = inet}, Parent) ->
 efile_multi_get_file_from_port(State, ModFiles, Paths, Fun) ->
     Ref = make_ref(),
     %% More than 200 processes is no gain.
-    Max = min(200, erlang:system_info(thread_pool_size)),
+    Max = erlang:min(200, erlang:system_info(thread_pool_size)),
     efile_multi_get_file_from_port2(ModFiles, 0, Max, State, Paths, Fun, Ref, ok).
 
 efile_multi_get_file_from_port2([MF | MFs], Out, Max, State, Paths, Fun, Ref, Ret) when Out < Max ->
@@ -481,8 +483,8 @@ efile_get_file_from_port3(State, File, [P | Paths]) ->
 efile_get_file_from_port3(State, _File, []) ->
     {{error,enoent},State}.
 
-efile_set_primary_archive(#state{prim_state = PS} = State, File, Bin) ->
-    {Res, PS2} = prim_set_primary_archive(PS, File, Bin),
+efile_set_primary_archive(#state{prim_state = PS} = State, File, Bin, FileInfo) ->
+    {Res, PS2} = prim_set_primary_archive(PS, File, Bin, FileInfo),
     {Res,State#state{prim_state = PS2}}.
 
 efile_release_archives(#state{prim_state = PS} = State) ->
@@ -572,13 +574,14 @@ find_loop(U, Retry, AL, ReqDelay, SReSleep, Ignore, Tries, LReSleep) ->
     case find_loop(U, Retry, AL, ReqDelay, []) of
         [] ->                                   % no response from any server
             erlang:display({erl_prim_loader,'no server found'}), % lifesign
-            Tries1 = if Tries > 0 ->
-                             sleep(SReSleep),
-                             Tries - 1;
-                        true ->
-                             sleep(LReSleep),
-                             0
-                     end,
+            Tries1 =
+		if Tries > 0 ->
+			sleep(SReSleep),
+			Tries - 1;
+		   true ->
+			sleep(LReSleep),
+			0
+		end,
             find_loop(U, Retry, AL, ReqDelay, SReSleep, Ignore, Tries1, LReSleep);
         Servers ->
             keysort(1, Servers -- Ignore)
@@ -603,7 +606,6 @@ find_collect(U,Retry,AL,Delay,Acc) ->
         _Garbage ->
             ?dbg(collect_garbage, _Garbage),
             find_collect(U, Retry, AL, Delay, Acc)
-            
     after Delay ->
             ?dbg(collected, Acc),
             case keymember(0, 1, Acc) of  %% got high priority server?
@@ -617,7 +619,7 @@ sleep(Time) ->
     receive after Time -> ok end.
 
 inet_exit_port(State, Port, _Reason) when State#state.data =:= Port ->
-    State#state { data = noport, timeout = infinity };
+    State#state{data = noport, timeout = infinity};
 inet_exit_port(State, _, _) ->
     State.
 
@@ -627,7 +629,7 @@ inet_timeout_handler(State, _Parent) ->
     if is_port(Tcp) -> ll_close(Tcp);
        true -> ok
     end,
-    State#state { timeout = infinity, data = noport }.
+    State#state{timeout = infinity, data = noport}.
 
 %% -> {{ok,BinFile,Tag},State} | {{error,Reason},State}
 inet_get_file_from_port(State, File, Paths) ->
@@ -657,9 +659,9 @@ inet_get_file_from_port1(_File, [], State) ->
 
 inet_send_and_rcv(Msg, Tag, State) when State#state.data =:= noport ->
     {ok,Tcp} = find_master(State#state.hosts),     %% reconnect
-    inet_send_and_rcv(Msg, Tag, State#state { data = Tcp,
-                                              timeout = ?IDLE_TIMEOUT });
-inet_send_and_rcv(Msg, Tag, #state{data=Tcp,timeout=Timeout}=State) ->
+    inet_send_and_rcv(Msg, Tag, State#state{data = Tcp,
+					    timeout = ?IDLE_TIMEOUT});
+inet_send_and_rcv(Msg, Tag, #state{data = Tcp, timeout = Timeout} = State) ->
     prim_inet:send(Tcp, term_to_binary(Msg)),
     receive
         {tcp,Tcp,BinMsg} ->
@@ -677,13 +679,13 @@ inet_send_and_rcv(Msg, Tag, #state{data=Tcp,timeout=Timeout}=State) ->
             end;
         {tcp_closed,Tcp} ->
             %% Ok we must reconnect
-            inet_send_and_rcv(Msg, Tag, State#state { data = noport });
+            inet_send_and_rcv(Msg, Tag, State#state{data = noport});
         {tcp_error,Tcp,_Reason} ->
             %% Ok we must reconnect
             inet_send_and_rcv(Msg, Tag, inet_stop_port(State));
         {'EXIT', Tcp, _} -> 
             %% Ok we must reconnect
-            inet_send_and_rcv(Msg, Tag, State#state { data = noport })
+            inet_send_and_rcv(Msg, Tag, State#state{data = noport})
     after Timeout ->
             %% Ok we must reconnect
             inet_send_and_rcv(Msg, Tag, inet_stop_port(State))
@@ -770,6 +772,7 @@ port_error(S, Error) ->
     
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+-spec prim_init() -> prim_state().
 prim_init() ->
     Deb =
         case init:get_argument(loader_debug) of
@@ -777,19 +780,19 @@ prim_init() ->
             error -> false
         end,
     cache_new(#prim_state{debug = Deb}).
-    
+
 prim_release_archives(PS) ->
     debug(PS, release_archives),
-    {Res, PS2}= prim_do_release_archives(PS, get(), []),
+    {Res, PS2} = prim_do_release_archives(PS, get(), []),
     debug(PS2, {return, Res}),
     {Res, PS2}.
 
 prim_do_release_archives(PS, [{ArchiveFile, DictVal} | KeyVals], Acc) ->
     Res = 
 	case DictVal of
-	    {primary, _PrimZip} ->
+	    {primary, _PrimZip, _FI} ->
 		ok; % Keep primary archive
-	    {_Mtime, Cache} ->
+	    {Cache, _FI} ->
 		debug(PS, {release, cache, ArchiveFile}),
 		erase(ArchiveFile),
 		clear_cache(ArchiveFile, Cache)
@@ -805,7 +808,7 @@ prim_do_release_archives(PS, [], []) ->
 prim_do_release_archives(PS, [], Errors) ->
     {{error, Errors}, PS#prim_state{primary_archive = undefined}}.
 
-prim_set_primary_archive(PS, undefined, undefined) ->
+prim_set_primary_archive(PS, undefined, undefined, undefined) ->
     debug(PS, {set_primary_archive, clean}),
     case PS#prim_state.primary_archive of
         undefined ->
@@ -813,14 +816,14 @@ prim_set_primary_archive(PS, undefined, undefined) ->
             debug(PS, {return, Res}),
             {Res, PS};
         ArchiveFile ->
-            {primary, PrimZip} = erase(ArchiveFile),
+            {primary, PrimZip, _FI} = erase(ArchiveFile),
             ok = prim_zip:close(PrimZip),
             PS2 = PS#prim_state{primary_archive = undefined},
             Res = {ok, []},
             debug(PS2, {return, Res}),
             {Res, PS2}
     end;
-prim_set_primary_archive(PS, ArchiveFile, ArchiveBin)
+prim_set_primary_archive(PS, ArchiveFile, ArchiveBin, #file_info{} = FileInfo)
   when is_list(ArchiveFile), is_binary(ArchiveBin) ->
     %% Try the archive file
     debug(PS, {set_primary_archive, ArchiveFile, byte_size(ArchiveBin)}),
@@ -833,17 +836,17 @@ prim_set_primary_archive(PS, ArchiveFile, ArchiveBin)
                                 ["", "nibe", RevApp] -> % Reverse ebin
                                     %% Collect ebin directories in archive
                                     Ebin = reverse(RevApp) ++ "/ebin",
-                                    {true, [Ebin | A]};
+				    {true, [Ebin | A]};
                                 _ ->
                                     {true, A}
                             end
                     end,
                 Ebins0 = [ArchiveFile],
-                case open_archive({ArchiveFile, ArchiveBin}, Ebins0, Fun) of
-                    {ok, PrimZip, RevEbins} ->
+                case open_archive({ArchiveFile, ArchiveBin}, FileInfo, Ebins0, Fun) of
+                    {ok, PrimZip, {RevEbins, FI, _}} ->
                         Ebins = reverse(RevEbins),
                         debug(PS, {set_primary_archive, Ebins}),
-                        put(ArchiveFile, {primary, PrimZip}),
+                        put(ArchiveFile, {primary, PrimZip, FI}),
                         {{ok, Ebins}, PS#prim_state{primary_archive = ArchiveFile}};
                     Error ->
                         debug(PS, {set_primary_archive, Error}),
@@ -851,14 +854,15 @@ prim_set_primary_archive(PS, ArchiveFile, ArchiveBin)
                 end;
             OldArchiveFile ->
                 debug(PS, {set_primary_archive, clean}),
-                PrimZip = erase(OldArchiveFile),
+                {primary, PrimZip, _FI} = erase(OldArchiveFile),
                 ok = prim_zip:close(PrimZip),
                 PS2 = PS#prim_state{primary_archive = undefined},
-                prim_set_primary_archive(PS2, ArchiveFile, ArchiveBin)
+                prim_set_primary_archive(PS2, ArchiveFile, ArchiveBin, FileInfo)
         end,
     debug(PS3, {return, Res3}),
     {Res3, PS3}.
 
+-spec prim_get_file(prim_state(), file:filename()) -> {_, prim_state()}.
 prim_get_file(PS, File) ->
     debug(PS, {get_file, File}),
     {Res2, PS2} =
@@ -883,7 +887,9 @@ prim_get_file(PS, File) ->
     debug(PS, {return, Res2}),
     {Res2, PS2}.    
 
-%% -> {{ok,List},State} | {{error,Reason},State}
+-spec prim_list_dir(prim_state(), file:filename()) ->
+	 {{'ok', [file:filename()]}, prim_state()}
+       | {{'error', term()}, prim_state()}.
 prim_list_dir(PS, Dir) ->
     debug(PS, {list_dir, Dir}),
     {Res2, PS3} =
@@ -934,7 +940,9 @@ prim_list_dir(PS, Dir) ->
     debug(PS, {return, Res2}),
     {Res2, PS3}.
 
-%% -> {{ok,Info},State} | {{error,Reason},State}
+-spec prim_read_file_info(prim_state(), file:filename()) ->
+	{{'ok', #file_info{}}, prim_state()}
+      | {{'error', term()}, prim_state()}.
 prim_read_file_info(PS, File) ->
     debug(PS, {read_file_info, File}),
     {Res2, PS2} =
@@ -956,15 +964,15 @@ prim_read_file_info(PS, File) ->
                 FunnyFile = funny_split(FileInArchive, $/),
                 Fun =
                     fun({Funny, GetInfo, _GetBin}, Acc)  ->
-			    if
-                                hd(Funny) =:= "",
-                                tl(Funny) =:= FunnyFile ->
+			    case Funny of
+				[H | T] when  H =:= "",
+					      T =:= FunnyFile ->
                                     %% Directory
                                     {false, {ok, GetInfo()}};
-                                Funny =:= FunnyFile ->
+                                F when F =:= FunnyFile ->
                                     %% Plain file
                                     {false, {ok, GetInfo()}};
-                                true ->
+                                _ ->
                                     %% No match
                                     {true, Acc}
                             end
@@ -974,6 +982,8 @@ prim_read_file_info(PS, File) ->
     debug(PS2, {return, Res2}),
     {Res2, PS2}.
 
+-spec prim_get_cwd(prim_state(), [file:filename()]) ->
+        {{'error', term()} | {'ok', _}, prim_state()}.
 prim_get_cwd(PS, []) ->
     debug(PS, {get_cwd, []}),
     Res = prim_file:get_cwd(),
@@ -990,33 +1000,36 @@ prim_get_cwd(PS, [Drive]) ->
 apply_archive(PS, Fun, Acc, Archive) ->
     case get(Archive) of
         undefined ->
+	    case open_archive(Archive, Acc, Fun) of
+		{ok, PrimZip, {Acc2, FI, _}} ->
+		    debug(PS, {cache, ok}),
+		    put(Archive, {{ok, PrimZip}, FI}),
+		    {Acc2, PS};
+		Error ->
+		    debug(PS, {cache, Error}),
+		    %% put(Archive, {Error, FI}),
+		    {Error, PS}
+	    end;
+        {primary, PrimZip, FI} ->
+	    case prim_file:read_file_info(Archive) of
+                {ok, FI2} 
+		  when FI#file_info.mtime =:= FI2#file_info.mtime ->
+		    case foldl_archive(PrimZip, Acc, Fun) of
+			{ok, _PrimZip2, Acc2} ->
+			    {Acc2, PS};
+			Error ->
+			    debug(PS, {primary, Error}),
+			    {Error, PS}
+		    end;
+		Error ->
+		    debug(PS, {cache, {clear, Error}}),
+		    clear_cache(Archive, {ok, PrimZip}),
+		    apply_archive(PS, Fun, Acc, Archive)
+	    end;
+        {Cache, FI} ->
             case prim_file:read_file_info(Archive) of
-                {ok, #file_info{mtime = Mtime}} ->
-                    case open_archive(Archive, Acc, Fun) of
-                        {ok, PrimZip, Acc2} ->
-                            debug(PS, {cache, ok}),
-                            put(Archive, {Mtime, {ok, PrimZip}}),
-                            {Acc2, PS};
-                        Error ->
-                            debug(PS, {cache, Error}),
-                            put(Archive, {Mtime, Error}),
-                            {Error, PS}
-                    end;
-                Error ->
-                    debug(PS, {cache, Error}),
-                    {Error, PS}
-            end;
-        {primary, PrimZip} ->
-            case foldl_archive(PrimZip, Acc, Fun) of
-                {ok, _PrimZip2, Acc2} ->
-                    {Acc2, PS};
-                Error ->
-                    debug(PS, {primary, Error}),
-                    {Error, PS}
-            end;
-        {Mtime, Cache} ->
-            case prim_file:read_file_info(Archive) of
-                {ok, #file_info{mtime = Mtime2}} when Mtime2 =:= Mtime ->
+                {ok, FI2} 
+		  when FI#file_info.mtime =:= FI2#file_info.mtime ->
                     case Cache of
                         {ok, PrimZip} ->
                             case foldl_archive(PrimZip, Acc, Fun) of
@@ -1024,9 +1037,10 @@ apply_archive(PS, Fun, Acc, Archive) ->
                                     {Acc2, PS};
                                 Error ->
                                     debug(PS, {cache, {clear, Error}}),
-                                    clear_cache(Archive, Cache),
+                                    ok = clear_cache(Archive, Cache),
                                     debug(PS, {cache, Error}),
-                                    put(Archive, {Mtime, Error}),
+				    erase(Archive),
+                                    %% put(Archive, {Error, FI}),
                                     {Error, PS}
                             end;
                         Error ->
@@ -1035,26 +1049,63 @@ apply_archive(PS, Fun, Acc, Archive) ->
                     end;
                 Error ->
                     debug(PS, {cache, {clear, Error}}),
-                    clear_cache(Archive, Cache),
+                    ok = clear_cache(Archive, Cache),
                     apply_archive(PS, Fun, Acc, Archive)
             end
     end.
 
 open_archive(Archive, Acc, Fun) ->
+    case prim_file:read_file_info(Archive) of
+	{ok, FileInfo} ->
+	    open_archive(Archive, FileInfo, Acc, Fun);
+	{error, Reason} ->
+	    {error, Reason}
+    end.
+
+open_archive(Archive, FileInfo, Acc, Fun) ->
+    FakeFI = FileInfo#file_info{type = directory},
     Wrapper =
-        fun({N, GI, GB}, A) ->
-                %% Ensure full iteration at open
-                Funny = funny_split(N, $/),
-                {_Continue, A2} = Fun({Funny, GI, GB}, A),
-                {true, {true, Funny}, A2}
-        end,
-    prim_zip:open(Wrapper, Acc, Archive).
+	fun({N, GI, GB}, {A, I, FunnyDirs}) -> % Full iteration at open
+		Funny = funny_split(N, $/),
+		FunnyDirs2 =
+		    case Funny of
+			["" | FunnyDir] ->
+			    [FunnyDir | FunnyDirs];
+			_ ->
+			    FunnyDirs
+		    end,
+		{Includes, FunnyDirs3, A2} = 
+		    ensure_virtual_dirs(Funny, Fun, FakeFI, [{true, Funny}], FunnyDirs2, A),
+		{_Continue, A3} = Fun({Funny, GI, GB}, A2),
+		{true, Includes, {A3, I, FunnyDirs3}}
+	end,
+    prim_zip:open(Wrapper, {Acc, FakeFI, []}, Archive).
+
+ensure_virtual_dirs(Funny, Fun, FakeFI, Includes, FunnyDirs, Acc) ->
+    case Funny of
+	[_ | FunnyDir] ->
+	    case lists:member(FunnyDir, FunnyDirs) of % BIF
+		false ->
+		    GetInfo = fun() -> FakeFI end,
+		    GetBin = fun() -> <<>> end,
+		    VirtualDir = ["" | FunnyDir],
+		    Includes2 = [{true, VirtualDir, GetInfo, GetBin} | Includes],
+		    FunnyDirs2 = [FunnyDir | FunnyDirs],
+		    {I, F, Acc2} = ensure_virtual_dirs(FunnyDir, Fun, FakeFI, Includes2, FunnyDirs2, Acc),
+		    {_Continue, Acc3} = Fun({VirtualDir, GetInfo, GetBin}, Acc2),
+		    {I, F, Acc3};
+		true ->
+		    {reverse(Includes), FunnyDirs, Acc}
+	    end;
+	[] ->
+	    {reverse(Includes), FunnyDirs, Acc}
+    end.
 
 foldl_archive(PrimZip, Acc, Fun) ->
     Wrapper =
-        fun({N, GI, GB}, A) ->
+        fun({Funny, GI, GB}, A) ->
                 %% Allow partial iteration at foldl
-                {Continue, A2} = Fun({N, GI, GB}, A),
+                {Continue, A2} = Fun({Funny, GI, GB}, A),
                 {Continue, true, A2}
         end,                        
     prim_zip:foldl(Wrapper, Acc, PrimZip).
@@ -1100,8 +1151,8 @@ send_all(U, [IP | AL], Cmd) ->
     send_all(U, AL, Cmd);
 send_all(_U, [], _) -> ok.
 
-concat([A|T]) when is_atom(A) ->                        %Atom
-    atom_to_list(A) ++ concat(T);
+%%concat([A|T]) when is_atom(A) ->              %Atom
+%%    atom_to_list(A) ++ concat(T);
 concat([C|T]) when C >= 0, C =< 255 ->
     [C|concat(T)];
 concat([S|T]) ->                                %String
@@ -1137,9 +1188,6 @@ keysort(_I, [], Ls) -> Ls.
 keyins(X, I, [Y | T]) when X < element(I,Y) -> [X,Y|T];
 keyins(X, I, [Y | T]) -> [Y | keyins(X, I, T)];
 keyins(X, _I, []) -> [X].
-
-min(X, Y) when X < Y -> X;
-min(_X, Y) -> Y.
 
 to_strs([P|Paths]) when is_atom(P) ->
     [atom_to_list(P)|to_strs(Paths)];

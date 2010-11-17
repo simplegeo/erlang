@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- * 
- * Copyright Ericsson AB 2002-2009. All Rights Reserved.
- * 
+ *
+ * Copyright Ericsson AB 2002-2010. All Rights Reserved.
+ *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- * 
+ *
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- * 
+ *
  * %CopyrightEnd%
  *
  */
@@ -206,7 +206,11 @@ int asn1_drv_control(ErlDrvData   handle,
   set_port_control_flags(a_data->port, PORT_CONTROL_FLAG_BINARY);
 
   if (command == ASN1_COMPLETE)
-    { /* Do the PER complete encode step */
+    { 
+      if (buf_len==0) {
+	  return 0; /* Avoid binary buffer overwrite (OTP-8451) */
+      }
+      /* Do the PER complete encode step */
       if ((drv_binary = driver_alloc_binary(buf_len))==NULL) {
 	/* error handling */
 	set_port_control_flags(a_data->port, 0);
@@ -1403,7 +1407,6 @@ int decode_partial(ErlDrvBinary **drv_binary,unsigned char *in_buf, int in_buf_l
   int msg_index_val;
   int *msg_index, *tag_index, tmp_index;
   int tag_seq_length;
-  char tag_code; /* one of ASN1_SKIPPED, ASN1_OPTIONAL, ASN1_CHOOSEN */
   int wanted_tag, next_tag;
   int buf_end_index = in_buf_len;
   int ret = 0, length, old_index;
@@ -1596,7 +1599,7 @@ int get_value(char *out_buf,
 {
   int len, lenoflen, indef=0, skip_len;
   int ret=0;
-  int start_index, out_index = 0;
+  int start_index;
   
 /*   printf("get_value 1\n\r"); */
   if (in_buf[*msg_index] < 0x80){ /* short definite length */

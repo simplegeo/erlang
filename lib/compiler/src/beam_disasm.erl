@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 2000-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 2000-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%=======================================================================
 %% Notes:
@@ -621,8 +621,7 @@ resolve_names(Fun, Imports, Str, Lbls, Lambdas, Literals, M) ->
 
 %%
 %% New make_fun2/4 instruction added in August 2001 (R8).
-%% New put_literal/2 instruction added in Feb 2006 R11B-4.
-%% We handle them specially here to avoid adding an argument to
+%% We handle it specially here to avoid adding an argument to
 %% the clause for every instruction.
 %%
 
@@ -631,8 +630,6 @@ resolve_inst({make_fun2,Args}, _, _, _, Lambdas, _, M) ->
     {OldIndex,{F,A,_Lbl,_Index,NumFree,OldUniq}} =
 	lists:keyfind(OldIndex, 1, Lambdas),
     {make_fun2,{M,F,A},OldIndex,OldUniq,NumFree};
-resolve_inst({put_literal,[{u,Index},Dst]},_,_,_,_,Literals,_) ->
-    {put_literal,{literal,gb_trees:get(Index, Literals)},Dst};
 resolve_inst(Instr, Imports, Str, Lbls, _Lambdas, _Literals, _M) ->
     %% io:format(?MODULE_STRING":resolve_inst ~p.~n", [Instr]),
     resolve_inst(Instr, Imports, Str, Lbls).
@@ -1004,13 +1001,17 @@ resolve_inst({gc_bif2,Args},Imports,_,_) ->
     [F,Live,Bif,A1,A2,Reg] = resolve_args(Args),
     {extfunc,_Mod,BifName,_Arity} = lookup(Bif+1,Imports),
     {gc_bif,BifName,F,Live,[A1,A2],Reg};
+%%
+%% New instruction in R14, gc_bif with 3 arguments
+%%
+resolve_inst({gc_bif3,Args},Imports,_,_) ->
+    [F,Live,Bif,A1,A2,A3,Reg] = resolve_args(Args),
+    {extfunc,_Mod,BifName,_Arity} = lookup(Bif+1,Imports),
+    {gc_bif,BifName,F,Live,[A1,A2,A3],Reg};
 
 %%
 %% New instructions for creating non-byte aligned binaries.
 %%
-resolve_inst({bs_bits_to_bytes2,[_Arg2,_Arg3]=Args},_,_,_) ->
-    [A2,A3] = resolve_args(Args),
-    {bs_bits_to_bytes2,A2,A3};
 resolve_inst({bs_final2,[X,Y]},_,_,_) ->
     {bs_final2,X,Y};
 
@@ -1094,6 +1095,14 @@ resolve_inst({bs_put_utf32=I,[Lbl,{u,U},Arg3]},_,_,_) ->
 %%
 resolve_inst({on_load,[]},_,_,_) ->
     on_load;
+
+%%
+%% R14A.
+%%
+resolve_inst({recv_mark,[Lbl]},_,_,_) ->
+    {recv_mark,Lbl};
+resolve_inst({recv_set,[Lbl]},_,_,_) ->
+    {recv_set,Lbl};
 
 %%
 %% Catches instructions that are not yet handled.

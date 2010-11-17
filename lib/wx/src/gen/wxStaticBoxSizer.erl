@@ -1,24 +1,24 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 2008-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 2008-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %% This file is generated DO NOT EDIT
 
 %% @doc See external documentation: <a href="http://www.wxwidgets.org/manuals/stable/wx_wxstaticboxsizer.html">wxStaticBoxSizer</a>.
-%% <p>This class is derived (and can use functions) from: 
+%% <p>This class is derived (and can use functions) from:
 %% <br />{@link wxBoxSizer}
 %% <br />{@link wxSizer}
 %% </p>
@@ -48,7 +48,7 @@ parent_class(_Class) -> erlang:error({badtype, ?MODULE}).
 
 %% @spec (X::integer()|term(),X::term()|integer()) -> wxStaticBoxSizer()
 %% @doc See <a href="http://www.wxwidgets.org/manuals/stable/wx_wxstaticboxsizer.html#wxstaticboxsizerwxstaticboxsizer">external documentation</a>.
-%% <br /> Alternatives: 
+%% <br /> Alternatives:
 %% <p><c>
 %% new(Orient::integer(), Win::wxWindow:wxWindow()) -> new(Orient,Win, []) </c></p>
 %% <p><c>
@@ -85,14 +85,14 @@ getStaticBox(#wx_ref{type=ThisT,ref=ThisRef}) ->
 
 %% @spec (This::wxStaticBoxSizer()) -> ok
 %% @doc Destroys this object, do not use object again
-destroy(Obj=#wx_ref{type=Type}) -> 
+destroy(Obj=#wx_ref{type=Type}) ->
   ?CLASS(Type,wxStaticBoxSizer),
   wxe_util:destroy(?DESTROY_OBJECT,Obj),
   ok.
- %% From wxBoxSizer 
+ %% From wxBoxSizer
 %% @hidden
 getOrientation(This) -> wxBoxSizer:getOrientation(This).
- %% From wxSizer 
+ %% From wxSizer
 %% @hidden
 show(This,Index, Options) -> wxSizer:show(This,Index, Options).
 %% @hidden

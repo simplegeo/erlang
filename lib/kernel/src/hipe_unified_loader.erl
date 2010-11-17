@@ -103,10 +103,15 @@ load_native_code(Mod, Bin) when is_atom(Mod), is_binary(Bin) ->
       case code:get_chunk(Bin, ChunkTag) of
 	undefined -> no_native;
 	NativeCode when is_binary(NativeCode) ->
-	  OldReferencesToPatch = patch_to_emu_step1(Mod),
-	  case load_module(Mod, NativeCode, Bin, OldReferencesToPatch) of
-	    bad_crc -> no_native;
-	    Result -> Result
+         erlang:system_flag(multi_scheduling, block),
+         try
+           OldReferencesToPatch = patch_to_emu_step1(Mod),
+           case load_module(Mod, NativeCode, Bin, OldReferencesToPatch) of
+             bad_crc -> no_native;
+             Result -> Result
+           end
+         after
+           erlang:system_flag(multi_scheduling, unblock)
 	  end
       end
   catch
@@ -121,8 +126,17 @@ load_native_code(Mod, Bin) when is_atom(Mod), is_binary(Bin) ->
 
 post_beam_load(Mod) when is_atom(Mod) ->
   Architecture = erlang:system_info(hipe_architecture),
-  try chunk_name(Architecture) of _ChunkTag -> patch_to_emu(Mod)
-  catch _:_ -> ok
+  try chunk_name(Architecture) of
+    _ChunkTag ->
+      erlang:system_flag(multi_scheduling, block),
+      try
+       patch_to_emu(Mod)
+      after
+       erlang:system_flag(multi_scheduling, unblock)
+      end
+  catch
+    _:_ ->
+      ok
   end.
 
 %%========================================================================
@@ -141,6 +155,14 @@ version_check(Version, Mod) when is_atom(Mod) ->
 -spec load_module(Mod, binary(), _) -> 'bad_crc' | {'module',Mod}
 	     				when is_subtype(Mod,atom()).
 load_module(Mod, Bin, Beam) ->
+  erlang:system_flag(multi_scheduling, block),
+  try
+    load_module_nosmp(Mod, Bin, Beam)
+  after
+    erlang:system_flag(multi_scheduling, unblock)
+  end.
+
+load_module_nosmp(Mod, Bin, Beam) ->
   load_module(Mod, Bin, Beam, []).
 
 load_module(Mod, Bin, Beam, OldReferencesToPatch) ->
@@ -154,6 +176,14 @@ load_module(Mod, Bin, Beam, OldReferencesToPatch) ->
 -spec load(Mod, binary()) -> 'bad_crc' | {'module',Mod}
 			      when is_subtype(Mod,atom()).
 load(Mod, Bin) ->
+  erlang:system_flag(multi_scheduling, block),
+  try
+    load_nosmp(Mod, Bin)
+  after
+    erlang:system_flag(multi_scheduling, unblock)
+  end.
+
+load_nosmp(Mod, Bin) ->
   ?debug_msg("********* Loading funs in module ~w *********\n",[Mod]),
   %% Loading just some functions in a module; patch closures separately.
   put(hipe_patch_closures, true),

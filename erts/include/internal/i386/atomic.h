@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- * 
- * Copyright Ericsson AB 2005-2009. All Rights Reserved.
- * 
+ *
+ * Copyright Ericsson AB 2005-2010. All Rights Reserved.
+ *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- * 
+ *
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- * 
+ *
  * %CopyrightEnd%
  */
 
@@ -32,7 +32,22 @@ typedef struct {
     volatile long counter;
 } ethr_native_atomic_t;
 
-#ifdef ETHR_TRY_INLINE_FUNCS
+#if defined(__x86_64__) || !defined(ETHR_PRE_PENTIUM4_COMPAT)
+#define ETHR_MEMORY_BARRIER __asm__ __volatile__("mfence" : : : "memory")
+#define ETHR_WRITE_MEMORY_BARRIER __asm__ __volatile__("sfence" : : : "memory")
+#define ETHR_READ_MEMORY_BARRIER __asm__ __volatile__("lfence" : : : "memory")
+#define ETHR_READ_DEPEND_MEMORY_BARRIER __asm__ __volatile__("" : : : "memory")
+#else
+#define ETHR_MEMORY_BARRIER \
+do { \
+    volatile long x___ = 0; \
+    __asm__ __volatile__("lock; incl %0" : "=m"(x___) : "m"(x___) : "memory"); \
+} while (0)
+#endif
+
+#define ETHR_ATOMIC_HAVE_INC_DEC_INSTRUCTIONS 1
+
+#if defined(ETHR_TRY_INLINE_FUNCS) || defined(ETHR_AUX_IMPL__)
 
 #ifdef __x86_64__
 #define LONG_SUFFIX "q"
@@ -147,6 +162,22 @@ ethr_native_atomic_xchg(ethr_native_atomic_t *var, long val)
     /* now tmp is the atomic's previous value */ 
     return tmp;
 } 
+
+/*
+ * Atomic ops with at least specified barriers.
+ */
+
+#define ethr_native_atomic_read_acqb ethr_native_atomic_read
+#define ethr_native_atomic_inc_return_acqb ethr_native_atomic_inc_return
+#if defined(__x86_64__) || !defined(ETHR_PRE_PENTIUM4_COMPAT)
+#define ethr_native_atomic_set_relb ethr_native_atomic_set
+#else
+#define ethr_native_atomic_set_relb ethr_native_atomic_xchg
+#endif
+#define ethr_native_atomic_dec_relb ethr_native_atomic_dec
+#define ethr_native_atomic_dec_return_relb ethr_native_atomic_dec_return
+#define ethr_native_atomic_cmpxchg_acqb ethr_native_atomic_cmpxchg
+#define ethr_native_atomic_cmpxchg_relb ethr_native_atomic_cmpxchg
 
 #undef LONG_SUFFIX
 

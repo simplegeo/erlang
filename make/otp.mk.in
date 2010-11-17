@@ -3,26 +3,31 @@
 # Make include file for otp
 #
 # %CopyrightBegin%
-# 
-# Copyright Ericsson AB 1997-2009. All Rights Reserved.
-# 
+#
+# Copyright Ericsson AB 1997-2010. All Rights Reserved.
+#
 # The contents of this file are subject to the Erlang Public License,
 # Version 1.1, (the "License"); you may not use this file except in
 # compliance with the License. You should have received a copy of the
 # Erlang Public License along with this software. If not, it can be
 # retrieved online at http://www.erlang.org/.
-# 
+#
 # Software distributed under the License is distributed on an "AS IS"
 # basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 # the License for the specific language governing rights and limitations
 # under the License.
-# 
+#
 # %CopyrightEnd%
 #
 # Author: Lars Thorsen
 # ----------------------------------------------------
 .SUFFIXES: .erl .beam .yrl .xrl .bin .mib .hrl .sgml .xml .xmlsrc .html .ps \
 	.3 .1 .fig .dvi .tex .class .java .pdf .fo .psframe .pscrop .el .elc
+
+# ----------------------------------------------------
+#	Cross Compiling
+# ----------------------------------------------------
+CROSS_COMPILING = @CROSS_COMPILING@
 
 # ----------------------------------------------------
 #	Common macros
@@ -53,6 +58,7 @@ INSTALL_SCRIPT  = @INSTALL_SCRIPT@
 INSTALL_DATA    = @INSTALL_DATA@
 
 CC = @CC@
+GCC = @GCC@
 HCC = @HCC@
 CC32 = @CC32@
 CFLAGS32 = @CFLAGS32@
@@ -235,33 +241,44 @@ DOCGEN=$(ERL_TOP)/lib/erl_docgen
 
 $(MAN1DIR)/%.1:: %.xml
 	date=`date +"%B %e %Y"`; \
-	xsltproc --output "$@" --stringparam docgen "$(DOCGEN)" --stringparam gendate "$$date" --stringparam appname "$(APPLICATION)" --stringparam appver "$(VSN)" --xinclude -path $(DOCGEN)/priv/docbuilder_dtd  -path $(DOCGEN)/priv/dtd_man_entities $(DOCGEN)/priv/xsl/db_man.xsl $<
+	xsltproc --output "$@" --stringparam company "Ericsson AB" --stringparam docgen "$(DOCGEN)" --stringparam gendate "$$date" --stringparam appname "$(APPLICATION)" --stringparam appver "$(VSN)" --xinclude -path $(DOCGEN)/priv/docbuilder_dtd  -path $(DOCGEN)/priv/dtd_man_entities $(DOCGEN)/priv/xsl/db_man.xsl $<
 
 
 $(MAN2DIR)/%.2:: %.xml
 	date=`date +"%B %e %Y"`; \
-	xsltproc --output "$@" --stringparam docgen "$(DOCGEN)" --stringparam gendate "$$date" --stringparam appname "$(APPLICATION)" --stringparam appver "$(VSN)" --xinclude -path $(DOCGEN)/priv/docbuilder_dtd  -path $(DOCGEN)/priv/dtd_man_entities $(DOCGEN)/priv/xsl/db_man.xsl $<
+	xsltproc --output "$@" --stringparam company "Ericsson AB" --stringparam docgen "$(DOCGEN)" --stringparam gendate "$$date" --stringparam appname "$(APPLICATION)" --stringparam appver "$(VSN)" --xinclude -path $(DOCGEN)/priv/docbuilder_dtd  -path $(DOCGEN)/priv/dtd_man_entities $(DOCGEN)/priv/xsl/db_man.xsl $<
 
 
 $(MAN3DIR)/%.3:: %.xml
 	date=`date +"%B %e %Y"`; \
-	xsltproc --output "$@" --stringparam docgen "$(DOCGEN)" --stringparam gendate "$$date" --stringparam appname "$(APPLICATION)" --stringparam appver "$(VSN)" --xinclude -path $(DOCGEN)/priv/docbuilder_dtd  -path $(DOCGEN)/priv/dtd_man_entities $(DOCGEN)/priv/xsl/db_man.xsl $<
+	xsltproc --output "$@" --stringparam company "Ericsson AB" --stringparam docgen "$(DOCGEN)" --stringparam gendate "$$date" --stringparam appname "$(APPLICATION)" --stringparam appver "$(VSN)" --xinclude -path $(DOCGEN)/priv/docbuilder_dtd  -path $(DOCGEN)/priv/dtd_man_entities $(DOCGEN)/priv/xsl/db_man.xsl $<
 
+# left for compatability
 $(MAN4DIR)/%.4:: %.xml
 	date=`date +"%B %e %Y"`; \
-	xsltproc --output "$@" --stringparam docgen "$(DOCGEN)" --stringparam gendate "$$date" --stringparam appname "$(APPLICATION)" --stringparam appver "$(VSN)" --xinclude -path $(DOCGEN)/priv/docbuilder_dtd  -path $(DOCGEN)/priv/dtd_man_entities $(DOCGEN)/priv/xsl/db_man.xsl $<
+	xsltproc --output "$@" --stringparam company "Ericsson AB" --stringparam docgen "$(DOCGEN)" --stringparam gendate "$$date" --stringparam appname "$(APPLICATION)" --stringparam appver "$(VSN)" --xinclude -path $(DOCGEN)/priv/docbuilder_dtd  -path $(DOCGEN)/priv/dtd_man_entities $(DOCGEN)/priv/xsl/db_man.xsl $<
 
+$(MAN4DIR)/%.5:: %.xml
+	date=`date +"%B %e %Y"`; \
+	xsltproc --output "$@" --stringparam company "Ericsson AB" --stringparam docgen "$(DOCGEN)" --stringparam gendate "$$date" --stringparam appname "$(APPLICATION)" --stringparam appver "$(VSN)" --xinclude -path $(DOCGEN)/priv/docbuilder_dtd  -path $(DOCGEN)/priv/dtd_man_entities $(DOCGEN)/priv/xsl/db_man.xsl $<
+
+# left for compatability
 $(MAN6DIR)/%.6:: %_app.xml
 	date=`date +"%B %e %Y"`; \
-	xsltproc --output "$@" --stringparam docgen "$(DOCGEN)" --stringparam gendate "$$date" --stringparam appname "$(APPLICATION)" --stringparam appver "$(VSN)" --xinclude -path $(DOCGEN)/priv/docbuilder_dtd  -path $(DOCGEN)/priv/dtd_man_entities $(DOCGEN)/priv/xsl/db_man.xsl $<
+	xsltproc --output "$@" --stringparam company "Ericsson AB" --stringparam docgen "$(DOCGEN)" --stringparam gendate "$$date" --stringparam appname "$(APPLICATION)" --stringparam appver "$(VSN)" --xinclude -path $(DOCGEN)/priv/docbuilder_dtd  -path $(DOCGEN)/priv/dtd_man_entities $(DOCGEN)/priv/xsl/db_man.xsl $<
+
+$(MAN6DIR)/%.7:: %_app.xml
+	date=`date +"%B %e %Y"`; \
+	xsltproc --output "$@" --stringparam company "Ericsson AB" --stringparam docgen "$(DOCGEN)" --stringparam gendate "$$date" --stringparam appname "$(APPLICATION)" --stringparam appver "$(VSN)" --xinclude -path $(DOCGEN)/priv/docbuilder_dtd  -path $(DOCGEN)/priv/dtd_man_entities $(DOCGEN)/priv/xsl/db_man.xsl $<
 
 $(MAN9DIR)/%.9:: %.xml
 	date=`date +"%B %e %Y"`; \
-	xsltproc --output "$@" --stringparam docgen "$(DOCGEN)" --stringparam gendate "$$date" --stringparam appname "$(APPLICATION)" --stringparam appver "$(VSN)" --xinclude -path $(DOCGEN)/priv/docbuilder_dtd  -path $(DOCGEN)/priv/dtd_man_entities $(DOCGEN)/priv/xsl/db_man.xsl $<
+	xsltproc --output "$@" --stringparam company "Ericsson AB" --stringparam docgen "$(DOCGEN)" --stringparam gendate "$$date" --stringparam appname "$(APPLICATION)" --stringparam appver "$(VSN)" --xinclude -path $(DOCGEN)/priv/docbuilder_dtd  -path $(DOCGEN)/priv/dtd_man_entities $(DOCGEN)/priv/xsl/db_man.xsl $<
 
 
 .xmlsrc.xml:
-	 $(DOCGEN)/priv/bin/codeline_preprocessing.escript $< $@
+	 escript $(DOCGEN)/priv/bin/codeline_preprocessing.escript $< $@
 
 .fo.pdf:
 	$(FOP) -fo $< -pdf $@
+

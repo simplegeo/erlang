@@ -1,24 +1,24 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 2008-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 2008-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %% This file is generated DO NOT EDIT
 
 %% @doc See external documentation: <a href="http://www.wxwidgets.org/manuals/stable/wx_wxfiledialog.html">wxFileDialog</a>.
-%% <p>This class is derived (and can use functions) from: 
+%% <p>This class is derived (and can use functions) from:
 %% <br />{@link wxDialog}
 %% <br />{@link wxTopLevelWindow}
 %% <br />{@link wxWindow}
@@ -31,7 +31,7 @@
 -module(wxFileDialog).
 -include("wxe.hrl").
 -export([destroy/1,getDirectory/1,getFilename/1,getFilenames/1,getFilterIndex/1,
-  getMessage/1,getPath/1,getPaths/2,getWildcard/1,new/1,new/2,setDirectory/2,
+  getMessage/1,getPath/1,getPaths/1,getWildcard/1,new/1,new/2,setDirectory/2,
   setFilename/2,setFilterIndex/2,setMessage/2,setPath/2,setWildcard/2]).
 
 %% inherited exports
@@ -152,15 +152,12 @@ getPath(#wx_ref{type=ThisT,ref=ThisRef}) ->
   wxe_util:call(?wxFileDialog_GetPath,
   <<ThisRef:32/?UI>>).
 
-%% @spec (This::wxFileDialog(), Paths::[[string()]]) -> ok
+%% @spec (This::wxFileDialog()) -> [[string()]]
 %% @doc See <a href="http://www.wxwidgets.org/manuals/stable/wx_wxfiledialog.html#wxfiledialoggetpaths">external documentation</a>.
-getPaths(#wx_ref{type=ThisT,ref=ThisRef},Paths)
- when is_list(Paths) ->
+getPaths(#wx_ref{type=ThisT,ref=ThisRef}) ->
   ?CLASS(ThisT,wxFileDialog),
-  Paths_UCA = [unicode:characters_to_binary([PathsTemp,0]) || 
-              PathsTemp <- Paths],
-  wxe_util:cast(?wxFileDialog_GetPaths,
-  <<ThisRef:32/?UI,(length(Paths_UCA)):32/?UI, (<< <<(byte_size(UC_Str)):32/?UI, UC_Str/binary>>|| UC_Str <- Paths_UCA>>)/binary, 0:(((8- ((0 + lists:sum([byte_size(S)+4||S<-Paths_UCA])) band 16#7)) band 16#7))/unit:8>>).
+  wxe_util:call(?wxFileDialog_GetPaths,
+  <<ThisRef:32/?UI>>).
 
 %% @spec (This::wxFileDialog()) -> string()
 %% @doc See <a href="http://www.wxwidgets.org/manuals/stable/wx_wxfiledialog.html#wxfiledialoggetwildcard">external documentation</a>.
@@ -224,11 +221,11 @@ setWildcard(#wx_ref{type=ThisT,ref=ThisRef},WildCard)
 
 %% @spec (This::wxFileDialog()) -> ok
 %% @doc Destroys this object, do not use object again
-destroy(Obj=#wx_ref{type=Type}) -> 
+destroy(Obj=#wx_ref{type=Type}) ->
   ?CLASS(Type,wxFileDialog),
   wxe_util:destroy(?DESTROY_OBJECT,Obj),
   ok.
- %% From wxDialog 
+ %% From wxDialog
 %% @hidden
 showModal(This) -> wxDialog:showModal(This).
 %% @hidden
@@ -251,7 +248,7 @@ endModal(This,RetCode) -> wxDialog:endModal(This,RetCode).
 createStdDialogButtonSizer(This,Flags) -> wxDialog:createStdDialogButtonSizer(This,Flags).
 %% @hidden
 createButtonSizer(This,Flags) -> wxDialog:createButtonSizer(This,Flags).
- %% From wxTopLevelWindow 
+ %% From wxTopLevelWindow
 %% @hidden
 showFullScreen(This,Show, Options) -> wxTopLevelWindow:showFullScreen(This,Show, Options).
 %% @hidden
@@ -298,7 +295,7 @@ getTitle(This) -> wxTopLevelWindow:getTitle(This).
 getIcons(This) -> wxTopLevelWindow:getIcons(This).
 %% @hidden
 getIcon(This) -> wxTopLevelWindow:getIcon(This).
- %% From wxWindow 
+ %% From wxWindow
 %% @hidden
 warpPointer(This,X,Y) -> wxWindow:warpPointer(This,X,Y).
 %% @hidden
@@ -645,7 +642,7 @@ center(This) -> wxWindow:center(This).
 captureMouse(This) -> wxWindow:captureMouse(This).
 %% @hidden
 cacheBestSize(This,Size) -> wxWindow:cacheBestSize(This,Size).
- %% From wxEvtHandler 
+ %% From wxEvtHandler
 %% @hidden
 disconnect(This,EventType, Options) -> wxEvtHandler:disconnect(This,EventType, Options).
 %% @hidden

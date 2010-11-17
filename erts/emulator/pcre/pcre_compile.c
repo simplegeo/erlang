@@ -92,6 +92,11 @@ is 4 there is plenty of room. */
 
 #define COMPILE_WORK_SIZE (4096)
 
+/* The overrun tests check for a slightly smaller size so that they detect the
+overrun before it actually does run off the end of the data block. */
+
+#define WORK_SIZE_CHECK (COMPILE_WORK_SIZE - 100)
+
 
 /* Table for handling escaped characters in the range '0'-'z'. Positive returns
 are simple data values; negative values are for special things like \d and so
@@ -2445,7 +2450,7 @@ for (;; ptr++)
 #ifdef DEBUG
     if (code > cd->hwm) cd->hwm = code;                 /* High water info */
 #endif
-    if (code > cd->start_workspace + COMPILE_WORK_SIZE) /* Check for overrun */
+    if (code > cd->start_workspace + WORK_SIZE_CHECK)   /* Check for overrun */
       {
       *errorcodeptr = ERR52;
       goto FAILED;
@@ -2494,7 +2499,7 @@ for (;; ptr++)
   /* In the real compile phase, just check the workspace used by the forward
   reference list. */
 
-  else if (cd->hwm > cd->start_workspace + COMPILE_WORK_SIZE)
+  else if (cd->hwm > cd->start_workspace + WORK_SIZE_CHECK)
     {
     *errorcodeptr = ERR52;
     goto FAILED;
@@ -4820,10 +4825,8 @@ we set the flag only if there is a literal "\r" or "\n" in the class. */
         both phases.
 
         If we are not at the pattern start, compile code to change the ims
-        options if this setting actually changes any of them. We also pass the
-        new setting back so that it can be put at the start of any following
-        branches, and when this group ends (if we are in a group), a resetting
-        item can be compiled. */
+        options if this setting actually changes any of them, and reset the
+        greedy defaults and the case value for firstbyte and reqbyte. */
 
         if (*ptr == ')')
           {
@@ -4831,7 +4834,6 @@ we set the flag only if there is a literal "\r" or "\n" in the class. */
                (lengthptr == NULL || *lengthptr == 2 + 2*LINK_SIZE))
             {
             cd->external_options = newoptions;
-            options = newoptions;
             }
          else
             {
@@ -4840,17 +4842,17 @@ we set the flag only if there is a literal "\r" or "\n" in the class. */
               *code++ = OP_OPT;
               *code++ = newoptions & PCRE_IMS;
               }
-
-            /* Change options at this level, and pass them back for use
-            in subsequent branches. Reset the greedy defaults and the case
-            value for firstbyte and reqbyte. */
-
-            *optionsptr = options = newoptions;
             greedy_default = ((newoptions & PCRE_UNGREEDY) != 0);
             greedy_non_default = greedy_default ^ 1;
-            req_caseopt = ((options & PCRE_CASELESS) != 0)? REQ_CASELESS : 0;
+            req_caseopt = ((newoptions & PCRE_CASELESS) != 0)? REQ_CASELESS : 0;
             }
 
+          /* Change options at this level, and pass them back for use
+          in subsequent branches. When not at the start of the pattern, this
+          information is also necessary so that a resetting item can be
+          compiled at the end of a group (if we are in a group). */
+
+          *optionsptr = options = newoptions;
           previous = NULL;       /* This item can't be repeated */
           continue;              /* It is complete */
           }

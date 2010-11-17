@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 1999-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 1999-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 %% Purpose : Transform normal Erlang to Core Erlang
@@ -122,14 +122,13 @@
            | iclause()  | ifun()      | iletrec()   | imatch() | iprimop()
            | iprotect() | ireceive1() | ireceive2() | iset()   | itry().
 
--type error()   :: {file:filename(), [{integer(), module(), term()}]}.
 -type warning() :: {file:filename(), [{integer(), module(), term()}]}.
 
 -record(core, {vcount=0 :: non_neg_integer(),	%Variable counter
 	       fcount=0 :: non_neg_integer(),	%Function counter
 	       in_guard=false :: boolean(),	%In guard or not.
+	       wanted=true :: boolean(),	%Result wanted or not.
 	       opts     :: [compile:option()],	%Options.
-	       es=[]    :: [error()],		%Errors.
 	       ws=[]    :: [warning()],		%Warnings.
                file=[{file,""}]}).              %File
 
@@ -140,46 +139,41 @@
                    | {attribute, integer(), attribute(), _}.
 
 -spec module({module(), [fa()], [form()]}, [compile:option()]) ->
-        {'ok',cerl:c_module(),[warning()]} | {'error',[error()],[warning()]}.
+        {'ok',cerl:c_module(),[warning()]}.
 
 module({Mod,Exp,Forms}, Opts) ->
     Cexp = map(fun ({_N,_A} = NA) -> #c_var{name=NA} end, Exp),
-    {Kfs0,As0,Es,Ws,_File} = foldl(fun (F, Acc) ->
-					   form(F, Acc, Opts)
-				   end, {[],[],[],[],[]}, Forms),
+    {Kfs0,As0,Ws,_File} = foldl(fun (F, Acc) ->
+					form(F, Acc, Opts)
+				end, {[],[],[],[]}, Forms),
     Kfs = reverse(Kfs0),
     As = reverse(As0),
-    case Es of
-	[] ->
-	    {ok,#c_module{name=#c_literal{val=Mod},exports=Cexp,attrs=As,defs=Kfs},Ws};
-	_ ->
-	    {error,Es,Ws}
-    end.
+    {ok,#c_module{name=#c_literal{val=Mod},exports=Cexp,attrs=As,defs=Kfs},Ws}.
 
-form({function,_,_,_,_}=F0, {Fs,As,Es0,Ws0,File}, Opts) ->
-    {F,Es,Ws} = function(F0, Es0, Ws0, File, Opts),
-    {[F|Fs],As,Es,Ws,File};
-form({attribute,_,file,{File,_Line}}, {Fs,As,Es,Ws,_}, _Opts) ->
-    {Fs,As,Es,Ws,File};
-form({attribute,_,_,_}=F, {Fs,As,Es,Ws,File}, _Opts) ->
-    {Fs,[attribute(F)|As],Es,Ws,File}.
+form({function,_,_,_,_}=F0, {Fs,As,Ws0,File}, Opts) ->
+    {F,Ws} = function(F0, Ws0, File, Opts),
+    {[F|Fs],As,Ws,File};
+form({attribute,_,file,{File,_Line}}, {Fs,As,Ws,_}, _Opts) ->
+    {Fs,As,Ws,File};
+form({attribute,_,_,_}=F, {Fs,As,Ws,File}, _Opts) ->
+    {Fs,[attribute(F)|As],Ws,File}.
 
-attribute({attribute,_,Name,Val}) ->
-    {#c_literal{val=Name},#c_literal{val=Val}}.
+attribute({attribute,Line,Name,Val}) ->
+    {#c_literal{val=Name, anno=[Line]}, #c_literal{val=Val, anno=[Line]}}.
 
-function({function,_,Name,Arity,Cs0}, Es0, Ws0, File, Opts) ->
+function({function,_,Name,Arity,Cs0}, Ws0, File, Opts) ->
     %%ok = io:fwrite("~p - ", [{Name,Arity}]),
-    St0 = #core{vcount=0,opts=Opts,es=Es0,ws=Ws0,file=[{file,File}]},
+    St0 = #core{vcount=0,opts=Opts,ws=Ws0,file=[{file,File}]},
     {B0,St1} = body(Cs0, Name, Arity, St0),
     %%ok = io:fwrite("1", []),
     %%ok = io:fwrite("~w:~p~n", [?LINE,B0]),
     {B1,St2} = ubody(B0, St1),
     %%ok = io:fwrite("2", []),
     %%ok = io:fwrite("~w:~p~n", [?LINE,B1]),
-    {B2,#core{es=Es,ws=Ws}} = cbody(B1, St2),
+    {B2,#core{ws=Ws}} = cbody(B1, St2),
     %%ok = io:fwrite("3~n", []),
     %%ok = io:fwrite("~w:~p~n", [?LINE,B2]),
-    {{#c_var{name={Name,Arity}},B2},Es,Ws}.
+    {{#c_var{name={Name,Arity}},B2},Ws}.
 
 body(Cs0, Name, Arity, St0) ->
     Anno = lineno_anno(element(2, hd(Cs0)), St0),
@@ -213,10 +207,7 @@ clause({clause,Lc,H0,G0,B0}, St0) ->
     catch
 	throw:nomatch ->
 	    St = add_warning(Lc, nomatch, St0),
-	    {noclause,St};			%Bad pattern
-	throw:no_binaries ->
-	    St = add_error(Lc, no_binaries, St0),
-	    {noclause,St}
+	    {noclause,St}			%Bad pattern
     end.
 
 clause_arity({clause,_,H0,_,_}) -> length(H0).
@@ -496,22 +487,18 @@ expr({tuple,L,Es0}, St0) ->
     {Es1,Eps,St1} = safe_list(Es0, St0),
     A = lineno_anno(L, St1),
     {ann_c_tuple(A, Es1),Eps,St1};
-expr({bin,L,Es0}, #core{opts=Opts}=St0) ->
-    St1 = case member(no_binaries, Opts) of
-	      false -> St0;
-	      true -> add_error(L, no_binaries, St0)
-	  end,
-    try expr_bin(Es0, lineno_anno(L, St1), St1) of
+expr({bin,L,Es0}, St0) ->
+    try expr_bin(Es0, lineno_anno(L, St0), St0) of
 	{_,_,_}=Res -> Res
     catch
 	throw:bad_binary ->
-	    St2 = add_warning(L, bad_binary, St1),
-	    LineAnno = lineno_anno(L, St2),
+	    St = add_warning(L, bad_binary, St0),
+	    LineAnno = lineno_anno(L, St),
 	    As = [#c_literal{anno=LineAnno,val=badarg}],
 	    {#icall{anno=#a{anno=LineAnno},	%Must have an #a{}
 		    module=#c_literal{anno=LineAnno,val=erlang},
 		    name=#c_literal{anno=LineAnno,val=error},
-		    args=As},[],St2}
+		    args=As},[],St}
     end;
 expr({block,_,Es0}, St0) ->
     %% Inline the block directly.
@@ -587,10 +574,14 @@ expr({'fun',L,{function,F,A},{_,_,_}=Id}, St) ->
     {#c_var{anno=Lanno++[{id,Id}],name={F,A}},[],St};
 expr({'fun',L,{clauses,Cs},Id}, St) ->
     fun_tq(Id, Cs, L, St);
-expr({call,L,{remote,_,M,F},As0}, St0) ->
+expr({call,L,{remote,_,M,F},As0}, #core{wanted=Wanted}=St0) ->
     {[M1,F1|As1],Aps,St1} = safe_list([M,F|As0], St0),
     Lanno = lineno_anno(L, St1),
-    {#icall{anno=#a{anno=Lanno},module=M1,name=F1,args=As1},Aps,St1};
+    Anno = case Wanted of
+	       false -> [result_not_wanted|Lanno];
+	       true -> Lanno
+	   end,
+    {#icall{anno=#a{anno=Anno},module=M1,name=F1,args=As1},Aps,St1};
 expr({call,Lc,{atom,Lf,F},As0}, St0) ->
     {As1,Aps,St1} = safe_list(As0, St0),
     Op = #c_var{anno=lineno_anno(Lf, St1),name={F,length(As1)}},
@@ -603,27 +594,28 @@ expr({call,L,FunExp,As0}, St0) ->
 expr({match,L,P0,E0}, St0) ->
     %% First fold matches together to create aliases.
     {P1,E1} = fold_match(E0, P0),
-    {E2,Eps,St1} = novars(E1, St0),
+    St1 = case P1 of
+	      {var,_,'_'} -> St0#core{wanted=false};
+	      _ -> St0
+	  end,
+    {E2,Eps,St2} = novars(E1, St1),
+    St3 = St2#core{wanted=St0#core.wanted},
     P2 = try
-	     pattern(P1, St1)
+	     pattern(P1, St3)
 	 catch
 	     throw:Thrown ->
 		 Thrown
 	 end,
-    {Fpat,St2} = new_var(St1),
+    {Fpat,St4} = new_var(St3),
     Fc = fail_clause([Fpat], c_tuple([#c_literal{val=badmatch},Fpat])),
-    Lanno = lineno_anno(L, St2),
+    Lanno = lineno_anno(L, St4),
     case P2 of
 	nomatch ->
-	    St = add_warning(L, nomatch, St2),
-	    {#icase{anno=#a{anno=Lanno},
-		    args=[E2],clauses=[],fc=Fc},Eps,St};
-	no_binaries ->
-	    St = add_error(L, no_binaries, St2),
+	    St = add_warning(L, nomatch, St4),
 	    {#icase{anno=#a{anno=Lanno},
 		    args=[E2],clauses=[],fc=Fc},Eps,St};
 	Other when not is_atom(Other) ->
-	    {#imatch{anno=#a{anno=Lanno},pat=P2,arg=E2,fc=Fc},Eps,St2}
+	    {#imatch{anno=#a{anno=Lanno},pat=P2,arg=E2,fc=Fc},Eps,St4}
     end;
 expr({op,_,'++',{lc,Llc,E,Qs},More}, St0) ->
     %% Optimise '++' here because of the list comprehension algorithm.
@@ -1443,15 +1435,10 @@ pattern({cons,L,H,T}, St) ->
     ann_c_cons(lineno_anno(L, St), pattern(H, St), pattern(T, St));
 pattern({tuple,L,Ps}, St) ->
     ann_c_tuple(lineno_anno(L, St), pattern_list(Ps, St));
-pattern({bin,L,Ps}, #core{opts=Opts}=St) ->
-    case member(no_binaries, Opts) of
-	false ->
-	    %% We don't create a #ibinary record here, since there is
-	    %% no need to hold any used/new annotations in a pattern.
-	    #c_binary{anno=lineno_anno(L, St),segments=pat_bin(Ps, St)};
-	true ->
-	    throw(no_binaries)
-    end;
+pattern({bin,L,Ps}, St) ->
+    %% We don't create a #ibinary record here, since there is
+    %% no need to hold any used/new annotations in a pattern.
+    #c_binary{anno=lineno_anno(L, St),segments=pat_bin(Ps, St)};
 pattern({match,_,P1,P2}, St) ->
     pat_alias(pattern(P1, St), pattern(P2, St)).
 
@@ -1558,17 +1545,21 @@ new_vars_1(N, Anno, St0, Vs) when N > 0 ->
 new_vars_1(0, _, St, Vs) -> {Vs,St}.
 
 function_clause(Ps, Name) ->
-    fail_clause(Ps, c_tuple([#c_literal{anno=[{name,Name}],
-					val=function_clause}|Ps])).
-function_clause(Ps, Anno, Name) ->
-    fail_clause(Ps, ann_c_tuple(Anno,
-				[#c_literal{anno=[{name,Name}],
-					    val=function_clause}|Ps])).
+    function_clause(Ps, [], Name).
 
-fail_clause(Pats, A) ->
+function_clause(Ps, LineAnno, Name) ->
+    FcAnno = [{function_name,Name}],
+    fail_clause(Ps, FcAnno,
+		ann_c_tuple(LineAnno, [#c_literal{val=function_clause}|Ps])).
+
+fail_clause(Pats, Arg) ->
+    fail_clause(Pats, [], Arg).
+
+fail_clause(Pats, Anno, Arg) ->
     #iclause{anno=#a{anno=[compiler_generated]},
 	     pats=Pats,guard=[],
-	     body=[#iprimop{anno=#a{},name=#c_literal{val=match_fail},args=[A]}]}.
+	     body=[#iprimop{anno=#a{anno=Anno},name=#c_literal{val=match_fail},
+			    args=[Arg]}]}.
 
 ubody(B, St) -> uexpr(B, [], St).
 
@@ -2098,39 +2089,25 @@ is_simple(#c_literal{}) -> true;
 is_simple(#c_cons{hd=H,tl=T}) ->
     is_simple(H) andalso is_simple(T);
 is_simple(#c_tuple{es=Es}) -> is_simple_list(Es);
-is_simple(#c_binary{segments=Es}) -> is_simp_bin(Es);
 is_simple(_) -> false.
 
 -spec is_simple_list([cerl:cerl()]) -> boolean().
 
 is_simple_list(Es) -> lists:all(fun is_simple/1, Es).
 
--spec is_simp_bin([cerl:cerl()]) -> boolean().
-
-is_simp_bin(Es) ->
-    lists:all(fun (#c_bitstr{val=E,size=S}) ->
-		      is_simple(E) andalso is_simple(S)
-	      end, Es).
-
 %%%
 %%% Handling of warnings.
 %%%
 
--type err_desc() :: 'bad_binary' | 'no_binaries' | 'nomatch'.
+-type err_desc() :: 'bad_binary' | 'nomatch'.
 
 -spec format_error(err_desc()) -> nonempty_string().
 
 format_error(nomatch) ->
     "pattern cannot possibly match";
 format_error(bad_binary) ->
-    "binary construction will fail because of a type mismatch";
-format_error(no_binaries) ->
-    "bit syntax is not allowed to be used when compatibility with a previous "
-	"version has been requested".
+    "binary construction will fail because of a type mismatch".
 
 add_warning(Line, Term, #core{ws=Ws,file=[{file,File}]}=St) when Line >= 0 ->
     St#core{ws=[{File,[{location(Line),?MODULE,Term}]}|Ws]};
 add_warning(_, _, St) -> St.
-
-add_error(Line, Term, #core{es=Es,file=[{file,File}]}=St) ->
-    St#core{es=[{File,[{location(abs_line(Line)),?MODULE,Term}]}|Es]}.

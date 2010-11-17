@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- * 
- * Copyright Ericsson AB 1996-2009. All Rights Reserved.
- * 
+ *
+ * Copyright Ericsson AB 1996-2010. All Rights Reserved.
+ *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- * 
+ *
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- * 
+ *
  * %CopyrightEnd%
  */
 
@@ -123,8 +123,6 @@ static ErtsSysReportExit *report_exit_transit_list;
 
 extern int  check_async_ready(void);
 extern int  driver_interrupt(int, int);
-/*EXTERN_FUNCTION(void, increment_time, (int));*/
-/*EXTERN_FUNCTION(int, next_time, (_VOID_));*/
 extern void do_break(void);
 
 extern void erl_sys_args(int*, char**);
@@ -221,10 +219,10 @@ static struct fd_data {
 } *fd_data;			/* indexed by fd */
 
 /* static FUNCTION(int, write_fill, (int, char*, int)); unused? */
-static FUNCTION(void, note_child_death, (int, int));
+static void note_child_death(int, int);
 
 #if CHLDWTHR
-static FUNCTION(void *, child_waiter, (void *));
+static void* child_waiter(void *);
 #endif
 
 /********************* General functions ****************************/
@@ -367,7 +365,7 @@ erts_sys_misc_mem_sz(void)
 /*
  * reset the terminal to the original settings on exit
  */
-void sys_tty_reset(void)
+void sys_tty_reset(int exit_code)
 {
   if (using_oldshell && !replace_intr) {
     SET_BLOCKING(0);
@@ -384,18 +382,6 @@ MALLOC_USE_HASH(1);
 #endif
 
 #ifdef USE_THREADS
-static void *ethr_internal_alloc(size_t size)
-{
-    return erts_alloc_fnf(ERTS_ALC_T_ETHR_INTERNAL, (Uint) size);
-}
-static void *ethr_internal_realloc(void *ptr, size_t size)
-{
-    return erts_realloc_fnf(ERTS_ALC_T_ETHR_INTERNAL, ptr, (Uint) size);
-}
-static void ethr_internal_free(void *ptr)
-{
-    erts_free(ERTS_ALC_T_ETHR_INTERNAL, ptr);
-}
 
 #ifdef ERTS_THR_HAVE_SIG_FUNCS
 /*
@@ -457,6 +443,10 @@ thr_create_prepare_child(void *vtcdp)
 {
     erts_thr_create_data_t *tcdp = (erts_thr_create_data_t *) vtcdp;
 
+#ifdef ERTS_ENABLE_LOCK_COUNT
+    erts_lcnt_thread_setup();
+#endif
+
 #ifndef NO_FPE_SIGNALS
     /*
      * We do not want fp exeptions in other threads than the
@@ -484,9 +474,6 @@ erts_sys_pre_init(void)
 #ifdef USE_THREADS
     {
     erts_thr_init_data_t eid = ERTS_THR_INIT_DATA_DEF_INITER;
-    eid.alloc = ethr_internal_alloc;
-    eid.realloc = ethr_internal_realloc;
-    eid.free = ethr_internal_free;
 
     eid.thread_create_child_func = thr_create_prepare_child;
     /* Before creation in parent */
@@ -534,13 +521,14 @@ erts_sys_pre_init(void)
 #endif
 #endif /* USE_THREADS */
     erts_smp_atomic_init(&sys_misc_mem_sz, 0);
-    erts_smp_rwmtx_init(&environ_rwmtx, "environ");
 }
 
 void
 erl_sys_init(void)
 {
+    erts_smp_rwmtx_init(&environ_rwmtx, "environ");
 #if !DISABLE_VFORK
+ {
     int res;
     char bindir[MAXPATHLEN];
     size_t bindirsz = sizeof(bindir);
@@ -570,6 +558,7 @@ erl_sys_init(void)
             bindir,
             DIR_SEPARATOR_CHAR,
             CHILD_SETUP_PROG_NAME);
+ }
 #endif
 
 #ifdef USE_SETLINEBUF
@@ -709,7 +698,7 @@ prepare_crash_dump(void)
 	if (nice_val > 39) {
 	    nice_val = 39;
 	}
-	nice(nice_val);
+	erts_silence_warn_unused_result(nice(nice_val));
     }
     
     envsz = sizeof(env);
@@ -1324,9 +1313,18 @@ static char **build_unix_environment(char *block)
 	}
     }
 
-    for (j = 0; j < i; j++) {
-	if (cpp[j][strlen(cpp[j])-1] == '=') {
+    for (j = 0; j < i; ) {
+        size_t last = strlen(cpp[j])-1;
+	if (cpp[j][last] == '=' && strchr(cpp[j], '=') == cpp[j]+last) {
 	    cpp[j] = cpp[--len];
+	    if (len < i) {
+		i--;
+	    } else {
+		j++;
+	    }
+	}
+	else {
+	    j++;
 	}
     }
 
@@ -2332,7 +2330,7 @@ sys_async_ready_failed(int fd, int r, int err)
     char buf[120];
     sprintf(buf, "sys_async_ready(): Fatal error: fd=%d, r=%d, errno=%d\n",
 	     fd, r, err);
-    (void) write(2, buf, strlen(buf));
+    erts_silence_warn_unused_result(write(2, buf, strlen(buf)));
     abort();
 }
 
@@ -2562,7 +2560,6 @@ extern Preload pre_loaded[];
 
 void erts_sys_alloc_init(void)
 {
-    elib_ensure_initialized();
 }
 
 void *erts_sys_alloc(ErtsAlcType_t t, void *x, Uint sz)
@@ -2891,7 +2888,7 @@ smp_sig_notify(char c)
 	char msg[] =
 	    "smp_sig_notify(): Failed to notify signal-dispatcher thread "
 	    "about received signal";
-	(void) write(2, msg, sizeof(msg));
+	erts_silence_warn_unused_result(write(2, msg, sizeof(msg)));
 	abort();
     }
 }
@@ -3120,7 +3117,6 @@ erl_sys_args(int* argc, char** argv)
     }
     *argc = j;
 }
-
 
 #ifdef ERTS_TIMER_THREAD
 

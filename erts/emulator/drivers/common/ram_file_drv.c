@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- * 
- * Copyright Ericsson AB 1997-2009. All Rights Reserved.
- * 
+ *
+ * Copyright Ericsson AB 1997-2010. All Rights Reserved.
+ *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- * 
+ *
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- * 
+ *
  * %CopyrightEnd%
  */
 /*
@@ -35,6 +35,7 @@
 #define RAM_FILE_TRUNCATE      14
 #define RAM_FILE_PREAD         17
 #define RAM_FILE_PWRITE        18
+#define RAM_FILE_FDATASYNC     19
 
 /* other operations */
 #define RAM_FILE_GET           30
@@ -45,6 +46,8 @@
 #define RAM_FILE_UUENCODE      35  /* uuencode file */
 #define RAM_FILE_UUDECODE      36  /* uudecode file */
 #define RAM_FILE_SIZE          37  /* get file size */
+#define RAM_FILE_ADVISE        38  /* predeclare the access
+                                    * pattern for file data */
 /* possible new operations include:
    DES_ENCRYPT
    DES_DECRYPT
@@ -388,7 +391,7 @@ static int ram_file_uuencode(RamFile *f)
 {
     int code_len = UULINE(UNIX_LINE);
     int len = f->end;
-    int usize = (len*4+2)/3 + 2*(len/code_len+1) + 2 + 1;
+    int usize = 4*((len+2)/3) + 2*((len+code_len-1)/code_len) + 2;    
     ErlDrvBinary* bin;
     uchar* inp;
     uchar* outp;
@@ -433,7 +436,7 @@ static int ram_file_uuencode(RamFile *f)
     *outp++ = ' ';   /* this end of file 0 length !!! */
     *outp++ = '\n';
     count += 2;
-
+    ASSERT(count == usize);
     driver_free_binary(f->bin);
     ram_file_set(f, bin, usize, count);
     return numeric_reply(f, count);
@@ -556,6 +559,13 @@ static void rfile_command(ErlDrvData e, char* buf, int count)
 	    error_reply(f, error);
 	else
 	    numeric_reply(f, 0); /* 0 is not used */
+	break;
+
+    case RAM_FILE_FDATASYNC:
+	if (f->flags == 0)
+	    error_reply(f, EBADF);
+	else
+	    reply(f, 1, 0);
 	break;
 
     case RAM_FILE_FSYNC:
@@ -684,6 +694,13 @@ static void rfile_command(ErlDrvData e, char* buf, int count)
 	
     case RAM_FILE_UUDECODE:   /* uudecode file */
 	ram_file_uudecode(f);
+	break;
+
+    case RAM_FILE_ADVISE:
+	if (f->flags == 0)
+	    error_reply(f, EBADF);
+	else
+	    reply(f, 1, 0);
 	break;
     }
     /*

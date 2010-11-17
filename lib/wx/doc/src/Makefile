@@ -1,19 +1,19 @@
 #
 # %CopyrightBegin%
-# 
-# Copyright Ericsson AB 2008-2009. All Rights Reserved.
-# 
+#
+# Copyright Ericsson AB 2008-2010. All Rights Reserved.
+#
 # The contents of this file are subject to the Erlang Public License,
 # Version 1.1, (the "License"); you may not use this file except in
 # compliance with the License. You should have received a copy of the
 # Erlang Public License along with this software. If not, it can be
 # retrieved online at http://www.erlang.org/.
-# 
+#
 # Software distributed under the License is distributed on an "AS IS"
 # basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 # the License for the specific language governing rights and limitations
 # under the License.
-# 
+#
 # %CopyrightEnd%
 #
 
@@ -30,12 +30,6 @@ GenMods         = $(shell ls ../../src/gen | grep 'wx[A-Z].*\.erl') \
 		wx_misc.erl \
 		glu.erl \
 		gl.erl
-
-# GenMods         =  \
-# 		wx_misc.erl \
-# 		glu.erl \
-# 		gl.erl
-
 
 ModsNoExt	= $(ErlMods:%.erl=%) $(GenMods:%.erl=%)
 
@@ -88,7 +82,6 @@ XML_FILES = \
 	$(XML_PART_FILES) $(XML_REF3_FILES) \
 	$(XML_NOTES_FILES) $(XML_APPLICATION_FILES)
 
-
 # ----------------------------------------------------
 INFO_FILE = ../../info
 
@@ -126,9 +119,9 @@ gifs: $(GIF_FILES:%=$(HTMLDIR)/%)
 
 xml: $(XML_REF3_FILES) $(XML_CHAPTER_FILES) 
 
-ref_man.xml: ref_man.src.xml 
+ref_man.xml: ref_man.xml.src 
 	@echo Preparing ref_man.xml
-	@cat ref_man.src.xml > ref_man.xml
+	@cat ref_man.xml.src > ref_man.xml
 	@for d in $(ModsNoExt); do         \
 		echo "  <xi:include href=\"$$d.xml\"/>" >> ref_man.xml ; \
 	done
@@ -136,12 +129,13 @@ ref_man.xml: ref_man.src.xml
 	@echo 
 
 $(ErlMods:%.erl=%.xml):
-	docb_gen -def vsn $(VSN) -sort_functions false ../../src/$(@:%.xml=%.erl)
+	escript $(DOCGEN)/priv/bin/xml_from_edoc.escript -def vsn $(VSN) -sort_functions false ../../src/$(@:%.xml=%.erl)
+
 $(GenMods:%.erl=%.xml):
-	docb_gen -def vsn $(VSN) -sort_functions false ../../src/gen/$(@:%.xml=%.erl)
+	escript $(DOCGEN)/priv/bin/xml_from_edoc.escript -def vsn $(VSN) -sort_functions false ../../src/gen/$(@:%.xml=%.erl)
 
 $(XML_CHAPTER_FILES):
-	docb_gen -chapter -def vsn $(VSN) ../overview.edoc
+	escript $(DOCGEN)/priv/bin/xml_from_edoc.escript -def vsn $(VSN) -chapter ../overview.edoc 
 
 debug opt: 
 

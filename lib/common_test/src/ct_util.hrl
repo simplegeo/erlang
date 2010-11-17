@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 2003-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 2003-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 
@@ -27,12 +27,18 @@
 	       address,
 	       callback}).
 
--record(testspec, {nodes=[],
+-record(testspec, {spec_dir,
+	           nodes=[],
+		   init=[],
+		   label=[],
 		   logdir=["."],
 		   cover=[],
 		   config=[],
+		   userconfig=[],
 		   event_handler=[],
 		   include=[],
+		   multiply_timetraps=[],
+		   scale_timetraps=[],
 		   alias=[],
 		   tests=[]}).
 
@@ -49,3 +55,4 @@
 -define(CT_MEVMGR_REF, ct_master_event).
 
 -define(missing_suites_info, "missing_suites.info").
+-define(ct_config_txt, ct_config_plain).

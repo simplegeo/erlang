@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 2007-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 2007-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 
@@ -30,13 +30,15 @@
 -include("ssl_record.hrl"). 			% MD5 and SHA
 
 -export([master_secret/3, finished/3, certificate_verify/3,
-	 mac_hash/6, setup_keys/8, 
+	 mac_hash/6, setup_keys/7, 
 	 suites/0]).
 -compile(inline).
 
 %%====================================================================
 %% Internal application API
 %%====================================================================
+
+-spec master_secret(binary(), binary(), binary()) -> binary().
 
 master_secret(PremasterSecret, ClientRandom, ServerRandom) ->
     ?DBG_HEX(PremasterSecret),
@@ -57,6 +59,8 @@ master_secret(PremasterSecret, ClientRandom, ServerRandom) ->
     ?DBG_HEX(B),
     B.
 
+-spec finished(client | server, binary(), {binary(), binary()}) -> binary().
+
 finished(Role, MasterSecret, {MD5Hash, SHAHash}) ->
    %%  draft-ietf-tls-ssl-version3-00 - 5.6.9 Finished
    %%     struct {
@@ -75,8 +79,10 @@ finished(Role, MasterSecret, {MD5Hash, SHAHash}) ->
     SHA = handshake_hash(?SHA, MasterSecret, Sender, SHAHash),
     <<MD5/binary, SHA/binary>>.
 
+-spec certificate_verify(key_algo(), binary(), {binary(), binary()}) -> binary().
+
 certificate_verify(Algorithm, MasterSecret, {MD5Hash, SHAHash}) 
-  when Algorithm == rsa; Algorithm == dh_rsa; Algorithm == dhe_rsa ->
+  when Algorithm == rsa; Algorithm == dhe_rsa ->
      %% md5_hash
      %%           MD5(master_secret + pad_2 +
      %%               MD5(handshake_messages + master_secret + pad_1));
@@ -88,12 +94,13 @@ certificate_verify(Algorithm, MasterSecret, {MD5Hash, SHAHash})
     SHA = handshake_hash(?SHA, MasterSecret, undefined, SHAHash),
     <<MD5/binary, SHA/binary>>;
 
-certificate_verify(Algorithm, MasterSecret, {_, SHAHash}) 
-  when Algorithm == dh_dss; Algorithm == dhe_dss ->
+certificate_verify(dhe_dss, MasterSecret, {_, SHAHash}) ->
      %% sha_hash
      %%           SHA(master_secret + pad_2 +
      %%               SHA(handshake_messages + master_secret + pad_1));
     handshake_hash(?SHA, MasterSecret, undefined, SHAHash).
+
+-spec mac_hash(integer(), binary(), integer(), integer(), integer(), binary()) -> binary(). 
 
 mac_hash(Method, Mac_write_secret, Seq_num, Type, Length, Fragment) ->
     %% draft-ietf-tls-ssl-version3-00 - 5.2.3.1 
@@ -114,9 +121,12 @@ mac_hash(Method, Mac_write_secret, Seq_num, Type, Length, Fragment) ->
     ?DBG_HEX(Mac),
     Mac.
 
-setup_keys(Exportable, MasterSecret, ServerRandom, ClientRandom, 
-	   HS, KML, _EKML, IVS)
-  when Exportable == no_export; Exportable == ignore ->
+-spec setup_keys(binary(), binary(), binary(),  
+		 integer(), integer(), term(), integer()) -> 
+			{binary(), binary(), binary(), 
+			 binary(), binary(), binary()}.  
+
+setup_keys(MasterSecret, ServerRandom, ClientRandom, HS, KML, _EKML, IVS) ->
     KeyBlock = generate_keyblock(MasterSecret, ServerRandom, ClientRandom,
 				 2*(HS+KML+IVS)),
     %%  draft-ietf-tls-ssl-version3-00 - 6.2.2
@@ -137,79 +147,25 @@ setup_keys(Exportable, MasterSecret, ServerRandom, ClientRandom,
     ?DBG_HEX(ClientIV),
     ?DBG_HEX(ServerIV),
     {ClientWriteMacSecret, ServerWriteMacSecret, ClientWriteKey,
-     ServerWriteKey, ClientIV, ServerIV};
+     ServerWriteKey, ClientIV, ServerIV}.
 
-setup_keys(export, MasterSecret, ServerRandom, ClientRandom, 
-	   HS, KML, EKML, IVS) ->
-    KeyBlock = generate_keyblock(MasterSecret, ServerRandom, ClientRandom,
-				 2*(HS+KML)),
-    %%  draft-ietf-tls-ssl-version3-00 - 6.2.2
-    %%  Exportable encryption algorithms (for which
-    %%  CipherSpec.is_exportable is true) require additional processing as
-    %%  follows to derive their final write keys:
-
-    %%  final_client_write_key = MD5(client_write_key +
-    %%                               ClientHello.random +
-    %%                               ServerHello.random);
-    %%  final_server_write_key = MD5(server_write_key +
-    %%                               ServerHello.random +
-    %%                               ClientHello.random);
-
-    %%  Exportable encryption algorithms derive their IVs from the random
-    %%  messages:
-    %%  client_write_IV = MD5(ClientHello.random + ServerHello.random);
-    %%  server_write_IV = MD5(ServerHello.random + ClientHello.random);
-
-    <<ClientWriteMacSecret:HS/binary, ServerWriteMacSecret:HS/binary,
-     ClientWriteKey:KML/binary, ServerWriteKey:KML/binary>> = KeyBlock,
-    <<ClientIV:IVS/binary, _/binary>> = 
-	hash(?MD5, [ClientRandom, ServerRandom]),
-    <<ServerIV:IVS/binary, _/binary>> = 
-	hash(?MD5, [ServerRandom, ClientRandom]),
-    <<FinalClientWriteKey:EKML/binary, _/binary>> = 
-	hash(?MD5, [ClientWriteKey, ClientRandom, ServerRandom]),
-    <<FinalServerWriteKey:EKML/binary, _/binary>> = 
-	hash(?MD5, [ServerWriteKey, ServerRandom, ClientRandom]),
-    ?DBG_HEX(ClientWriteMacSecret),
-    ?DBG_HEX(ServerWriteMacSecret),
-    ?DBG_HEX(FinalClientWriteKey),
-    ?DBG_HEX(FinalServerWriteKey),
-    ?DBG_HEX(ClientIV),
-    ?DBG_HEX(ServerIV),
-    {ClientWriteMacSecret, ServerWriteMacSecret, FinalClientWriteKey,
-     FinalServerWriteKey, ClientIV, ServerIV}.
+-spec suites() -> [cipher_suite()].
 
 suites() ->
     [ 
-      %% TODO: uncomment when supported
-      %%       ?TLS_DHE_RSA_WITH_AES_256_CBC_SHA,
-      %%       ?TLS_DHE_DSS_WITH_AES_256_CBC_SHA,
-      %% TODO: Funkar inte, borde: ?TLS_RSA_WITH_AES_256_CBC_SHA,
-      %%       ?TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA,
-      %%       ?TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA,
+      ?TLS_DHE_RSA_WITH_AES_256_CBC_SHA,
+      ?TLS_DHE_DSS_WITH_AES_256_CBC_SHA,
+      ?TLS_RSA_WITH_AES_256_CBC_SHA,
+      ?TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA,
+      ?TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA,
       ?TLS_RSA_WITH_3DES_EDE_CBC_SHA,
-      %%       ?TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-      %%       ?TLS_DHE_DSS_WITH_AES_128_CBC_SHA,
+      ?TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+      ?TLS_DHE_DSS_WITH_AES_128_CBC_SHA,
       ?TLS_RSA_WITH_AES_128_CBC_SHA,
-      %%?TLS_DHE_DSS_WITH_RC4_128_SHA, TODO: Support this?
-      %% ?TLS_RSA_WITH_IDEA_CBC_SHA, Not supported: in later openssl version than OTP requires
-      
+      %%?TLS_RSA_WITH_IDEA_CBC_SHA, 
       ?TLS_RSA_WITH_RC4_128_SHA,
       ?TLS_RSA_WITH_RC4_128_MD5,
-      %%?TLS_RSA_EXPORT1024_WITH_RC4_56_MD5,
-      %%?TLS_RSA_EXPORT1024_WITH_RC2_CBC_56_MD5,
-      %%?TLS_RSA_EXPORT1024_WITH_DES_CBC_SHA,
-      %%?TLS_DHE_DSS_EXPORT1024_WITH_DES_CBC_SHA,
-      %%?TLS_RSA_EXPORT1024_WITH_RC4_56_SHA,
-      %%?TLS_DHE_DSS_EXPORT1024_WITH_RC4_56_SHA,
-      %%?TLS_DHE_DSS_WITH_RC4_128_SHA,
-
       ?TLS_RSA_WITH_DES_CBC_SHA
-      %%       ?TLS_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA,
-      %%       ?TLS_DHE_DSS_EXPORT_WITH_DES40_CBC_SHA,
-      %% ?TLS_RSA_EXPORT_WITH_DES40_CBC_SHA,
-      %%?TLS_RSA_EXPORT_WITH_RC2_CBC_40_MD5,
-      %%?TLS_RSA_EXPORT_WITH_RC4_40_MD5
      ].
 
 %%--------------------------------------------------------------------
@@ -269,8 +225,7 @@ handshake_hash(Method, MasterSecret, Sender, HandshakeHash) ->
     hash(Method, [MasterSecret, pad_2(Method), InnerHash]).
 
 get_sender(client) -> "CLNT";
-get_sender(server) -> "SRVR";
-get_sender(none) -> "".
+get_sender(server) -> "SRVR".
 
 generate_keyblock(MasterSecret, ServerRandom, ClientRandom, WantedLength) ->
     gen(MasterSecret, [MasterSecret, ServerRandom, ClientRandom],

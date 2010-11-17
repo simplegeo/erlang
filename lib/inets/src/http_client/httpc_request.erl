@@ -1,29 +1,30 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 2004-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 2004-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 
 -module(httpc_request).
 
--include("http_internal.hrl").
+-include_lib("inets/src/http_lib/http_internal.hrl").
 -include("httpc_internal.hrl").
 
 %%% Internal API
 -export([send/3, is_idempotent/1, is_client_closing/1]).
+
 
 %%%=========================================================================
 %%%  Internal application API
@@ -39,14 +40,45 @@
 %%                                   
 %% Description: Composes and sends a HTTP-request. 
 %%-------------------------------------------------------------------------
-send(SendAddr, #request{method = Method, scheme = Scheme,
-			path = Path, pquery = Query, headers = Headers,
-			content = Content, address = Address, 
-			abs_uri = AbsUri, headers_as_is = HeadersAsIs,
-			settings = HttpOptions, 
-			userinfo = UserInfo},
-     Socket) -> 
+send(SendAddr, #session{socket = Socket, socket_type = SocketType}, 
+     #request{socket_opts = SocketOpts} = Request) 
+  when is_list(SocketOpts) -> 
+    case http_transport:setopts(SocketType, Socket, SocketOpts) of
+	ok ->
+	    send(SendAddr, Socket, SocketType, 
+		 Request#request{socket_opts = undefined});
+	{error, Reason} ->
+	    {error, {setopts_failed, Reason}}
+    end;
+send(SendAddr, #session{socket = Socket, socket_type = SocketType}, Request) ->
+    send(SendAddr, Socket, SocketType, Request).
     
+send(SendAddr, Socket, SocketType, 
+     #request{method        = Method, 
+	      path          = Path, 
+	      pquery        = Query, 
+	      headers       = Headers,
+	      content       = Content, 
+	      address       = Address, 
+	      abs_uri       = AbsUri, 
+	      headers_as_is = HeadersAsIs,
+	      settings      = HttpOptions, 
+	      userinfo      = UserInfo}) -> 
+    
+    ?hcrt("send", 
+	  [{send_addr,     SendAddr}, 
+	   {socket,        Socket}, 
+	   {method,        Method}, 
+	   {path,          Path}, 
+	   {pquery,        Query}, 
+	   {headers,       Headers},
+	   {content,       Content}, 
+	   {address,       Address}, 
+	   {abs_uri,       AbsUri}, 
+	   {headers_as_is, HeadersAsIs},
+	   {settings,      HttpOptions}, 
+	   {userinfo,      UserInfo}]),
+
     TmpHeaders = handle_user_info(UserInfo, Headers),
 
     {TmpHeaders2, Body} = 
@@ -70,9 +102,14 @@ send(SendAddr, #request{method = Method, scheme = Scheme,
     Version = HttpOptions#http_options.version,
 
     Message = [method(Method), " ", Uri, " ", 
-	       version(Version), ?CRLF, headers(FinalHeaders, Version), ?CRLF, Body],
+	       version(Version), ?CRLF, 
+	       headers(FinalHeaders, Version), ?CRLF, Body],
+
+    ?hcrd("send", [{message, Message}]),
     
-    http_transport:send(socket_type(Scheme), Socket, lists:append(Message)).
+    http_transport:send(SocketType, Socket, lists:append(Message)).
+
+
 
 %%-------------------------------------------------------------------------
 %% is_idempotent(Method) ->
@@ -123,7 +160,7 @@ is_client_closing(Headers) ->
 %%% Internal functions
 %%%========================================================================
 post_data(Method, Headers, {ContentType, Body}, HeadersAsIs) 
-  when Method == post; Method == put ->
+  when (Method =:= post) orelse (Method =:= put) ->
     ContentLength = body_length(Body),	      
     NewBody = case Headers#http_request_h.expect of
 		  "100-continue" ->
@@ -171,10 +208,6 @@ headers(_, "HTTP/0.9") ->
 headers(Headers, _) ->
     Headers.
 
-socket_type(http) ->
-    ip_comm;
-socket_type(https) ->
-    {ssl, []}.
 
 http_headers([], Headers) ->
     lists:flatten(Headers);

@@ -1,19 +1,20 @@
+/* -*- c-indent-level: 2; c-continued-statement-offset: 2 -*- */
 /*
  * %CopyrightBegin%
- * 
- * Copyright Ericsson AB 1998-2009. All Rights Reserved.
- * 
+ *
+ * Copyright Ericsson AB 1998-2010. All Rights Reserved.
+ *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- * 
+ *
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- * 
+ *
  * %CopyrightEnd%
  */
 /* 
@@ -35,19 +36,6 @@
 #define NO_DAEMON
 #define NO_FCNTL
 #define DONT_USE_MAIN
-#endif
-
-#ifdef _OSE_
-#define NO_SYSLOG
-#define NO_SYSCONF
-#define NO_DAEMON
-#define DONT_USE_MAIN
-#ifndef HAVE_SYS_TIME_H
-#define HAVE_SYS_TIME_H
-#endif
-#ifndef HAVE_UNISTD_H
-#define HAVE_UNISTD_H
-#endif
 #endif
 
 /* ************************************************************************ */
@@ -92,7 +80,7 @@
 #endif
 #endif /* ! VXWORKS */
 
-#if (!defined(__WIN32__) && !defined(_OSE_))
+#if !defined(__WIN32__)
 #  include <netinet/in.h>
 #  include <sys/socket.h>
 #  include <sys/stat.h>
@@ -105,10 +93,8 @@
 #  include <netinet/tcp.h>
 #endif /* ! WIN32 */
 
-#ifndef _OSE_
 #include <ctype.h>
 #include <signal.h>
-#endif
 
 #include <errno.h>
 
@@ -126,13 +112,6 @@
 
 #include <stdarg.h>
 
-#ifdef _OSE_
-#  include "ose.h"
-#  include "inet.h"
-#  include "sys/stat.h"
-#endif
-
-
 /* ************************************************************************ */
 /* Replace some functions by others by making the function name a macro */
 
@@ -148,10 +127,6 @@
 #define sleep(n) taskDelay((n) * sysClkRateGet())
 #endif /* VXWORKS */
 
-#ifdef _OSE_
-#define sleep(n) delay((n))
-#endif
-
 #ifdef USE_BCOPY
 #  define memcpy(a, b, c) bcopy((b), (a), (c))
 #  define memcmp(a, b, c) bcmp((a), (b), (c))
@@ -165,6 +140,10 @@
 
 #if defined(__WIN32__) && !defined(EADDRINUSE)
 #  define EADDRINUSE WSAEADDRINUSE
+#endif
+
+#if defined(__WIN32__) && !defined(ECONNABORTED)
+#  define ECONNABORTED WSAECONNABORTED
 #endif
 
 #ifndef SOMAXCONN
@@ -192,26 +171,18 @@
 #define FAMILY      AF_INET6
 
 #define SET_ADDR_LOOPBACK(addr, af, port) do { \
-    static u_int32_t __addr[4] = IN6ADDR_LOOPBACK_INIT; \
     memset((char*)&(addr), 0, sizeof(addr)); \
     (addr).sin6_family = (af); \
     (addr).sin6_flowinfo = 0; \
-    (addr).sin6_addr.s6_addr32[0] = __addr[0]; \
-    (addr).sin6_addr.s6_addr32[1] = __addr[1]; \
-    (addr).sin6_addr.s6_addr32[2] = __addr[2]; \
-    (addr).sin6_addr.s6_addr32[3] = __addr[3]; \
+    (addr).sin6_addr = in6addr_loopback; \
     (addr).sin6_port = htons(port); \
  } while(0)
 
 #define SET_ADDR_ANY(addr, af, port) do { \
-    static u_int32_t __addr[4] = IN6ADDR_ANY_INIT; \
     memset((char*)&(addr), 0, sizeof(addr)); \
     (addr).sin6_family = (af); \
     (addr).sin6_flowinfo = 0; \
-    (addr).sin6_addr.s6_addr32[0] = __addr[0]; \
-    (addr).sin6_addr.s6_addr32[1] = __addr[1]; \
-    (addr).sin6_addr.s6_addr32[2] = __addr[2]; \
-    (addr).sin6_addr.s6_addr32[3] = __addr[3]; \
+    (addr).sin6_addr = in6addr_any; \
     (addr).sin6_port = htons(port); \
  } while(0)
 
@@ -275,8 +246,10 @@
 
 typedef struct {
   int fd;			/* File descriptor */
-  unsigned open:1;		/* TRUE if open */
-  unsigned keep:1;		/* Don't close when sent reply */
+  unsigned char open;		/* TRUE if open */
+  unsigned char keep;		/* Don't close when sent reply */
+  unsigned char local_peer;     /* The peer of this connection is via
+                                   loopback interface */
   unsigned got;			/* # of bytes we have got */
   unsigned want;		/* Number of bytes we want */
   char *buf;			/* The remaining buffer */
@@ -294,6 +267,7 @@ struct enode {
   char protocol;                /* 0 = tcp/ipv4 */
   unsigned short highvsn;       /* 0 = OTP-R3 erts-4.6.x, 1 = OTP-R4 erts-4.7.x*/
   unsigned short lowvsn;
+  int extralen;
   char extra[MAXSYMLEN+1];
 };
 
@@ -315,6 +289,7 @@ typedef struct {
   int debug;
   int silent; 
   int is_daemon;
+  int brutal_kill;
   unsigned packet_timeout;
   unsigned delay_accept;
   unsigned delay_write;
@@ -336,6 +311,7 @@ void epmd_call(EpmdVars*,int);
 void run(EpmdVars*);
 void epmd_cleanup_exit(EpmdVars*, int);
 int epmd_conn_close(EpmdVars*,Connection*);
+void stop_cli(EpmdVars *g, char *name);
 
 #ifdef DONT_USE_MAIN
 int  start_epmd(char *,char *,char *,char *,char *,char *,char *,char *,char *,char *);

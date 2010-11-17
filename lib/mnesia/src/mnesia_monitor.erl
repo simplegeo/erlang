@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 
@@ -256,6 +256,7 @@ init([Parent]) ->
     ?ets_new_table(mnesia_gvar, [set, public, named_table]), 
     ?ets_new_table(mnesia_stats, [set, public, named_table]), 
     set(subscribers, []),
+    set(activity_subscribers, []),
     mnesia_lib:verbose("~p starting: ~p~n", [?MODULE, self()]),
     Version = mnesia:system_info(version),
     set(version, Version),
@@ -497,7 +498,7 @@ handle_cast({mnesia_down, mnesia_locker, Node}, State) ->
 	    process_q(State3);
 	false ->
 	    %% No pending remote monitors
-	    {noreply, State2}
+	    process_q(State2)
     end;
 
 handle_cast({disconnect, Node}, State) ->
@@ -674,7 +675,8 @@ env() ->
      core_dir,
      pid_sort_order,
      no_table_loaders,
-     dc_dump_limit
+     dc_dump_limit,
+     send_compressed
     ].
 
 default_env(access_module) -> 
@@ -717,7 +719,9 @@ default_env(pid_sort_order) ->
 default_env(no_table_loaders) ->
     2;
 default_env(dc_dump_limit) ->
-    4.
+    4;
+default_env(send_compressed) ->
+    0.
 
 check_type(Env, Val) ->
     case catch do_check_type(Env, Val) of
@@ -763,7 +767,8 @@ do_check_type(pid_sort_order, standard) -> standard;
 do_check_type(pid_sort_order, "standard") -> standard;
 do_check_type(pid_sort_order, _) -> false;
 do_check_type(no_table_loaders, N) when is_integer(N), N > 0 -> N;
-do_check_type(dc_dump_limit,N) when is_number(N), N > 0 -> N.
+do_check_type(dc_dump_limit,N) when is_number(N), N > 0 -> N;
+do_check_type(send_compressed, L) when is_integer(L), L >= 0, L =< 9 -> L.
 
 bool(true) -> true;
 bool(false) -> false.

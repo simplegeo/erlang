@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 -module(file).
@@ -36,11 +36,11 @@
 %% Specialized
 -export([ipread_s32bu_p32bu/3]).
 %% Generic file contents.
--export([open/2, close/1, 
+-export([open/2, close/1, advise/4,
 	 read/2, write/2, 
 	 pread/2, pread/3, pwrite/2, pwrite/3,
 	 read_line/1,
-	 position/2, truncate/1, sync/1,
+	 position/2, truncate/1, datasync/1, sync/1,
 	 copy/2, copy/3]).
 %% High level operations
 -export([consult/1, path_consult/2]).
@@ -61,6 +61,9 @@
 
 -export([ipread_s32bu_p32bu_int/3]).
 
+%% Types that can be used from other modules -- alphabetically ordered.
+-export_type([date_time/0, fd/0, file_info/0, filename/0, io_device/0,
+	      name/0, posix/0]).
 
 %%% Includes and defines
 -include("file.hrl").
@@ -73,14 +76,24 @@
 
 %% data types
 -type filename()  :: string().
--type io_device() :: pid() | #file_descriptor{}.
+-type file_info() :: #file_info{}.
+-type fd()        :: #file_descriptor{}.
+-type io_device() :: pid() | fd().
 -type location()  :: integer() | {'bof', integer()} | {'cur', integer()}
 		   | {'eof', integer()} | 'bof' | 'cur' | 'eof'.
 -type mode()      :: 'read' | 'write' | 'append' | 'raw' | 'binary' | 
 		     {'delayed_write', non_neg_integer(), non_neg_integer()} | 
 		     'delayed_write' | {'read_ahead', pos_integer()} | 
-		     'read_ahead' | 'compressed'.
+		     'read_ahead' | 'compressed' | 'exclusive'.
+-type name()      :: string() | atom() | [name()].
+-type posix()     :: atom().
 -type bindings()  :: any().
+
+-type date()      :: {pos_integer(), pos_integer(), pos_integer()}.
+-type time()      :: {non_neg_integer(), non_neg_integer(), non_neg_integer()}.
+-type date_time() :: {date(), time()}.
+-type posix_file_advise() :: 'normal' | 'sequential' | 'random' | 'no_reuse' |
+                            'will_need' | 'dont_need'.
 
 %%%-----------------------------------------------------------------
 %%% General functions
@@ -344,10 +357,22 @@ close(#file_descriptor{module = Module} = Handle) ->
 close(_) ->
     {error, badarg}.
 
--spec read(File :: io_device(), Size :: non_neg_integer()) ->
+-spec advise(File :: io_device(), Offset :: integer(),
+        Length :: integer(), Advise :: posix_file_advise()) ->
+	'ok' | {'error', posix()}.
+
+advise(File, Offset, Length, Advise) when is_pid(File) ->
+    R = file_request(File, {advise, Offset, Length, Advise}),
+    wait_file_reply(File, R);
+advise(#file_descriptor{module = Module} = Handle, Offset, Length, Advise) ->
+    Module:advise(Handle, Offset, Length, Advise);
+advise(_, _, _, _) ->
+    {error, badarg}.
+
+-spec read(File :: io_device() | atom(), Size :: non_neg_integer()) ->
 	'eof' | {'ok', [char()] | binary()} | {'error', posix()}.
 
-read(File, Sz) when is_pid(File), is_integer(Sz), Sz >= 0 ->
+read(File, Sz) when (is_pid(File) orelse is_atom(File)), is_integer(Sz), Sz >= 0 ->
     case io:request(File, {get_chars, '', Sz}) of
 	Data when is_list(Data); is_binary(Data) ->
 	    {ok, Data};
@@ -360,10 +385,10 @@ read(#file_descriptor{module = Module} = Handle, Sz)
 read(_, _) ->
     {error, badarg}.
 
--spec read_line(File :: io_device()) ->
+-spec read_line(File :: io_device() | atom()) ->
 	'eof' | {'ok', [char()] | binary()} | {'error', posix()}.
 
-read_line(File) when is_pid(File) ->
+read_line(File) when (is_pid(File) orelse is_atom(File)) ->
     case io:request(File, {get_line, ''}) of
 	Data when is_list(Data); is_binary(Data) ->
 	    {ok, Data};
@@ -414,10 +439,10 @@ pread(#file_descriptor{module = Module} = Handle, Offs, Sz)
 pread(_, _, _) ->
     {error, badarg}.
 
--spec write(File :: io_device(), Byte :: iodata()) ->
+-spec write(File :: io_device() | atom(), Byte :: iodata()) ->
 	'ok' | {'error', posix()}.
 
-write(File, Bytes) when is_pid(File) ->
+write(File, Bytes) when (is_pid(File) orelse is_atom(File)) ->
     case make_binary(Bytes) of
 	Bin when is_binary(Bin) ->
 	    io:request(File, {put_chars,Bin});
@@ -462,6 +487,16 @@ pwrite(File, At, Bytes) when is_pid(File) ->
 pwrite(#file_descriptor{module = Module} = Handle, Offs, Bytes) ->
     Module:pwrite(Handle, Offs, Bytes);
 pwrite(_, _, _) ->
+    {error, badarg}.
+
+-spec datasync(File :: io_device()) -> 'ok' | {'error', posix()}.
+
+datasync(File) when is_pid(File) ->
+    R = file_request(File, datasync),
+    wait_file_reply(File, R);
+datasync(#file_descriptor{module = Module} = Handle) ->
+    Module:datasync(Handle);
+datasync(_) ->
     {error, badarg}.
 
 -spec sync(File :: io_device()) -> 'ok' | {'error', posix()}.

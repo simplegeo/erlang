@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 -module(gen_fsm_SUITE).
@@ -30,7 +30,7 @@
 
 -export([shutdown/1]).
 
--export([sys/1, sys1/1]).
+-export([sys/1, sys1/1, call_format_status/1, error_format_status/1]).
 
 -export([hibernate/1,hiber_idle/3,hiber_wakeup/3,hiber_idle/2,hiber_wakeup/2]).
 
@@ -42,7 +42,7 @@
 
 % The gen_fsm behaviour
 -export([init/1, handle_event/3, handle_sync_event/4, terminate/3,
-	 handle_info/3]).
+	 handle_info/3, format_status/2]).
 -export([idle/2,	idle/3,
 	 timeout/2,
 	 wfor_conf/2,	wfor_conf/3,
@@ -305,7 +305,7 @@ shutdown(Config) when is_list(Config) ->
     ok.
 
 
-sys(suite) -> [sys1].
+sys(suite) -> [sys1, call_format_status, error_format_status].
 
 sys1(Config) when is_list(Config) ->
     ?line {ok, Pid} = 
@@ -317,6 +317,56 @@ sys1(Config) when is_list(Config) ->
     ?line sys:resume(Pid),
     ?line stop_it(Pid).
 
+call_format_status(Config) when is_list(Config) ->
+    ?line {ok, Pid} = gen_fsm:start(gen_fsm_SUITE, [], []),
+    ?line Status = sys:get_status(Pid),
+    ?line {status, Pid, _Mod, [_PDict, running, _, _, Data]} = Status,
+    ?line [format_status_called | _] = lists:reverse(Data),
+    ?line stop_it(Pid),
+
+    %% check that format_status can handle a name being an atom (pid is
+    %% already checked by the previous test)
+    ?line {ok, Pid2} = gen_fsm:start({local, gfsm}, gen_fsm_SUITE, [], []),
+    ?line Status2 = sys:get_status(gfsm),
+    ?line {status, Pid2, _Mod, [_PDict2, running, _, _, Data2]} = Status2,
+    ?line [format_status_called | _] = lists:reverse(Data2),
+    ?line stop_it(Pid2),
+
+    %% check that format_status can handle a name being a term other than a
+    %% pid or atom
+    GlobalName1 = {global, "CallFormatStatus"},
+    ?line {ok, Pid3} = gen_fsm:start(GlobalName1, gen_fsm_SUITE, [], []),
+    ?line Status3 = sys:get_status(GlobalName1),
+    ?line {status, Pid3, _Mod, [_PDict3, running, _, _, Data3]} = Status3,
+    ?line [format_status_called | _] = lists:reverse(Data3),
+    ?line stop_it(Pid3),
+    GlobalName2 = {global, {name, "term"}},
+    ?line {ok, Pid4} = gen_fsm:start(GlobalName2, gen_fsm_SUITE, [], []),
+    ?line Status4 = sys:get_status(GlobalName2),
+    ?line {status, Pid4, _Mod, [_PDict4, running, _, _, Data4]} = Status4,
+    ?line [format_status_called | _] = lists:reverse(Data4),
+    ?line stop_it(Pid4).
+
+error_format_status(Config) when is_list(Config) ->
+    ?line error_logger_forwarder:register(),
+    OldFl = process_flag(trap_exit, true),
+    StateData = "called format_status",
+    ?line {ok, Pid} = gen_fsm:start(gen_fsm_SUITE, {state_data, StateData}, []),
+    %% bad return value in the gen_fsm loop
+    ?line {'EXIT',{{bad_return_value, badreturn},_}} =
+	(catch gen_fsm:sync_send_event(Pid, badreturn)),
+    receive
+	{error,_GroupLeader,{Pid,
+			     "** State machine"++_,
+			     [Pid,{_,_,badreturn},idle,StateData,_]}} ->
+	    ok;
+	Other ->
+	    ?line io:format("Unexpected: ~p", [Other]),
+	    ?line ?t:fail()
+    end,
+    ?t:messages_get(),
+    process_flag(trap_exit, OldFl),
+    ok.
 
 %% Hibernation
 hibernate(suite) -> [];
@@ -697,6 +747,8 @@ init(hiber) ->
     {ok, hiber_idle, []};
 init(hiber_now) ->
     {ok, hiber_idle, [], hibernate};
+init({state_data, StateData}) ->
+    {ok, idle, StateData};
 init(_) ->
     {ok, idle, state_data}.
 
@@ -836,3 +888,8 @@ handle_sync_event(stop_shutdown_reason, _From, _State, Data) ->
     {stop, {shutdown,reason}, {shutdown,reason}, Data};
 handle_sync_event({get, _Pid}, _From, State, Data) ->
     {reply, {state, State, Data}, State, Data}.
+
+format_status(terminate, [_Pdict, StateData]) ->
+    StateData;
+format_status(normal, [_Pdict, _StateData]) ->
+    [format_status_called].

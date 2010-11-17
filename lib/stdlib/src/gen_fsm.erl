@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 -module(gen_fsm).
@@ -116,7 +116,7 @@
 -export([behaviour_info/1]).
 
 %% Internal exports
--export([init_it/6, print_event/3,
+-export([init_it/6,
 	 system_continue/3,
 	 system_terminate/4,
 	 system_code_change/4,
@@ -376,7 +376,7 @@ decode_msg(Msg,Parent, Name, StateName, StateData, Mod, Time, Debug, Hib) ->
 	_Msg when Debug =:= [] ->
 	    handle_msg(Msg, Parent, Name, StateName, StateData, Mod, Time);
 	_Msg ->
-	    Debug1 = sys:handle_debug(Debug, {?MODULE, print_event}, 
+	    Debug1 = sys:handle_debug(Debug, fun print_event/3,
 				      {Name, StateName}, {in, Msg}),
 	    handle_msg(Msg, Parent, Name, StateName, StateData,
 		       Mod, Time, Debug1)
@@ -466,11 +466,11 @@ handle_msg(Msg, Parent, Name, StateName, StateData, Mod, _Time, Debug) ->
     From = from(Msg),
     case catch dispatch(Msg, Mod, StateName, StateData) of
 	{next_state, NStateName, NStateData} ->
-	    Debug1 = sys:handle_debug(Debug, {?MODULE, print_event}, 
+	    Debug1 = sys:handle_debug(Debug, fun print_event/3,
 				      {Name, NStateName}, return),
 	    loop(Parent, Name, NStateName, NStateData, Mod, infinity, Debug1);
 	{next_state, NStateName, NStateData, Time1} ->
-	    Debug1 = sys:handle_debug(Debug, {?MODULE, print_event}, 
+	    Debug1 = sys:handle_debug(Debug, fun print_event/3,
 				      {Name, NStateName}, return),
 	    loop(Parent, Name, NStateName, NStateData, Mod, Time1, Debug1);
         {reply, Reply, NStateName, NStateData} when From =/= undefined ->
@@ -519,7 +519,7 @@ reply({To, Tag}, Reply) ->
 
 reply(Name, {To, Tag}, Reply, Debug, StateName) ->
     reply({To, Tag}, Reply),
-    sys:handle_debug(Debug, {?MODULE, print_event}, Name,
+    sys:handle_debug(Debug, fun print_event/3, Name,
 		     {out, Reply, To, StateName}).
 
 %%% ---------------------------------------------------
@@ -542,7 +542,18 @@ terminate(Reason, Name, Msg, Mod, StateName, StateData, Debug) ->
  		{shutdown,_}=Shutdown ->
  		    exit(Shutdown);
 		_ ->
-		    error_info(Reason, Name, Msg, StateName, StateData, Debug),
+                    FmtStateData =
+                        case erlang:function_exported(Mod, format_status, 2) of
+                            true ->
+                                Args = [get(), StateData],
+                                case catch Mod:format_status(terminate, Args) of
+                                    {'EXIT', _} -> StateData;
+                                    Else -> Else
+                                end;
+                            _ ->
+                                StateData
+                        end,
+		    error_info(Reason,Name,Msg,StateName,FmtStateData,Debug),
 		    exit(Reason)
 	    end
     end.
@@ -603,17 +614,27 @@ get_msg(Msg) -> Msg.
 format_status(Opt, StatusData) ->
     [PDict, SysState, Parent, Debug, [Name, StateName, StateData, Mod, _Time]] =
 	StatusData,
-    Header = lists:concat(["Status for state machine ", Name]),
+    StatusHdr = "Status for state machine",
+    Header = if
+		 is_pid(Name) ->
+		     lists:concat([StatusHdr, " ", pid_to_list(Name)]);
+		 is_atom(Name); is_list(Name) ->
+		     lists:concat([StatusHdr, " ", Name]);
+		 true ->
+		     {StatusHdr, Name}
+	     end,
     Log = sys:get_debug(log, Debug, []),
-    Specfic = 
+    DefaultStatus = [{data, [{"StateData", StateData}]}],
+    Specfic =
 	case erlang:function_exported(Mod, format_status, 2) of
 	    true ->
 		case catch Mod:format_status(Opt,[PDict,StateData]) of
-		    {'EXIT', _} -> [{data, [{"StateData", StateData}]}];
-		    Else -> Else
+		    {'EXIT', _} -> DefaultStatus;
+                    StatusList when is_list(StatusList) -> StatusList;
+		    Else -> [Else]
 		end;
 	    _ ->
-		[{data, [{"StateData", StateData}]}]
+		DefaultStatus
 	end,
     [{header, Header},
      {data, [{"Status", SysState},

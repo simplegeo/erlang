@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- * 
- * Copyright Ericsson AB 1999-2009. All Rights Reserved.
- * 
+ *
+ * Copyright Ericsson AB 1999-2010. All Rights Reserved.
+ *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- * 
+ *
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- * 
+ *
  * %CopyrightEnd%
  */
 
@@ -255,7 +255,7 @@ erts_bs_get_integer_2(Process *p, Uint num_bits, unsigned flags, ErlBinMatchBuff
 	 * Simply shift whole bytes into the result.
 	 */
 	switch (BYTE_OFFSET(n)) {
-#ifdef ARCH_64
+#if defined(ARCH_64) && !HALFWORD_HEAP
 	case 7: w = (w << 8) | *bp++;
 	case 6: w = (w << 8) | *bp++;
 	case 5: w = (w << 8) | *bp++;
@@ -360,7 +360,7 @@ erts_bs_get_integer_2(Process *p, Uint num_bits, unsigned flags, ErlBinMatchBuff
     case 3: 
 	v32 = LSB[0] + (LSB[1]<<8) + (LSB[2]<<16); 
 	goto big_small;
-#if !defined(ARCH_64)
+#if !defined(ARCH_64) || HALFWORD_HEAP
     case 4:
 	v32 = (LSB[0] + (LSB[1]<<8) + (LSB[2]<<16) + (LSB[3]<<24));
 	if (!IS_USMALL(sgn, v32)) {
@@ -1335,12 +1335,12 @@ erts_bs_append(Process* c_p, Eterm* reg, Uint live, Eterm build_size_term,
 	hp += PROC_BIN_SIZE;
 	pb->thing_word = HEADER_PROC_BIN;
 	pb->size = used_size_in_bytes;
-	pb->next = MSO(c_p).mso;
-	MSO(c_p).mso = pb;
+	pb->next = MSO(c_p).first;
+	MSO(c_p).first = (struct erl_off_heap_header*)pb;
 	pb->val = bptr;
 	pb->bytes = (byte*) bptr->orig_bytes;
 	pb->flags = PB_IS_WRITABLE | PB_ACTIVE_WRITER;
-	MSO(c_p).overhead += pb->size / sizeof(Eterm);
+	OH_OVERHEAD(&(MSO(c_p)), pb->size / sizeof(Eterm));
 
 	/*
 	 * Now allocate the sub binary and set its size to include the
@@ -1506,12 +1506,12 @@ erts_bs_init_writable(Process* p, Eterm sz)
     hp += PROC_BIN_SIZE;
     pb->thing_word = HEADER_PROC_BIN;
     pb->size = 0;
-    pb->next = MSO(p).mso;
-    MSO(p).mso = pb;
+    pb->next = MSO(p).first;
+    MSO(p).first = (struct erl_off_heap_header*) pb;
     pb->val = bptr;
     pb->bytes = (byte*) bptr->orig_bytes;
     pb->flags = PB_IS_WRITABLE | PB_ACTIVE_WRITER;
-    MSO(p).overhead += pb->size / sizeof(Eterm);
+    OH_OVERHEAD(&(MSO(p)), pb->size / sizeof(Eterm));
     
     /*
      * Now allocate the sub binary.

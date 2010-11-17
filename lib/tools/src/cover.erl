@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 2001-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 2001-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 -module(cover).
@@ -689,6 +689,7 @@ main_process_loop(State) ->
 	      end,
 	      State#main_state.nodes),
 	    reload_originals(State#main_state.compiled),
+            unregister(?SERVER),
 	    reply(From, ok);
 
 	{From, {Request, Module}} ->
@@ -869,6 +870,7 @@ remote_process_loop(State) ->
 
 	{remote,stop} ->
 	    reload_originals(State#remote_state.compiled),
+            unregister(?SERVER),
 	    remote_reply(State#remote_state.main_node, ok);
 
 	get_status ->
@@ -1685,8 +1687,8 @@ munge_expr({lc,Line,Expr,Qs}, Vars) ->
     {MungedQs, Vars3} = munge_qualifiers(Qs, Vars2),
     {{lc,Line,MungedExpr,MungedQs}, Vars3};
 munge_expr({bc,Line,Expr,Qs}, Vars) ->
-    {bin,BLine,[{bin_element,EL,Val,Sz,TSL}]} = Expr,
-    Expr2 = {bin,BLine,[{bin_element,EL,?BLOCK1(Val),Sz,TSL}]},
+    {bin,BLine,[{bin_element,EL,Val,Sz,TSL}|Es]} = Expr,
+    Expr2 = {bin,BLine,[{bin_element,EL,?BLOCK1(Val),Sz,TSL}|Es]},
     {MungedExpr,Vars2} = munge_expr(Expr2, Vars),
     {MungedQs, Vars3} = munge_qualifiers(Qs, Vars2),
     {{bc,Line,MungedExpr,MungedQs}, Vars3};
@@ -2172,6 +2174,8 @@ escape_lt_and_gt1([$<|T],Acc) ->
     escape_lt_and_gt1(T,[$;,$t,$l,$&|Acc]);
 escape_lt_and_gt1([$>|T],Acc) ->
     escape_lt_and_gt1(T,[$;,$t,$g,$&|Acc]);
+escape_lt_and_gt1([$&|T],Acc) ->
+    escape_lt_and_gt1(T,[$;,$p,$m,$a,$&|Acc]);
 escape_lt_and_gt1([],Acc) ->
     lists:reverse(Acc);
 escape_lt_and_gt1([H|T],Acc) ->

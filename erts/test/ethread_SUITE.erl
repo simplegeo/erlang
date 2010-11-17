@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 2004-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 2004-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 
@@ -37,44 +37,34 @@
 	 equal_tids/1,
 	 mutex/1,
 	 try_lock_mutex/1,
-	 recursive_mutex/1,
 	 time_now/1,
 	 cond_wait/1,
-	 cond_timedwait/1,
 	 broadcast/1,
 	 detached_thread/1,
 	 max_threads/1,
-	 forksafety/1,
-	 vfork/1,
 	 tsd/1,
 	 spinlock/1,
 	 rwspinlock/1,
 	 rwmutex/1,
-	 atomic/1,
-	 gate/1]).
+	 atomic/1]).
 
--include("test_server.hrl").
+-include_lib("test_server/include/test_server.hrl").
 
 tests() ->
     [create_join_thread,
      equal_tids,
      mutex,
      try_lock_mutex,
-     recursive_mutex,
      time_now,
      cond_wait,
-     cond_timedwait,
      broadcast,
      detached_thread,
      max_threads,
-     forksafety,
-     vfork,
      tsd,
      spinlock,
      rwspinlock,
      rwmutex,
-     atomic,
-     gate].
+     atomic].
 
 all(doc) -> [];
 all(suite) -> tests().
@@ -113,13 +103,6 @@ try_lock_mutex(suite) ->
     [];
 try_lock_mutex(Config) ->
     run_case(Config, "try_lock_mutex", "").
-
-recursive_mutex(doc) ->
-    ["Tests recursive mutexes."];
-recursive_mutex(suite) ->
-    [];
-recursive_mutex(Config) ->
-    run_case(Config, "recursive_mutex", "").
 
 time_now(doc) ->
     ["Tests ethr_time_now by comparing time values with Erlang."];
@@ -169,13 +152,6 @@ cond_wait(suite) ->
 cond_wait(Config) ->
     run_case(Config, "cond_wait", "").
 
-cond_timedwait(doc) ->
-    ["Tests ethr_cond_timedwait with ethr_cond_signal and ethr_cond_broadcast."];
-cond_timedwait(suite) ->
-    [];
-cond_timedwait(Config) ->
-    run_case(Config, "cond_timedwait", "").
-
 broadcast(doc) ->
     ["Tests that a ethr_cond_broadcast really wakes up all waiting threads"];
 broadcast(suite) ->
@@ -196,25 +172,6 @@ max_threads(suite) ->
     [];
 max_threads(Config) ->
     run_case(Config, "max_threads", "").
-
-forksafety(doc) ->
-    ["Tests forksafety."];
-forksafety(suite) ->
-    [];
-forksafety(Config) ->
-    run_case(Config, "forksafety", "").
-
-vfork(doc) ->
-    ["Tests vfork with threads."];
-vfork(suite) ->
-    case ?t:os_type() of
-	{unix, osf1} ->
-	    {skip, "vfork() known to hang multi-threaded applications on osf1"};
-	_ ->
-	    []
-    end;
-vfork(Config) ->
-    run_case(Config, "vfork", "").
 
 tsd(doc) ->
     ["Tests thread specific data."];
@@ -250,13 +207,6 @@ atomic(suite) ->
     [];
 atomic(Config) ->
     run_case(Config, "atomic", "").
-
-gate(doc) ->
-    ["Tests gates."];
-gate(suite) ->
-    [];
-gate(Config) ->
-    run_case(Config, "gate", "").
 
 %%
 %%

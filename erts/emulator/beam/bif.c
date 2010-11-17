@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- * 
- * Copyright Ericsson AB 1996-2009. All Rights Reserved.
- * 
+ *
+ * Copyright Ericsson AB 1996-2010. All Rights Reserved.
+ *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- * 
+ *
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- * 
+ *
  * %CopyrightEnd%
  */
 
@@ -616,13 +616,15 @@ local_name_monitor(Process *p, Eterm target_name)
     rp = erts_whereis_process(p, p_locks, target_name, ERTS_PROC_LOCK_LINK,
 			      ERTS_P2P_FLG_ALLOW_OTHER_X);
     if (!rp) {
-	Eterm lhp[3];
+	DeclareTmpHeap(lhp,3,p);
 	Eterm item;
+	UseTmpHeap(3,p);
 	erts_smp_proc_unlock(p, ERTS_PROC_LOCK_LINK);
 	p_locks &= ~ERTS_PROC_LOCK_LINK;
 	item = TUPLE2(lhp, target_name, erts_this_dist_entry->sysname);
 	erts_queue_monitor_message(p, &p_locks,
 				   mon_ref, am_process, item, am_noproc);
+	UnUseTmpHeap(3,p);
     }
     else if (rp != p) {
 	erts_add_monitor(&(p->monitors), MON_ORIGIN, mon_ref, rp->id,
@@ -807,11 +809,12 @@ BIF_RETTYPE spawn_opt_1(BIF_ALIST_1)
     /*
      * Store default values for options.
      */
-    so.flags = SPO_USE_ARGS;
-    so.min_heap_size = H_MIN_SIZE;
-    so.priority = PRIORITY_NORMAL;
-    so.max_gen_gcs = (Uint16) erts_smp_atomic_read(&erts_max_gen_gcs);
-    so.scheduler = 0;
+    so.flags          = SPO_USE_ARGS;
+    so.min_heap_size  = H_MIN_SIZE;
+    so.min_vheap_size = BIN_VH_MIN_SIZE;
+    so.priority       = PRIORITY_NORMAL;
+    so.max_gen_gcs    = (Uint16) erts_smp_atomic_read(&erts_max_gen_gcs);
+    so.scheduler      = 0;
 
     /*
      * Walk through the option list.
@@ -849,6 +852,15 @@ BIF_RETTYPE spawn_opt_1(BIF_ALIST_1)
 		    so.min_heap_size = H_MIN_SIZE;
 		} else {
 		    so.min_heap_size = erts_next_heap_size(min_heap_size, 0);
+		}
+	    } else if (arg == am_min_bin_vheap_size && is_small(val)) {
+		Sint min_vheap_size = signed_val(val);
+		if (min_vheap_size < 0) {
+		    goto error;
+		} else if (min_vheap_size < BIN_VH_MIN_SIZE) {
+		    so.min_vheap_size = BIN_VH_MIN_SIZE;
+		} else {
+		    so.min_vheap_size = erts_next_heap_size(min_vheap_size, 0);
 		}
 	    } else if (arg == am_fullsweep_after && is_small(val)) {
 		Sint max_gen_gcs = signed_val(val);
@@ -1112,6 +1124,34 @@ BIF_RETTYPE error_1(Process* p, Eterm term)
  */
 
 BIF_RETTYPE error_2(Process* p, Eterm value, Eterm args)
+{
+    Eterm* hp = HAlloc(p, 3);
+
+    p->fvalue = TUPLE2(hp, value, args);
+    BIF_ERROR(p, EXC_ERROR_2);
+}
+
+/**********************************************************************/
+/*
+ * This is like exactly like error/1. The only difference is
+ * that Dialyzer thinks that it it will return an arbitrary term.
+ * It is useful in stub functions for NIFs.
+ */
+
+BIF_RETTYPE nif_error_1(Process* p, Eterm term)
+{
+    p->fvalue = term;
+    BIF_ERROR(p, EXC_ERROR);
+}
+
+/**********************************************************************/
+/*
+ * This is like exactly like error/2. The only difference is
+ * that Dialyzer thinks that it it will return an arbitrary term.
+ * It is useful in stub functions for NIFs.
+ */
+
+BIF_RETTYPE nif_error_2(Process* p, Eterm value, Eterm args)
 {
     Eterm* hp = HAlloc(p, 3);
 
@@ -1482,6 +1522,23 @@ BIF_RETTYPE process_flag_2(BIF_ALIST_2)
 	   BIF_P->min_heap_size = H_MIN_SIZE;
        } else {
 	   BIF_P->min_heap_size = erts_next_heap_size(i, 0);
+       }
+       BIF_RET(old_value);
+   }
+   else if (BIF_ARG_1 == am_min_bin_vheap_size) {
+       Sint i;
+       if (!is_small(BIF_ARG_2)) {
+	   goto error;
+       }
+       i = signed_val(BIF_ARG_2);
+       if (i < 0) {
+	   goto error;
+       }
+       old_value = make_small(BIF_P->min_vheap_size);
+       if (i < BIN_VH_MIN_SIZE) {
+	   BIF_P->min_vheap_size = BIN_VH_MIN_SIZE;
+       } else {
+	   BIF_P->min_vheap_size = erts_next_heap_size(i, 0);
        }
        BIF_RET(old_value);
    }
@@ -3439,9 +3496,16 @@ BIF_RETTYPE make_fun_3(BIF_ALIST_3)
     if (arity < 0) {
 	goto error;
     }
+#if HALFWORD_HEAP
+    hp = HAlloc(BIF_P, 3);
+    hp[0] = HEADER_EXPORT;
+    /* Yes, May be misaligned, but X86_64 will fix it... */
+    *((Export **) (hp+1)) = erts_export_get_or_make_stub(BIF_ARG_1, BIF_ARG_2, (Uint) arity);
+#else
     hp = HAlloc(BIF_P, 2);
     hp[0] = HEADER_EXPORT;
     hp[1] = (Eterm) erts_export_get_or_make_stub(BIF_ARG_1, BIF_ARG_2, (Uint) arity);
+#endif
     BIF_RET(make_export(hp));
 }
 
@@ -3547,11 +3611,11 @@ BIF_RETTYPE list_to_pid_1(BIF_ALIST_1)
 
       etp = (ExternalThing *) HAlloc(BIF_P, EXTERNAL_THING_HEAD_SIZE + 1);
       etp->header = make_external_pid_header(1);
-      etp->next = MSO(BIF_P).externals;
+      etp->next = MSO(BIF_P).first;
       etp->node = enp;
       etp->data.ui[0] = make_pid_data(c, b);
 
-      MSO(BIF_P).externals = etp;
+      MSO(BIF_P).first = (struct erl_off_heap_header*) etp;
       erts_deref_dist_entry(dep);
       BIF_RET(make_external_pid(etp));
     }
@@ -3736,10 +3800,35 @@ BIF_RETTYPE system_flag_2(BIF_ALIST_2)
 	BIF_RET(make_small(oval));
     } else if (BIF_ARG_1 == am_min_heap_size) {
 	int oval = H_MIN_SIZE;
+
 	if (!is_small(BIF_ARG_2) || (n = signed_val(BIF_ARG_2)) < 0) {
 	    goto error;
 	}
+
+	erts_smp_proc_unlock(BIF_P, ERTS_PROC_LOCK_MAIN);
+	erts_smp_block_system(0);
+
 	H_MIN_SIZE = erts_next_heap_size(n, 0);
+
+	erts_smp_release_system();
+	erts_smp_proc_lock(BIF_P, ERTS_PROC_LOCK_MAIN);
+
+	BIF_RET(make_small(oval));
+    } else if (BIF_ARG_1 == am_min_bin_vheap_size) {
+	int oval = BIN_VH_MIN_SIZE;
+
+	if (!is_small(BIF_ARG_2) || (n = signed_val(BIF_ARG_2)) < 0) {
+	    goto error;
+	}
+
+	erts_smp_proc_unlock(BIF_P, ERTS_PROC_LOCK_MAIN);
+	erts_smp_block_system(0);
+
+	BIN_VH_MIN_SIZE = erts_next_heap_size(n, 0);
+
+	erts_smp_release_system();
+	erts_smp_proc_lock(BIF_P, ERTS_PROC_LOCK_MAIN);
+
 	BIF_RET(make_small(oval));
     } else if (BIF_ARG_1 == am_display_items) {
 	int oval = display_items;
@@ -3832,7 +3921,7 @@ BIF_RETTYPE hash_2(BIF_ALIST_2)
     if ((range = signed_val(BIF_ARG_2)) <= 0) {  /* [1..MAX_SMALL] */
 	BIF_ERROR(BIF_P, BADARG);
     }
-#ifdef ARCH_64
+#if defined(ARCH_64) && !HALFWORD_HEAP
     if (range > ((1L << 27) - 1))
 	BIF_ERROR(BIF_P, BADARG);
 #endif
@@ -3904,7 +3993,7 @@ BIF_RETTYPE phash2_2(BIF_ALIST_2)
     /*
      * Return either a small or a big. Use the heap for bigs if there is room.
      */
-#ifdef ARCH_64
+#if defined(ARCH_64) && !HALFWORD_HEAP
     BIF_RET(make_small(final_hash));
 #else
     if (IS_USMALL(0, final_hash)) {
@@ -4066,8 +4155,8 @@ void erts_init_bif(void)
 #else
     bif_return_trap_export.code[2] = 1;
 #endif
-    bif_return_trap_export.code[3] = (Eterm) em_apply_bif;
-    bif_return_trap_export.code[4] = (Eterm) &bif_return_trap;
+    bif_return_trap_export.code[3] = (BeamInstr) em_apply_bif;
+    bif_return_trap_export.code[4] = (BeamInstr) &bif_return_trap;
 
     flush_monitor_message_trap = erts_export_put(am_erlang,
 						 am_flush_monitor_message,
@@ -4082,49 +4171,6 @@ void erts_init_bif(void)
     await_proc_exit_trap = erts_export_put(am_erlang,am_await_proc_exit,3);
 }
 
-BIF_RETTYPE blocking_read_file_1(BIF_ALIST_1)
-{
-    Eterm bin;
-    Eterm* hp;
-    byte *buff;
-    int i, buff_size;
-    FILE *file;
-    struct stat file_info;
-    char *filename = NULL;
- 
-    i = list_length(BIF_ARG_1);
-    if (i < 0) {
-	BIF_ERROR(BIF_P, BADARG);
-    }
-    filename = erts_alloc(ERTS_ALC_T_TMP, i + 1);
-    if (intlist_to_buf(BIF_ARG_1, filename, i) != i)
-	erl_exit(1, "%s:%d: Internal error\n", __FILE__, __LINE__);
-    filename[i] = '\0';
- 
-    hp = HAlloc(BIF_P, 3);
- 
-    file = fopen(filename, "r");
-    if(file == NULL){
-	erts_free(ERTS_ALC_T_TMP, (void *) filename);
-	BIF_RET(TUPLE2(hp, am_error, am_nofile));
-    }
- 
-    stat(filename, &file_info);
-    erts_free(ERTS_ALC_T_TMP, (void *) filename);
-
-    buff_size = file_info.st_size;
-    buff = (byte *) erts_alloc_fnf(ERTS_ALC_T_TMP, buff_size);
-    if (!buff) {
-	fclose(file);
-	BIF_RET(TUPLE2(hp, am_error, am_allocator));
-    }
-    fread(buff, 1, buff_size, file);
-    fclose(file);
-    bin = new_binary(BIF_P, buff, buff_size);
-    erts_free(ERTS_ALC_T_TMP, (void *) buff);
- 
-    BIF_RET(TUPLE2(hp, am_ok, bin));
-}
 #ifdef HARDDEBUG
 /*
 You'll need this line in bif.tab to be able to use this debug bif

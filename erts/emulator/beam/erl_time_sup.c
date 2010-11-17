@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- * 
- * Copyright Ericsson AB 1999-2009. All Rights Reserved.
- * 
+ *
+ * Copyright Ericsson AB 1999-2010. All Rights Reserved.
+ *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- * 
+ *
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- * 
+ *
  * %CopyrightEnd%
  */
 
@@ -650,6 +650,22 @@ local_to_univ(Sint *year, Sint *month, Sint *day,
     t.tm_sec = *second;
     t.tm_isdst = isdst;
     the_clock = mktime(&t);
+    if (the_clock == -1) {
+	if (isdst) {
+	    /* If this is a timezone without DST and the OS (correctly)
+	       refuses to give us a DST time, we simulate the Linux/Solaris
+	       behaviour of giving the same data as if is_dst was not set. */
+	    t.tm_isdst = 0;
+	    the_clock = mktime(&t);
+	    if (the_clock == -1) {
+		/* Failed anyway, something else is bad - will be a badarg */
+		return 0;
+	    }
+	} else {
+	    /* Something else is the matter, badarg. */
+	    return 0;
+	}
+    }
 #ifdef HAVE_GMTIME_R
     gmtime_r(&the_clock, (tm = &tmbuf));
 #else
@@ -663,6 +679,10 @@ local_to_univ(Sint *year, Sint *month, Sint *day,
     *second = tm->tm_sec;
     return 1;
 }
+#if defined(HAVE_POSIX2TIME) && defined(HAVE_DECL_POSIX2TIME) && \
+    !HAVE_DECL_POSIX2TIME
+extern time_t posix2time(time_t);
+#endif
 
 int 
 univ_to_local(Sint *year, Sint *month, Sint *day, 
@@ -754,11 +774,7 @@ get_sys_now(Uint* megasec, Uint* sec, Uint* microsec)
 {
     SysTimeval now;
     
-    erts_smp_mtx_lock(&erts_timeofday_mtx);
-    
     sys_gettimeofday(&now);
-    
-    erts_smp_mtx_unlock(&erts_timeofday_mtx);
     
     *megasec = (Uint) (now.tv_sec / 1000000);
     *sec = (Uint) (now.tv_sec % 1000000);

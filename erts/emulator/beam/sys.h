@@ -1,36 +1,29 @@
 /*
  * %CopyrightBegin%
- * 
- * Copyright Ericsson AB 1996-2009. All Rights Reserved.
- * 
+ *
+ * Copyright Ericsson AB 1996-2010. All Rights Reserved.
+ *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- * 
+ *
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- * 
+ *
  * %CopyrightEnd%
  */
 
 #ifndef __SYS_H__
 #define __SYS_H__
 
+
 #if defined(VALGRIND) && !defined(NO_FPE_SIGNALS)
 #  define NO_FPE_SIGNALS
 #endif
-
-/* Never use elib-malloc when purify-memory-tracing */
-#if defined(PURIFY)
-#undef ENABLE_ELIB_MALLOC
-#undef ELIB_HEAP_SBRK
-#undef ELIB_ALLOC_IS_CLIB
-#endif
-
 
 /* xxxP __VXWORKS__ */
 #ifdef VXWORKS
@@ -57,8 +50,6 @@
 #  include "erl_win_sys.h"
 #elif defined (VXWORKS) 
 #  include "erl_vxworks_sys.h"
-#elif defined (_OSE_) 
-#  include "erl_ose_sys.h"
 #else 
 #  include "erl_unix_sys.h"
 #ifndef UNIX
@@ -172,23 +163,6 @@ void erl_assert_error(char* expr, char* file, int line);
 
 #include <stdarg.h>
 
-#if defined(__STDC__) || defined(_MSC_VER)
-#  define EXTERN_FUNCTION(t, f, x)  extern t f x
-#  define FUNCTION(t, f, x) t f x
-#  define _DOTS_ ...
-#  define _VOID_      void
-#elif defined(__cplusplus)
-#  define EXTERN_FUNCTION(f, x) extern "C" { f x }
-#  define FUNCTION(t, f, x) t f x
-#  define _DOTS_ ...
-#  define _VOID_    void
-#else
-#  define EXTERN_FUNCTION(t, f, x) extern t f (/*x*/)
-#  define FUNCTION(t, f, x) t f (/*x*/)
-#  define _DOTS_
-#  define _VOID_
-#endif
-
 /* This isn't sys-dependent, but putting it here benefits sys.c and drivers
    - allow use of 'const' regardless of compiler */
 
@@ -198,7 +172,7 @@ void erl_assert_error(char* expr, char* file, int line);
 
 #ifdef VXWORKS
 /* Replace VxWorks' printf with a real one that does fprintf(stdout, ...) */
-EXTERN_FUNCTION(int, real_printf, (const char *fmt, ...));
+int real_printf(const char *fmt, ...);
 #  define printf real_printf
 #endif
 
@@ -230,14 +204,24 @@ EXTERN_FUNCTION(int, real_printf, (const char *fmt, ...));
 ** Data types:
 **
 ** Eterm: A tagged erlang term (possibly 64 bits)
+** BeamInstr: A beam code instruction unit, possibly larger than Eterm, not smaller.
 ** UInt:  An unsigned integer exactly as large as an Eterm.
 ** SInt:  A signed integer exactly as large as an eterm and therefor large
 **        enough to hold the return value of the signed_val() macro.
+** UWord: An unsigned integer at least as large as a void * and also as large
+**          or larger than an Eterm
+** SWord: A signed integer at least as large as a void * and also as large
+**          or larger than an Eterm
 ** Uint32: An unsigned integer of 32 bits exactly
 ** Sint32: A signed integer of 32 bits exactly
 ** Uint16: An unsigned integer of 16 bits exactly
 ** Sint16: A signed integer of 16 bits exactly.
 */
+
+#if !((SIZEOF_VOID_P >= 4) && (SIZEOF_VOID_P == SIZEOF_SIZE_T) \
+      && ((SIZEOF_VOID_P == SIZEOF_INT) || (SIZEOF_VOID_P == SIZEOF_LONG)))
+#error Cannot handle this combination of int/long/void*/size_t sizes
+#endif
 
 #if SIZEOF_VOID_P == 8
 #undef  ARCH_32
@@ -248,10 +232,42 @@ EXTERN_FUNCTION(int, real_printf, (const char *fmt, ...));
 #else
 #error Neither 32 nor 64 bit architecture
 #endif
+#ifdef ARCH_64
+#  ifdef HALFWORD_HEAP_EMULATOR
+#    define HALFWORD_HEAP 1
+#    define HALFWORD_ASSERT 0
+#  else
+#    define HALFWORD_HEAP 0
+#    define HALFWORD_ASSERT 0
+#  endif
+#endif
 
 #if SIZEOF_VOID_P != SIZEOF_SIZE_T
 #error sizeof(void*) != sizeof(size_t)
 #endif
+
+#if HALFWORD_HEAP
+
+#if SIZEOF_INT == 4
+typedef unsigned int Eterm;
+typedef unsigned int Uint;
+typedef int          Sint;
+#define ERTS_SIZEOF_ETERM SIZEOF_INT
+#else
+#error Found no appropriate type to use for 'Eterm', 'Uint' and 'Sint'
+#endif
+
+#if SIZEOF_VOID_P == SIZEOF_LONG
+typedef unsigned long UWord;
+typedef long          SWord;
+#elif SIZEOF_VOID_P == SIZEOF_INT
+typedef unsigned int UWord;
+typedef int          SWord;
+#else
+#error Found no appropriate type to use for 'Eterm', 'Uint' and 'Sint'
+#endif
+
+#else /* !HALFWORD_HEAP */
 
 #if SIZEOF_VOID_P == SIZEOF_LONG
 typedef unsigned long Eterm;
@@ -266,6 +282,13 @@ typedef int          Sint;
 #else
 #error Found no appropriate type to use for 'Eterm', 'Uint' and 'Sint'
 #endif
+
+typedef Uint UWord;
+typedef Sint SWord;
+
+#endif /* HALFWORD_HEAP */
+
+typedef UWord BeamInstr;
 
 #ifndef HAVE_INT64
 #if SIZEOF_LONG == 8
@@ -311,15 +334,8 @@ typedef unsigned char byte;
 #error 64-bit architecture, but no appropriate type to use for Uint64 and Sint64 found 
 #endif
 
-#if defined(ARCH_64)
-#  define ERTS_WORD_ALIGN_PAD_SZ(X) \
+#  define ERTS_EXTRA_DATA_ALIGN_SZ(X) \
     (((size_t) 8) - (((size_t) (X)) & ((size_t) 7)))
-#elif defined(ARCH_32)
-#  define ERTS_WORD_ALIGN_PAD_SZ(X) \
-    (((size_t) 4) - (((size_t) (X)) & ((size_t) 3)))
-#else
-#error "Not supported..."
-#endif
 
 #include "erl_lock_check.h"
 #include "erl_smp.h"
@@ -408,13 +424,6 @@ extern volatile int erts_writing_erl_crash_dump;
    in non-blocking mode - and ioctl FIONBIO on AIX *doesn't* work for
    pipes or ttys (O_NONBLOCK does)!!! For now, we'll use FIONBIO for AIX. */
 
-# ifdef _OSE_
-static const int zero_value = 0, one_value = 1;
-#      define SET_BLOCKING(fd)	        ioctl((fd), FIONBIO, (char*)&zero_value)
-#      define SET_NONBLOCKING(fd)	ioctl((fd), FIONBIO, (char*)&one_value)
-#      define ERRNO_BLOCK EWOULDBLOCK
-# else
-
 #  ifdef __WIN32__
 
 static unsigned long zero_value = 0, one_value = 1;
@@ -455,7 +464,6 @@ static const int zero_value = 0, one_value = 1;
 #      endif /* !NB_FIONBIO */
 #    endif /* _WXWORKS_ */
 #  endif /* !__WIN32__ */
-# endif /* _OSE_ */
 #endif /* WANT_NONBLOCKING */
 
 extern erts_cpu_info_t *erts_cpuinfo; /* erl_init.c */
@@ -533,8 +541,6 @@ typedef struct preload {
  * None of the drivers use all of the fields.
  */
 
-/* OSE: Want process_type and priority in here as well! Needs updates in erl_bif_ports.c! */
-
 typedef struct _SysDriverOpts {
     int ifd;			/* Input file descriptor (fd driver). */
     int ofd;			/* Outputfile descriptor (fd driver). */
@@ -551,12 +557,6 @@ typedef struct _SysDriverOpts {
     char *wd;			/* Working directory. */
     unsigned spawn_type;        /* Bitfield of ERTS_SPAWN_DRIVER | 
 				   ERTS_SPAWN_EXTERNAL | both*/ 
-
-#ifdef _OSE_
-    enum PROCESS_TYPE process_type;
-    OSPRIORITY priority;
-#endif /* _OSE_ */
-
 } SysDriverOpts;
 
 extern char *erts_default_arg0;
@@ -616,7 +616,7 @@ extern char *erts_sys_ddll_error(int code);
 
 
 /*
- * System interfaces for startup/sae code (functions found in respective sys.c)
+ * System interfaces for startup.
  */
 
 
@@ -633,18 +633,14 @@ extern void erts_sys_pre_init(void);
 extern void erl_sys_init(void);
 extern void erl_sys_args(int *argc, char **argv);
 extern void erl_sys_schedule(int);
-#ifdef _OSE_
-extern void erl_sys_init_final(void);
-#else
-void sys_tty_reset(void);
-#endif
+void sys_tty_reset(int);
 
-EXTERN_FUNCTION(int, sys_max_files, (_VOID_));
+int sys_max_files(void);
 void sys_init_io(void);
 Preload* sys_preloaded(void);
-EXTERN_FUNCTION(unsigned char*, sys_preload_begin, (Preload*));
-EXTERN_FUNCTION(void, sys_preload_end, (Preload*));
-EXTERN_FUNCTION(int, sys_get_key, (int));
+unsigned char* sys_preload_begin(Preload*);
+void sys_preload_end(Preload*);
+int sys_get_key(int);
 void elapsed_time_both(unsigned long *ms_user, unsigned long *ms_sys, 
 		       unsigned long *ms_user_diff, unsigned long *ms_sys_diff);
 void wall_clock_elapsed_time_both(unsigned long *ms_total, 
@@ -661,7 +657,7 @@ int local_to_univ(Sint *year, Sint *month, Sint *day,
 		  Sint *hour, Sint *minute, Sint *second, int isdst);
 void get_now(Uint*, Uint*, Uint*);
 void get_sys_now(Uint*, Uint*, Uint*);
-EXTERN_FUNCTION(void, set_break_quit, (void (*)(void), void (*)(void)));
+void set_break_quit(void (*)(void), void (*)(void));
 
 void os_flavor(char*, unsigned);
 void os_version(int*, int*, int*);
@@ -701,7 +697,7 @@ int erts_write_env(char *key, char *value);
 #define ERTS_DEFAULT_MMAP_THRESHOLD  (128 * 1024)
 #define ERTS_DEFAULT_MMAP_MAX        64
 
-EXTERN_FUNCTION(int, sys_alloc_opt, (int, int));
+int sys_alloc_opt(int, int);
 
 typedef struct {
   Sint trim_threshold;
@@ -710,7 +706,7 @@ typedef struct {
   Sint mmap_max;
 } SysAllocStat;
 
-EXTERN_FUNCTION(void, sys_alloc_stat, (SysAllocStat *));
+void sys_alloc_stat(SysAllocStat *);
 
 /* Block the whole system... */
 
@@ -1099,13 +1095,10 @@ erts_refc_read(erts_refc_t *refcp, long min_val)
 extern int erts_use_kernel_poll;
 #endif
 
-void elib_ensure_initialized(void);
-
-
-#if (defined(VXWORKS) || defined(_OSE_))
+#if defined(VXWORKS)
 /* NOTE! sys_calloc2 does not exist on other 
    platforms than VxWorks and OSE */
-EXTERN_FUNCTION(void*, sys_calloc2, (Uint, Uint));
+void* sys_calloc2(Uint, Uint);
 #endif /* VXWORKS || OSE */
 
 
@@ -1145,14 +1138,14 @@ EXTERN_FUNCTION(void*, sys_calloc2, (Uint, Uint));
 
 /* Standard set of integer macros  .. */
 
-#define get_int64(s) ((((unsigned char*) (s))[0] << 56) | \
-                      (((unsigned char*) (s))[1] << 48) | \
-                      (((unsigned char*) (s))[2] << 40) | \
-                      (((unsigned char*) (s))[3] << 32) | \
-                      (((unsigned char*) (s))[4] << 24) | \
-                      (((unsigned char*) (s))[5] << 16) | \
-                      (((unsigned char*) (s))[6] << 8)  | \
-                      (((unsigned char*) (s))[7]))
+#define get_int64(s) (((Uint64)(((unsigned char*) (s))[0]) << 56) | \
+                      (((Uint64)((unsigned char*) (s))[1]) << 48) | \
+                      (((Uint64)((unsigned char*) (s))[2]) << 40) | \
+                      (((Uint64)((unsigned char*) (s))[3]) << 32) | \
+                      (((Uint64)((unsigned char*) (s))[4]) << 24) | \
+                      (((Uint64)((unsigned char*) (s))[5]) << 16) | \
+                      (((Uint64)((unsigned char*) (s))[6]) << 8)  | \
+                      (((Uint64)((unsigned char*) (s))[7])))
 
 #define put_int64(i, s) do {((char*)(s))[0] = (char)((Sint64)(i) >> 56) & 0xff;\
                             ((char*)(s))[1] = (char)((Sint64)(i) >> 48) & 0xff;\
@@ -1197,8 +1190,8 @@ EXTERN_FUNCTION(void*, sys_calloc2, (Uint, Uint));
  */
 
 #ifdef DEBUG
-EXTERN_FUNCTION(void, erl_debug, (char* format, ...));
-EXTERN_FUNCTION(void, erl_bin_write, (unsigned char *, int, int));
+void erl_debug(char* format, ...);
+void erl_bin_write(unsigned char *, int, int);
 
 #  define DEBUGF(x) erl_debug x
 #else

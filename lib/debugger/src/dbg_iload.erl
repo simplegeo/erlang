@@ -1,28 +1,24 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 1998-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 1998-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 -module(dbg_iload).
 
-%% External exports
 -export([load_mod/4]).
-
-%% Internal exports
--export([load_mod1/4]).
 
 %%====================================================================
 %% External exports
@@ -30,34 +26,34 @@
 
 %%--------------------------------------------------------------------
 %% load_mod(Mod, File, Binary, Db) -> {ok, Mod}
-%%   Mod = atom()
+%%   Mod = module()
 %%   File = string() Source file (including path)
 %%   Binary = binary()
 %%   Db = ETS identifier
 %% Load a new module into the database.
 %%
-%% We want the loading of a module to be syncronous  so no other
+%% We want the loading of a module to be synchronous so that no other
 %% process tries to interpret code in a module not being completely
 %% loaded. This is achieved as this function is called from
 %% dbg_iserver. We are suspended until the module has been loaded.
 %%--------------------------------------------------------------------
+-spec load_mod(Mod, file:filename(), binary(), ets:tid()) ->
+        {'ok', Mod} when is_subtype(Mod, atom()).
+
 load_mod(Mod, File, Binary, Db) ->
     Flag = process_flag(trap_exit, true),
-    Pid = spawn_link(?MODULE, load_mod1, [Mod, File, Binary, Db]),
+    Pid = spawn_link(fun () -> load_mod1(Mod, File, Binary, Db) end),
     receive
 	{'EXIT', Pid, What} ->
 	    process_flag(trap_exit, Flag),
 	    What
     end.
 
-%%====================================================================
-%% Internal exports
-%%====================================================================
+-spec load_mod1(atom(), file:filename(), binary(), ets:tid()) -> no_return().
 
 load_mod1(Mod, File, Binary, Db) ->
     store_module(Mod, File, Binary, Db),
     exit({ok, Mod}).
-
 
 %%====================================================================
 %% Internal functions
@@ -84,7 +80,7 @@ store_module(Mod, File, Binary, Db) ->
     Attr = store_forms(Forms, Mod, Db, Exp, []),
     erase(mod_md5),
     erase(current_function),
-%    store_funs(Db, Mod),
+    %% store_funs(Db, Mod),
     erase(vcount),
     erase(funs),
     erase(fun_count),
@@ -412,8 +408,7 @@ expr({call,Line,{remote,_,{atom,_,erlang},{atom,_,fault}},[_]=As}) ->
     {dbg,Line,fault,expr_list(As)};
 expr({call,Line,{remote,_,{atom,_,erlang},{atom,_,exit}},[_]=As}) ->
     {dbg,Line,exit,expr_list(As)};
-expr({call,Line,{remote,_,{atom,_,erlang},{atom,_,apply}},As0}) 
-  when length(As0) == 3 ->
+expr({call,Line,{remote,_,{atom,_,erlang},{atom,_,apply}},[_,_,_]=As0}) ->
     As = expr_list(As0),
     {apply,Line,As};
 expr({call,Line,{remote,_,{atom,_,Mod},{atom,_,Func}},As0}) ->
@@ -521,15 +516,9 @@ expr(Other) ->
 %%  here as sys_pre_expand has transformed source.
 
 is_guard_test({op,_,Op,L,R}) ->
-    case erl_internal:comp_op(Op, 2) of
-	true -> is_gexpr_list([L,R]);
-	false -> false
-    end;
+    erl_internal:comp_op(Op, 2) andalso is_gexpr_list([L,R]);
 is_guard_test({call,_,{remote,_,{atom,_,erlang},{atom,_,Test}},As}) ->
-    case erl_internal:type_test(Test, length(As)) of
-	true -> is_gexpr_list(As);
-	false -> false
-    end;
+    erl_internal:type_test(Test, length(As)) andalso is_gexpr_list(As);
 is_guard_test({atom,_,true}) -> true;
 is_guard_test(_) -> false.
 
@@ -546,22 +535,12 @@ is_gexpr({call,_,{remote,_,{atom,_,erlang},{atom,_,F}},As}) ->
     Ar = length(As),
     case erl_internal:guard_bif(F, Ar) of
 	true -> is_gexpr_list(As);
-	false ->
-	    case erl_internal:arith_op(F, Ar) of
-		true -> is_gexpr_list(As);
-		false -> false
-	    end
+	false -> erl_internal:arith_op(F, Ar) andalso is_gexpr_list(As)
     end;
 is_gexpr({op,_,Op,A}) ->
-    case erl_internal:arith_op(Op, 1) of
-	true -> is_gexpr(A);
-	false -> false
-    end;
+    erl_internal:arith_op(Op, 1) andalso is_gexpr(A);
 is_gexpr({op,_,Op,A1,A2}) ->
-    case erl_internal:arith_op(Op, 2) of
-	true -> is_gexpr_list([A1,A2]);
-	false -> false
-    end;
+    erl_internal:arith_op(Op, 2) andalso is_gexpr_list([A1,A2]);
 is_gexpr(_) -> false.
 
 is_gexpr_list(Es) -> lists:all(fun (E) -> is_gexpr(E) end, Es).

@@ -1,24 +1,24 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 2008-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 2008-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %% This file is generated DO NOT EDIT
 
 %% @doc See external documentation: <a href="http://www.wxwidgets.org/manuals/stable/wx_wxgenericdirctrl.html">wxGenericDirCtrl</a>.
-%% <p>This class is derived (and can use functions) from: 
+%% <p>This class is derived (and can use functions) from:
 %% <br />{@link wxControl}
 %% <br />{@link wxWindow}
 %% <br />{@link wxEvtHandler}
@@ -191,7 +191,7 @@ getFilterIndex(#wx_ref{type=ThisT,ref=ThisRef}) ->
   wxe_util:call(?wxGenericDirCtrl_GetFilterIndex,
   <<ThisRef:32/?UI>>).
 
-%% @spec (This::wxGenericDirCtrl()) -> wxTreeItemId()
+%% @spec (This::wxGenericDirCtrl()) -> integer()
 %% @doc See <a href="http://www.wxwidgets.org/manuals/stable/wx_wxgenericdirctrl.html#wxgenericdirctrlgetrootid">external documentation</a>.
 getRootId(#wx_ref{type=ThisT,ref=ThisRef}) ->
   ?CLASS(ThisT,wxGenericDirCtrl),
@@ -249,16 +249,16 @@ setPath(#wx_ref{type=ThisT,ref=ThisRef},Path)
 
 %% @spec (This::wxGenericDirCtrl()) -> ok
 %% @doc Destroys this object, do not use object again
-destroy(Obj=#wx_ref{type=Type}) -> 
+destroy(Obj=#wx_ref{type=Type}) ->
   ?CLASS(Type,wxGenericDirCtrl),
   wxe_util:destroy(?DESTROY_OBJECT,Obj),
   ok.
- %% From wxControl 
+ %% From wxControl
 %% @hidden
 setLabel(This,Label) -> wxControl:setLabel(This,Label).
 %% @hidden
 getLabel(This) -> wxControl:getLabel(This).
- %% From wxWindow 
+ %% From wxWindow
 %% @hidden
 warpPointer(This,X,Y) -> wxWindow:warpPointer(This,X,Y).
 %% @hidden
@@ -605,7 +605,7 @@ center(This) -> wxWindow:center(This).
 captureMouse(This) -> wxWindow:captureMouse(This).
 %% @hidden
 cacheBestSize(This,Size) -> wxWindow:cacheBestSize(This,Size).
- %% From wxEvtHandler 
+ %% From wxEvtHandler
 %% @hidden
 disconnect(This,EventType, Options) -> wxEvtHandler:disconnect(This,EventType, Options).
 %% @hidden

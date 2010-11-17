@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- * 
- * Copyright Ericsson AB 1996-2009. All Rights Reserved.
- * 
+ *
+ * Copyright Ericsson AB 1996-2010. All Rights Reserved.
+ *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- * 
+ *
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- * 
+ *
  * %CopyrightEnd%
  */
 /*
@@ -142,7 +142,9 @@ static int tty_init(int,int,int,int);
 static int tty_set(int);
 static int tty_reset(int);
 static int ttysl_control(ErlDrvData, unsigned int, char *, int, char **, int);
+#ifdef ERTS_NOT_USED
 static RETSIGTYPE suspend(int);
+#endif
 static RETSIGTYPE cont(int);
 static RETSIGTYPE winch(int);
 
@@ -312,7 +314,7 @@ static ErlDrvData ttysl_start(ErlDrvPort port, char* buf)
     sys_sigset(SIGCONT, cont);
     sys_sigset(SIGWINCH, winch);
 
-    driver_select(port, (ErlDrvEvent)(Uint)ttysl_fd, ERL_DRV_READ|ERL_DRV_USE, 1);
+    driver_select(port, (ErlDrvEvent)(UWord)ttysl_fd, ERL_DRV_READ|ERL_DRV_USE, 1);
     ttysl_port = port;
 
     /* we need to know this when we enter the break handler */
@@ -392,7 +394,7 @@ static void ttysl_stop(ErlDrvData ttysl_data)
 	stop_lbuf();
 	stop_termcap();
 	tty_reset(ttysl_fd);
-	driver_select(ttysl_port, (ErlDrvEvent)(Uint)ttysl_fd, ERL_DRV_READ|ERL_DRV_USE, 0);
+	driver_select(ttysl_port, (ErlDrvEvent)(UWord)ttysl_fd, ERL_DRV_READ|ERL_DRV_USE, 0);
 	sys_sigset(SIGCONT, SIG_DFL);
 	sys_sigset(SIGWINCH, SIG_DFL);
     }
@@ -683,7 +685,7 @@ static void ttysl_from_tty(ErlDrvData ttysl_data, ErlDrvEvent fd)
 	utf8buf_size = 0;
     }
     
-    if ((i = read((int)(Sint)fd, (char *) p, left)) >= 0) {
+    if ((i = read((int)(SWord)fd, (char *) p, left)) >= 0) {
 	if (p != b) {
 	    i += (p - b);
 	}
@@ -1265,6 +1267,9 @@ static int tty_reset(int fd)         /* of terminal device */
  * to the orignal settings
  */
 
+#ifdef ERTS_NOT_USED
+/* XXX: A mistake that it isn't used, or should it be removed? */
+
 static RETSIGTYPE suspend(int sig)
 {
     if (tty_reset(ttysl_fd) < 0) {
@@ -1283,6 +1288,8 @@ static RETSIGTYPE suspend(int sig)
 	exit(1);
     }
 }
+
+#endif
 
 static RETSIGTYPE cont(int sig)
 {

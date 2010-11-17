@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- * 
- * Copyright Ericsson AB 1996-2009. All Rights Reserved.
- * 
+ *
+ * Copyright Ericsson AB 1996-2010. All Rights Reserved.
+ *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- * 
+ *
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- * 
+ *
  * %CopyrightEnd%
  */
 
@@ -41,8 +41,7 @@ static erts_smp_rwmtx_t atom_table_lock;
 #define atom_read_unlock()	erts_smp_rwmtx_runlock(&atom_table_lock)
 #define atom_write_lock()	erts_smp_rwmtx_rwlock(&atom_table_lock)
 #define atom_write_unlock()	erts_smp_rwmtx_rwunlock(&atom_table_lock)
-#define atom_init_lock()	erts_smp_rwmtx_init(&atom_table_lock, \
-						    "atom_tab")
+
 #if 0
 #define ERTS_ATOM_PUT_OPS_STAT
 #endif
@@ -304,12 +303,17 @@ init_atom_table(void)
     HashFunctions f;
     int i;
     Atom a;
+    erts_smp_rwmtx_opt_t rwmtx_opt = ERTS_SMP_RWMTX_OPT_DEFAULT_INITER;
+
+    rwmtx_opt.type = ERTS_SMP_RWMTX_TYPE_FREQUENT_READ;
+    rwmtx_opt.lived = ERTS_SMP_RWMTX_LONG_LIVED;
 
 #ifdef ERTS_ATOM_PUT_OPS_STAT
     erts_smp_atomic_init(&atom_put_ops, 0);
 #endif
 
-    atom_init_lock();
+    erts_smp_rwmtx_init_opt(&atom_table_lock, &rwmtx_opt, "atom_tab");
+
     f.hash = (H_FUN) atom_hash;
     f.cmp  = (HCMP_FUN) atom_cmp;
     f.alloc = (HALLOC_FUN) atom_alloc;
@@ -322,7 +326,7 @@ init_atom_table(void)
     text_list = NULL;
 
     erts_index_init(ERTS_ALC_T_ATOM_TABLE, &erts_atom_table,
-		    "atom_tab", ATOM_SIZE, ATOM_LIMIT, f);
+		    "atom_tab", ATOM_SIZE, erts_atom_table_size, f);
     more_atom_space();
 
     /* Ordinary atoms */

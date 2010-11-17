@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- * 
- * Copyright Ericsson AB 1996-2009. All Rights Reserved.
- * 
+ *
+ * Copyright Ericsson AB 1996-2010. All Rights Reserved.
+ *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- * 
+ *
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- * 
+ *
  * %CopyrightEnd%
  */
 
@@ -42,7 +42,7 @@ void
 erts_init_binary(void)
 {
     /* Verify Binary alignment... */
-    if ((((Uint) &((Binary *) 0)->orig_bytes[0]) % ((Uint) 8)) != 0) {
+    if ((((UWord) &((Binary *) 0)->orig_bytes[0]) % ((UWord) 8)) != 0) {
 	/* I assume that any compiler should be able to optimize this
 	   away. If not, this test is not very expensive... */
 	erl_exit(ERTS_ABORT_EXIT,
@@ -88,8 +88,8 @@ new_binary(Process *p, byte *buf, int len)
     pb = (ProcBin *) HAlloc(p, PROC_BIN_SIZE);
     pb->thing_word = HEADER_PROC_BIN;
     pb->size = len;
-    pb->next = MSO(p).mso;
-    MSO(p).mso = pb;
+    pb->next = MSO(p).first;
+    MSO(p).first = (struct erl_off_heap_header*)pb;
     pb->val = bptr;
     pb->bytes = (byte*) bptr->orig_bytes;
     pb->flags = 0;
@@ -97,7 +97,7 @@ new_binary(Process *p, byte *buf, int len)
     /*
      * Miscellanous updates. Return the tagged binary.
      */
-    MSO(p).overhead += pb->size / sizeof(Eterm);
+    OH_OVERHEAD(&(MSO(p)), pb->size / sizeof(Eterm));
     return make_binary(pb);
 }
 
@@ -127,8 +127,8 @@ Eterm erts_new_mso_binary(Process *p, byte *buf, int len)
     pb = (ProcBin *) HAlloc(p, PROC_BIN_SIZE);
     pb->thing_word = HEADER_PROC_BIN;
     pb->size = len;
-    pb->next = MSO(p).mso;
-    MSO(p).mso = pb;
+    pb->next = MSO(p).first;
+    MSO(p).first = (struct erl_off_heap_header*)pb;
     pb->val = bptr;
     pb->bytes = (byte*) bptr->orig_bytes;
     pb->flags = 0;
@@ -136,7 +136,7 @@ Eterm erts_new_mso_binary(Process *p, byte *buf, int len)
     /*
      * Miscellanous updates. Return the tagged binary.
      */
-    MSO(p).overhead += pb->size / sizeof(Eterm);
+    OH_OVERHEAD(&(MSO(p)), pb->size / sizeof(Eterm));
     return make_binary(pb);
 }
 
@@ -180,7 +180,7 @@ erts_realloc_binary(Eterm bin, size_t size)
 }
 
 byte*
-erts_get_aligned_binary_bytes(Eterm bin, byte** base_ptr)
+erts_get_aligned_binary_bytes_extra(Eterm bin, byte** base_ptr, ErtsAlcType_t allocator, unsigned extra)
 {
     byte* bytes;
     Eterm* real_bin;
@@ -208,10 +208,10 @@ erts_get_aligned_binary_bytes(Eterm bin, byte** base_ptr)
 	bytes = (byte *)(&(((ErlHeapBin *) real_bin)->data)) + offs;
     }
     if (bit_offs) {
-	byte* buf = (byte *) erts_alloc(ERTS_ALC_T_TMP, byte_size);
-
-	erts_copy_bits(bytes, bit_offs, 1, buf, 0, 1, byte_size*8);
+	byte* buf = (byte *) erts_alloc(allocator, byte_size + extra);
 	*base_ptr = buf;
+	buf += extra;
+	erts_copy_bits(bytes, bit_offs, 1, buf, 0, 1, byte_size*8);	
 	bytes = buf;
     }
     return bytes;
@@ -346,29 +346,40 @@ BIF_RETTYPE bitstring_to_list_1(BIF_ALIST_1)
 /* Turn a possibly deep list of ints (and binaries) into */
 /* One large binary object                               */
 
-BIF_RETTYPE list_to_binary_1(BIF_ALIST_1)
+/*
+ * This bif also exists in the binary module, under the name
+ * binary:list_to_bin/1, why it's divided into interface and
+ * implementation. Also the backend for iolist_to_binary_1.
+ */
+
+BIF_RETTYPE erts_list_to_binary_bif(Process *p, Eterm arg)
 {
     Eterm bin;
     int i;
     int offset;
     byte* bytes;
-    if (is_nil(BIF_ARG_1)) {
-	BIF_RET(new_binary(BIF_P,(byte*)"",0));
+    if (is_nil(arg)) {
+	BIF_RET(new_binary(p,(byte*)"",0));
     }
-    if (is_not_list(BIF_ARG_1)) {
+    if (is_not_list(arg)) {
 	goto error;
     }
-    if ((i = io_list_len(BIF_ARG_1)) < 0) {
+    if ((i = io_list_len(arg)) < 0) {
 	goto error;
     }
-    bin = new_binary(BIF_P, (byte *)NULL, i);
+    bin = new_binary(p, (byte *)NULL, i);
     bytes = binary_bytes(bin);
-    offset = io_list_to_buf(BIF_ARG_1, (char*) bytes, i);
+    offset = io_list_to_buf(arg, (char*) bytes, i);
     ASSERT(offset == 0);
     BIF_RET(bin);
     
-    error:
-	BIF_ERROR(BIF_P, BADARG);
+ error:
+    BIF_ERROR(p, BADARG);
+}
+
+BIF_RETTYPE list_to_binary_1(BIF_ALIST_1)
+{
+    return erts_list_to_binary_bif(BIF_P, BIF_ARG_1);
 }
 
 /* Turn a possibly deep list of ints (and binaries) into */
@@ -376,31 +387,10 @@ BIF_RETTYPE list_to_binary_1(BIF_ALIST_1)
 
 BIF_RETTYPE iolist_to_binary_1(BIF_ALIST_1)
 {
-    Eterm bin;
-    int i;
-    int offset;
-    byte* bytes;
-
     if (is_binary(BIF_ARG_1)) {
 	BIF_RET(BIF_ARG_1);
     }
-    if (is_nil(BIF_ARG_1)) {
-	BIF_RET(new_binary(BIF_P,(byte*)"",0));
-    }
-    if (is_not_list(BIF_ARG_1)) {
-	goto error;
-    }
-    if ((i = io_list_len(BIF_ARG_1)) < 0) {
-	goto error;
-    }
-    bin = new_binary(BIF_P, (byte *)NULL, i);
-    bytes = binary_bytes(bin);
-    offset = io_list_to_buf(BIF_ARG_1, (char*) bytes, i);
-    ASSERT(offset == 0);
-    BIF_RET(bin);
-    
-    error:
-	BIF_ERROR(BIF_P, BADARG);
+    return erts_list_to_binary_bif(BIF_P, BIF_ARG_1);
 }
 
 BIF_RETTYPE list_to_bitstring_1(BIF_ALIST_1)
@@ -497,16 +487,6 @@ BIF_RETTYPE split_binary_2(BIF_ALIST_2)
 	BIF_ERROR(BIF_P, BADARG);
 }
 
-void
-erts_cleanup_mso(ProcBin* pb)
-{
-    while (pb != NULL) {
-	ProcBin* next = pb->next;
-	if (erts_refc_dectest(&pb->val->refc, 0) == 0)
-	    erts_bin_free(pb->val);
-	pb = next;
-    }
-}
 
 /*
  * Local functions.
@@ -675,3 +655,4 @@ bitstr_list_len(Eterm obj)
     DESTROY_ESTACK(s);
     return (Sint) -1;
 }
+

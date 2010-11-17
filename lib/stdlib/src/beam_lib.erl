@@ -1,24 +1,28 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 2000-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 2000-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 -module(beam_lib).
 -behaviour(gen_server).
 
+%% Avoid warning for local function error/1 clashing with autoimported BIF.
+-compile({no_auto_import,[error/1]}).
+%% Avoid warning for local function error/2 clashing with autoimported BIF.
+-compile({no_auto_import,[error/2]}).
 -export([info/1,
 	 cmp/2,
 	 cmp_dirs/2,
@@ -41,11 +45,10 @@
 	 terminate/2,code_change/3]).
 -export([make_crypto_key/2, get_crypto_key/1]).	%Utilities used by compiler
 
+-export_type([attrib_entry/0, compinfo_entry/0, labeled_entry/0]).
+
 -import(lists, [append/1, delete/2, foreach/2, keysort/2, 
 		member/2, reverse/1, sort/1, splitwith/2]).
-
--include_lib("kernel/include/file.hrl").
--include("erl_compile.hrl").
 
 %%-------------------------------------------------------------------------
 
@@ -106,6 +109,7 @@
                    | info_rsn().
 -type cmp_rsn()   :: {'modules_different', module(), module()}
                    | {'chunks_different', chunkid()}
+                   | 'different_chunks'
                    | info_rsn().
 
 %%-------------------------------------------------------------------------
@@ -331,13 +335,11 @@ beam_files(Dir) ->
 
 %% -> ok | throw(Error)
 cmp_files(File1, File2) ->
-    {ok, {M1, L1}} = read_significant_chunks(File1),
-    {ok, {M2, L2}} = read_significant_chunks(File2),
+    {ok, {M1, L1}} = read_all_but_useless_chunks(File1),
+    {ok, {M2, L2}} = read_all_but_useless_chunks(File2),
     if
 	M1 =:= M2 ->
-	    List1 = filter_funtab(L1),
-	    List2 = filter_funtab(L2),
-	    cmp_lists(List1, List2);
+	    cmp_lists(L1, L2);
 	true ->
 	    error({modules_different, M1, M2})
     end.
@@ -406,6 +408,20 @@ pad(Size) ->
 	0 -> [];
 	Rem -> lists:duplicate(4 - Rem, 0)
     end.
+
+%% -> {ok, {Module, Chunks}} | throw(Error)
+read_all_but_useless_chunks(File0) when is_atom(File0);
+					is_list(File0);
+					is_binary(File0) ->
+    File = beam_filename(File0),
+    {ok, Module, ChunkIds0} = scan_beam(File, info),
+    ChunkIds = [Name || {Name,_,_} <- ChunkIds0,
+			not is_useless_chunk(Name)],
+    {ok, Module, Chunks} = scan_beam(File, ChunkIds),
+    {ok, {Module, lists:reverse(Chunks)}}.
+
+is_useless_chunk("CInf") -> true;
+is_useless_chunk(_) -> false.
 
 %% -> {ok, {Module, Chunks}} | throw(Error)
 read_significant_chunks(File) ->

@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- * 
- * Copyright Ericsson AB 2006-2009. All Rights Reserved.
- * 
+ *
+ * Copyright Ericsson AB 2006-2010. All Rights Reserved.
+ *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- * 
+ *
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- * 
+ *
  * %CopyrightEnd%
  */
 
@@ -575,7 +575,7 @@ erts_port_task_schedule(Eterm id,
     }
 #endif
 
-    ASSERT(!(runq->flags & ERTS_RUNQ_FLG_SUSPENDED));
+    ASSERT(!enq_port || !(runq->flags & ERTS_RUNQ_FLG_SUSPENDED));
 
     ASSERT(pp->sched.taskq);
     ASSERT(ptp);
@@ -601,6 +601,15 @@ erts_port_task_schedule(Eterm id,
 	break;
     }
 
+#ifndef ERTS_SMP
+    /*
+     * When (!enq_port && !pp->sched.exe_taskq) is true in the smp case,
+     * the port might not be in the run queue. If this is the case, another
+     * thread is in the process of enqueueing the port. This very seldom
+     * occur, but do occur and is a valid scenario. Debug info showing this
+     * enqueue in progress must be introduced before we can enable (modified
+     * versions of these) assertions in the smp case again.
+     */
 #if defined(HARD_DEBUG)
     if (pp->sched.exe_taskq || enq_port)
 	ERTS_PT_CHK_NOT_IN_PORTQ(runq, pp);
@@ -612,9 +621,11 @@ erts_port_task_schedule(Eterm id,
 	ASSERT(pp->sched.prev || runq->ports.start == pp);
     }
 #endif
+#endif
 
     if (!enq_port) {
 	ERTS_PT_CHK_PRES_PORTQ(runq, pp);
+	erts_smp_runq_unlock(runq);
     }
     else {
 	enqueue_port(runq, pp);
@@ -624,9 +635,10 @@ erts_port_task_schedule(Eterm id,
 	    profile_runnable_port(pp, am_active);
 	}
 
+	erts_smp_runq_unlock(runq);
+
 	erts_smp_notify_inc_runq(runq);
     }
-    erts_smp_runq_unlock(runq);
     return 0;
 }
 
@@ -902,24 +914,44 @@ erts_port_task_execute(ErtsRunQueue *runq, Port **curr_port_pp)
 
     *curr_port_pp = NULL;
 
-    if (pp->sched.taskq) {
+#ifdef ERTS_SMP
+    ASSERT(runq == (ErtsRunQueue *) erts_smp_atomic_read(&pp->run_queue));
+#endif
+
+    if (!pp->sched.taskq) {
+	ASSERT(pp->sched.exe_taskq);
+	pp->sched.exe_taskq = NULL;
+    }
+    else {
+#ifdef ERTS_SMP
+	ErtsRunQueue *xrunq;
+#endif
+
 	ASSERT(!(pp->status & ERTS_PORT_SFLGS_DEAD));
 	ASSERT(pp->sched.taskq->first);
-	enqueue_port(runq, pp);
+
+#ifdef ERTS_SMP
+	xrunq = erts_check_emigration_need(runq, ERTS_PORT_PRIO_LEVEL);
+	if (!xrunq) {
+#endif
+	    enqueue_port(runq, pp);
+	    ASSERT(pp->sched.exe_taskq);
+	    pp->sched.exe_taskq = NULL;
+	    /* No need to notify ourselves about inc in runq. */
+#ifdef ERTS_SMP
+	}
+	else {
+	    /* Port emigrated ... */
+	    erts_smp_atomic_set(&pp->run_queue, (long) xrunq);
+	    enqueue_port(xrunq, pp);
+	    ASSERT(pp->sched.exe_taskq);
+	    pp->sched.exe_taskq = NULL;
+	    erts_smp_runq_unlock(xrunq);
+	    erts_smp_notify_inc_runq(xrunq);
+	}
+#endif
 	port_was_enqueued = 1;
-
-	/* 
-	   erts_smp_notify_inc_runq();
-
-	 * No need to notify schedulers about the increase in run
-	 * queue length since at least this thread, which is a
-	 * scheduler, will discover that the port run queue isn't
-	 * empty before trying to go to sleep.
-	 */
     }
-
-    ASSERT(pp->sched.exe_taskq);
-    pp->sched.exe_taskq = NULL;
 
     res = erts_smp_atomic_read(&erts_port_task_outstanding_io_tasks) != (long) 0;
 
@@ -939,11 +971,11 @@ erts_port_task_execute(ErtsRunQueue *runq, Port **curr_port_pp)
     erts_port_release(pp);
 #else
     {
-	long refc = erts_smp_atomic_dectest(&pp->refc);
+	long refc;
+	erts_smp_mtx_unlock(pp->lock);
+	refc = erts_smp_atomic_dectest(&pp->refc);
 	ASSERT(refc >= 0);
-	if (refc > 0)
-	    erts_smp_mtx_unlock(pp->lock);
-	else {
+	if (refc == 0) {
 	    erts_smp_runq_unlock(runq);
 	    erts_port_cleanup(pp); /* Might aquire runq lock */
 	    erts_smp_runq_lock(runq);
@@ -1082,7 +1114,6 @@ erts_port_migrate(Port *prt, int *prt_locked,
     dequeue_port(from_rq, prt);
     erts_smp_atomic_set(&prt->run_queue, (long) to_rq);
     enqueue_port(to_rq, prt);
-    erts_smp_notify_inc_runq(to_rq);
     return ERTS_MIGRATE_SUCCESS;
 }
 

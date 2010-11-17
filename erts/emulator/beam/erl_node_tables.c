@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- * 
- * Copyright Ericsson AB 2001-2009. All Rights Reserved.
- * 
+ *
+ * Copyright Ericsson AB 2001-2010. All Rights Reserved.
+ *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- * 
+ *
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- * 
+ *
  * %CopyrightEnd%
  */
 
@@ -80,6 +80,8 @@ dist_table_alloc(void *dep_tmpl)
     Eterm chnl_nr;
     Eterm sysname;
     DistEntry *dep;
+    erts_smp_rwmtx_opt_t rwmtx_opt = ERTS_SMP_RWMTX_OPT_DEFAULT_INITER;
+    rwmtx_opt.type = ERTS_SMP_RWMTX_TYPE_FREQUENT_READ;
 
     if(((DistEntry *) dep_tmpl) == erts_this_dist_entry)
 	return dep_tmpl;
@@ -92,7 +94,7 @@ dist_table_alloc(void *dep_tmpl)
 
     dep->prev				= NULL;
     erts_refc_init(&dep->refc, -1);
-    erts_smp_rwmtx_init_x(&dep->rwmtx, "dist_entry", chnl_nr);
+    erts_smp_rwmtx_init_opt_x(&dep->rwmtx, &rwmtx_opt, "dist_entry", chnl_nr);
     dep->sysname			= sysname;
     dep->cid				= NIL;
     dep->connection_id			= 0;
@@ -580,6 +582,18 @@ ErlNode *erts_find_or_insert_node(Eterm sysname, Uint creation)
     ErlNode ne;
     ne.sysname = sysname;
     ne.creation = creation;
+
+    erts_smp_rwmtx_rlock(&erts_node_table_rwmtx);
+    res = hash_get(&erts_node_table, (void *) &ne);
+    if (res && res != erts_this_node) {
+	long refc = erts_refc_inctest(&res->refc, 0);
+	if (refc < 2) /* New or pending delete */
+	    erts_refc_inc(&res->refc, 1);
+    }
+    erts_smp_rwmtx_runlock(&erts_node_table_rwmtx);
+    if (res)
+	return res;
+
     erts_smp_rwmtx_rwlock(&erts_node_table_rwmtx);
     res = hash_put(&erts_node_table, (void *) &ne);
     ASSERT(res);
@@ -696,7 +710,11 @@ erts_set_this_node(Eterm sysname, Uint creation)
 
 void erts_init_node_tables(void)
 {
+    erts_smp_rwmtx_opt_t rwmtx_opt = ERTS_SMP_RWMTX_OPT_DEFAULT_INITER;
     HashFunctions f;
+
+    rwmtx_opt.type = ERTS_SMP_RWMTX_TYPE_FREQUENT_READ;
+    rwmtx_opt.lived = ERTS_SMP_RWMTX_LONG_LIVED;
 
     f.hash  = (H_FUN)			dist_table_hash;
     f.cmp   = (HCMP_FUN)		dist_table_cmp;
@@ -719,9 +737,10 @@ void erts_init_node_tables(void)
     erts_this_dist_entry->prev				= NULL;
     erts_refc_init(&erts_this_dist_entry->refc, 1); /* erts_this_node */
 
-    erts_smp_rwmtx_init_x(&erts_this_dist_entry->rwmtx,
-			  "dist_entry",
-			  make_small(ERST_INTERNAL_CHANNEL_NO));
+    erts_smp_rwmtx_init_opt_x(&erts_this_dist_entry->rwmtx,
+			      &rwmtx_opt,
+			      "dist_entry",
+			      make_small(ERST_INTERNAL_CHANNEL_NO));
     erts_this_dist_entry->sysname			= am_Noname;
     erts_this_dist_entry->cid				= NIL;
     erts_this_dist_entry->connection_id			= 0;
@@ -772,8 +791,8 @@ void erts_init_node_tables(void)
 
     (void) hash_put(&erts_node_table, (void *) erts_this_node);
 
-    erts_smp_rwmtx_init(&erts_node_table_rwmtx, "node_table");
-    erts_smp_rwmtx_init(&erts_dist_table_rwmtx, "dist_table");
+    erts_smp_rwmtx_init_opt(&erts_node_table_rwmtx, &rwmtx_opt, "node_table");
+    erts_smp_rwmtx_init_opt(&erts_dist_table_rwmtx, &rwmtx_opt, "dist_table");
 
     references_atoms_need_init = 1;
 }
@@ -1087,49 +1106,62 @@ insert_offheap2(ErlOffHeap *oh, void *arg)
 static void
 insert_offheap(ErlOffHeap *oh, int type, Eterm id)
 {
-    if(oh->externals) {
-	ExternalThing *etp = oh->externals;
-	while (etp) {
-	    insert_node(etp->node, type, id);
-	    etp = etp->next;
-	}
-    }
+    union erl_off_heap_ptr u;
+    struct insert_offheap2_arg a;
+    a.type = BIN_REF;
 
-    if(oh->mso) {
-	ProcBin *pb;
-	struct insert_offheap2_arg a;
-	a.type = BIN_REF;
-	for(pb = oh->mso; pb; pb = pb->next) {
-	    if(IsMatchProgBinary(pb->val)) {
+    for (u.hdr = oh->first; u.hdr; u.hdr = u.hdr->next) {
+	switch (thing_subtag(u.hdr->thing_word)) {
+	case REFC_BINARY_SUBTAG:
+	    if(IsMatchProgBinary(u.pb->val)) {
 		InsertedBin *ib;
 		int insert_bin = 1;
 		for (ib = inserted_bins; ib; ib = ib->next)
-		    if(ib->bin_val == pb->val) {
+		    if(ib->bin_val == u.pb->val) {
 			insert_bin = 0;
 			break;
 		    }
 		if (insert_bin) {
-		    Uint id_heap[BIG_UINT_HEAP_SIZE];
+#if HALFWORD_HEAP
+		    UWord val = (UWord) u.pb->val;
+		    DeclareTmpHeapNoproc(id_heap,BIG_UINT_HEAP_SIZE*2); /* extra place allocated */
+#else
+		    DeclareTmpHeapNoproc(id_heap,BIG_UINT_HEAP_SIZE);
+#endif
 		    Uint *hp = &id_heap[0];
 		    InsertedBin *nib;
-		    a.id = erts_bld_uint(&hp, NULL, (Uint) pb->val);
-		    erts_match_prog_foreach_offheap(pb->val,
+#if HALFWORD_HEAP
+		    int actual_need = BIG_UWORD_HEAP_SIZE(val);
+		    ASSERT(actual_need <= (BIG_UINT_HEAP_SIZE*2));
+		    UseTmpHeapNoproc(actual_need);
+		    a.id = erts_bld_uword(&hp, NULL, (UWord) val);
+#else
+		    UseTmpHeapNoproc(BIG_UINT_HEAP_SIZE);
+		    a.id = erts_bld_uint(&hp, NULL, (Uint) u.pb->val);
+#endif
+		    erts_match_prog_foreach_offheap(u.pb->val,
 						    insert_offheap2,
 						    (void *) &a);
 		    nib = erts_alloc(ERTS_ALC_T_NC_TMP, sizeof(InsertedBin));
-		    nib->bin_val = pb->val;
+		    nib->bin_val = u.pb->val;
 		    nib->next = inserted_bins;
 		    inserted_bins = nib;
+#if HALFWORD_HEAP
+		    UnUseTmpHeapNoproc(actual_need);
+#else
+		    UnUseTmpHeapNoproc(BIG_UINT_HEAP_SIZE);
+#endif
 		}
-	    }
+	    }		
+	    break;
+	case FUN_SUBTAG:
+	    break; /* No need to */
+	default:
+	    ASSERT(is_external_header(u.hdr->thing_word));
+	    insert_node(u.ext->node, type, id);
+	    break;
 	}
     }
-
-#if 0
-    if(oh->funs) {
-	/* No need to */
-    }
-#endif
 }
 
 static void doit_insert_monitor(ErtsMonitor *monitor, void *p)
@@ -1190,12 +1222,15 @@ static void
 insert_bif_timer(Eterm receiver, Eterm msg, ErlHeapFragment *bp, void *arg)
 {
     if (bp) {
-	Eterm heap[3];
+	DeclareTmpHeapNoproc(heap,3);
+
+	UseTmpHeapNoproc(3);
 	insert_offheap(&bp->off_heap,
 		       TIMER_REF,
 		       (is_internal_pid(receiver)
 			? receiver
 			: TUPLE2(&heap[0], AM_process, receiver)));
+	UnUseTmpHeapNoproc(3);
     }
 }
 
@@ -1230,7 +1265,7 @@ setup_reference_table(void)
     DistEntry *dep;
     HashInfo hi;
     int i;
-    Eterm heap[3];
+    DeclareTmpHeapNoproc(heap,3);
 
     inserted_bins = NULL;
 
@@ -1251,6 +1286,7 @@ setup_reference_table(void)
     /* Go through the hole system, and build a table of all references
        to ErlNode and DistEntry structures */
 
+    UseTmpHeapNoproc(3);
     insert_node(erts_this_node,
 		SYSTEM_REF,
 		TUPLE2(&heap[0], AM_system, am_undefined));
@@ -1261,11 +1297,13 @@ setup_reference_table(void)
 		   HEAP_REF,
 		   TUPLE2(&heap[0], AM_processes, am_undefined));
 #endif
+    UnUseTmpHeapNoproc(3);
 
     /* Insert all processes */
     for (i = 0; i < erts_max_processes; i++)
 	if (process_tab[i]) {
 	    ErlMessage *msg;
+
 	    /* Insert Heap */
 	    insert_offheap(&(process_tab[i]->off_heap),
 			   HEAP_REF,
@@ -1352,21 +1390,22 @@ setup_reference_table(void)
 
     { /* Add binaries stored elsewhere ... */
 	ErlOffHeap oh;
-	ProcBin pb[2] = {{0},{0}};
-	ProcBin *mso = NULL;
+	ProcBin pb[2];
 	int i = 0;
 	Binary *default_match_spec;
 	Binary *default_meta_match_spec;
 
-	/* Only the ProcBin members val and next will be inspected
+	oh.first = NULL;
+	/* Only the ProcBin members thing_word, val and next will be inspected
 	   (by insert_offheap()) */
 #undef  ADD_BINARY
-#define ADD_BINARY(Bin)					\
-	if ((Bin)) {					\
-	    pb[i].val = (Bin);				\
-	    pb[i].next = mso;				\
-	    mso = &pb[i];				\
-	    i++;					\
+#define ADD_BINARY(Bin)				 	     \
+	if ((Bin)) {					     \
+	    pb[i].thing_word = REFC_BINARY_SUBTAG;           \
+	    pb[i].val = (Bin);				     \
+	    pb[i].next = oh.first;		             \
+	    oh.first = (struct erl_off_heap_header*) &pb[i]; \
+	    i++;				             \
 	}
 
 	erts_get_default_trace_pattern(NULL,
@@ -1378,11 +1417,6 @@ setup_reference_table(void)
 	ADD_BINARY(default_match_spec);
 	ADD_BINARY(default_meta_match_spec);
 
-	oh.mso = mso;
-	oh.externals = NULL;
-#ifndef HYBRID /* FIND ME! */
-	oh.funs = NULL;
-#endif
 	insert_offheap(&oh, BIN_REF, AM_match_spec);
 #undef  ADD_BINARY
     }

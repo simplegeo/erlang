@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 2004-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 2004-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 
@@ -27,7 +27,11 @@
 -export([init_tc/3, end_tc/3, get_suite/2, report/2, warn/1]).
 -export([error_notification/4]).
 
--export([error_in_suite/1]).
+-export([overview_html_header/1]).
+
+-export([error_in_suite/1, ct_init_per_group/2, ct_end_per_group/2]).
+
+-export([make_all_conf/3, make_conf/5]).
 
 -include("ct_event.hrl").
 -include("ct_util.hrl").
@@ -101,7 +105,8 @@ init_tc1(Mod,Func,[Config0],DoInit) when is_list(Config0) ->
 		[{saved_config,{LastFunc,SavedConfig}} | 
 		 lists:keydelete(saved_config,1,Config0)];
 	    {{LastSuite,InitOrEnd},SavedConfig} when InitOrEnd == init_per_suite ;
-						     InitOrEnd == end_per_suite -> % last suite
+						     InitOrEnd == end_per_suite ->
+		%% last suite
 		[{saved_config,{LastSuite,SavedConfig}} | 
 		 lists:keydelete(saved_config,1,Config0)];
 	    undefined ->
@@ -113,9 +118,9 @@ init_tc1(Mod,Func,[Config0],DoInit) when is_list(Config0) ->
 	    ok;
 	true ->
 	    %% delete all default values used in previous suite
-	    ct_util:delete_default_config(suite),
+	    ct_config:delete_default_config(suite),
 	    %% release all name -> key bindings (once per suite)
-	    ct_util:release_allocated()
+	    ct_config:release_allocated()
     end,
     TestCaseInfo =
 	case catch apply(Mod,Func,[]) of
@@ -125,7 +130,7 @@ init_tc1(Mod,Func,[Config0],DoInit) when is_list(Config0) ->
     %% clear all config data default values set by previous
     %% testcase info function (these should only survive the
     %% testcase, not the whole suite)
-    ct_util:delete_default_config(testcase),
+    ct_config:delete_default_config(testcase),
     case add_defaults(Mod,Func,TestCaseInfo,DoInit) of
 	Error = {suite0_failed,_} ->
 	    ct_logs:init_tc(),
@@ -161,6 +166,7 @@ init_tc2(Mod,Func,SuiteInfo,MergeResult,Config,DoInit) ->
 	    _ ->
 		MergeResult
 	end,
+
     %% timetrap must be handled before require
     MergedInfo1 = timetrap_first(MergedInfo, [], []),
     %% tell logger to use specified style sheet
@@ -244,8 +250,8 @@ add_defaults(Mod,Func,FuncInfo,DoInit) ->
 	_ ->
 	    {suite0_failed,bad_return_value}
     end.
-    
-add_defaults1(_Mod,init_per_suite,[],SuiteInfo,_) ->
+
+add_defaults1(_Mod,init_per_suite,[],SuiteInfo,_DoInit) ->
     SuiteInfo;
 
 add_defaults1(Mod,Func,FuncInfo,SuiteInfo,DoInit) ->
@@ -253,14 +259,26 @@ add_defaults1(Mod,Func,FuncInfo,SuiteInfo,DoInit) ->
     %% can result in weird behaviour (suite values get overwritten)
     SuiteReqs = 
 	[SDDef || SDDef <- SuiteInfo,
-		  require == element(1,SDDef)],
-    case [element(2,Clash) || Clash <- SuiteReqs, 
-	  true == lists:keymember(element(2,Clash),2,FuncInfo)] of
+		  ((require == element(1,SDDef)) or
+		   (default_config == element(1,SDDef)))],
+    FuncReqs =
+	[FIDef || FIDef <- FuncInfo,
+		  require == element(1,FIDef)],
+    case [element(2,Clash) || Clash <- SuiteReqs,
+			      require == element(1, Clash),
+			      true == lists:keymember(element(2,Clash),2,
+						      FuncReqs)] of
 	[] ->
 	    add_defaults2(Mod,Func,FuncInfo,SuiteInfo,SuiteReqs,DoInit);
 	Clashes ->
 	    {error,{config_name_already_in_use,Clashes}}
     end.
+
+add_defaults2(Mod,init_per_suite,IPSInfo,SuiteInfo,SuiteReqs,false) ->
+    %% not common practise to use a test case info function for
+    %% init_per_suite (usually handled by suite/0), but let's support
+    %% it just in case...
+    add_defaults2(Mod,init_per_suite,IPSInfo,SuiteInfo,SuiteReqs,true);
 
 add_defaults2(_Mod,_Func,FuncInfo,SuiteInfo,_,false) ->
     %% include require elements from test case info, but not from suite/0
@@ -381,10 +399,10 @@ try_set_default(Name,Key,Info,Where) ->
 	{_,[]} -> 
 	    no_default;
 	{'_UNDEF',_} ->
-    	    [ct_util:set_default_config([CfgVal],Where) || CfgVal <- CfgElems],
+	    [ct_config:set_default_config([CfgVal],Where) || CfgVal <- CfgElems],
 	    ok;
 	_ ->
-    	    [ct_util:set_default_config(Name,[CfgVal],Where) || CfgVal <- CfgElems],
+	    [ct_config:set_default_config(Name,[CfgVal],Where) || CfgVal <- CfgElems],
 	    ok
     end.
 	    
@@ -631,12 +649,12 @@ group_or_func(Func, _Config) ->
 %%%      and every test case. If the former, all test cases in the suite
 %%%      should be returned. 
 
-get_suite(Mod, all) ->    
+get_suite(Mod, all) ->
     case catch apply(Mod, groups, []) of
 	{'EXIT',_} ->
 	    get_all(Mod, []);
 	GroupDefs when is_list(GroupDefs) ->
-	    case catch check_groups(Mod, GroupDefs) of
+	    case catch find_groups(Mod, all, all, GroupDefs) of
 		{error,_} = Error ->
 		    %% this makes test_server call error_in_suite as first
 		    %% (and only) test case so we can report Error properly
@@ -651,96 +669,193 @@ get_suite(Mod, all) ->
 
 %%!============================================================
 %%! Note: The handling of sequences in get_suite/2 and get_all/2
-%%! is deprecated and should be removed after OTP R13!
+%%! is deprecated and should be removed at some point...
 %%!============================================================
 
-get_suite(Mod, Name) ->
-    %% Name may be name of a group or a test case. If it's a group,
-    %% it should be expanded to list of cases (in a conf term)
+%% group
+get_suite(Mod, Group={conf,Props,_Init,TCs,_End}) ->
+    Name = proplists:get_value(name, Props),
     case catch apply(Mod, groups, []) of
 	{'EXIT',_} ->
-	    get_seq(Mod, Name);
+	    [Group];
 	GroupDefs when is_list(GroupDefs) ->
-	    case catch check_groups(Mod, GroupDefs) of
+	    case catch find_groups(Mod, Name, TCs, GroupDefs) of
 		{error,_} = Error ->
 		    %% this makes test_server call error_in_suite as first
 		    %% (and only) test case so we can report Error properly
 		    [{?MODULE,error_in_suite,[[Error]]}];
+		[] ->
+		    {error,{invalid_group_spec,Name}};
 		ConfTests ->
-		    FindConf = fun({conf,Props,_,_,_}) ->
-				       case proplists:get_value(name, Props) of
-					   Name -> true;
-					   _    -> false
-				       end
-			       end,					 
-		    case lists:filter(FindConf, ConfTests) of
-			[] ->			% must be a test case
-			    get_seq(Mod, Name);
-			[ConfTest|_] ->
-			    ConfTest
+		    case lists:member(skipped, Props) of
+			true ->
+			    %% a *subgroup* specified *only* as skipped (and not
+			    %% as an explicit test) should not be returned, or
+			    %% init/end functions for top groups will be executed
+			    case catch proplists:get_value(name, element(2, hd(ConfTests))) of
+				Name ->		% top group
+				    ConfTests;
+				_ ->
+				    []
+			    end;
+			false ->
+			    ConfTests
 		    end
 	    end;
 	_ ->
 	    E = "Bad return value from "++atom_to_list(Mod)++":groups/0",
 	    [{?MODULE,error_in_suite,[[{error,list_to_atom(E)}]]}]
-    end.
-
-check_groups(_Mod, []) ->
-    [];
-check_groups(Mod, Defs) ->
-    check_groups(Mod, Defs, Defs, []).
-
-check_groups(Mod, [TC | Gs], Defs, Levels) when is_atom(TC), length(Levels)>0 ->
-    [TC | check_groups(Mod, Gs, Defs, Levels)];
-
-check_groups(Mod, [{group,SubName} | Gs], Defs, Levels) when is_atom(SubName) ->
-    case lists:member(SubName, Levels) of
-	true ->
-	    E = "Cyclic reference to group "++atom_to_list(SubName)++
-		" in "++atom_to_list(Mod)++":groups/0",
-	    throw({error,list_to_atom(E)});
-	false ->	    
-	    case find_group(Mod, SubName, Defs) of
-		{error,_} = Error ->
-		    throw(Error);
-		G ->
-		    [check_groups(Mod, [G], Defs, Levels) | 
-		     check_groups(Mod, Gs, Defs, Levels)]
-	    end
     end;
 
-check_groups(Mod, [{Name,Tests} | Gs], Defs, Levels) when is_atom(Name),
-							  is_list(Tests) ->
-    check_groups(Mod, [{Name,[],Tests} | Gs], Defs, Levels);
+%% testcase
+get_suite(Mod, Name) ->
+     get_seq(Mod, Name).
 
-check_groups(Mod, [{Name,Props,Tests} | Gs], Defs, Levels) when is_atom(Name),
-								is_list(Props),
-								is_list(Tests) ->
-    {TestSpec,Levels1} = 
-	case Levels of
-	    [] ->
-		{check_groups(Mod, Tests, Defs, [Name]),[]};
-	    _ ->
-		{check_groups(Mod, Tests, Defs, [Name|Levels]),Levels}
-	end,
-    [make_conf(Mod, Name, Props, TestSpec) | 
-     check_groups(Mod, Gs, Defs, Levels1)];
+%%%-----------------------------------------------------------------
 
-check_groups(Mod, [BadTerm | _Gs], _Defs, Levels) ->
-    Where = if length(Levels) == 0 ->
+find_groups(Mod, Name, TCs, GroupDefs) ->
+    Found = find(Mod, Name, TCs, GroupDefs, [], GroupDefs, false),
+    Trimmed = trim(Found),
+    delete_subs(Trimmed, Trimmed).
+
+find(Mod, all, _TCs, [{Name,Props,Tests} | Gs], Known, Defs, _) ->
+    cyclic_test(Mod, Name, Known),
+    [make_conf(Mod, Name, Props,
+	       find(Mod, all, all, Tests, [Name | Known], Defs, true)) |
+     find(Mod, all, all, Gs, [], Defs, true)];
+
+find(Mod, Name, TCs, [{Name,Props,Tests} | _Gs], Known, Defs, false)
+  when is_atom(Name), is_list(Props), is_list(Tests) ->
+    cyclic_test(Mod, Name, Known),
+    case TCs of
+	all ->
+	    [make_conf(Mod, Name, Props,
+		       find(Mod, Name, TCs, Tests, [Name | Known], Defs, true))];
+	_ ->
+	    Tests1 = [TC || TC <- TCs,
+			    lists:member(TC, Tests) == true],
+	    [make_conf(Mod, Name, Props, Tests1)]
+    end;
+
+find(Mod, Name, TCs, [{Name1,Props,Tests} | Gs], Known, Defs, false)
+  when is_atom(Name1), is_list(Props), is_list(Tests) ->
+    cyclic_test(Mod, Name1, Known),
+    [make_conf(Mod, Name1, Props,
+	       find(Mod, Name, TCs, Tests, [Name1 | Known], Defs, false)) |
+     find(Mod, Name, TCs, Gs, [], Defs, false)];
+
+find(Mod, Name, _TCs, [{Name,_Props,_Tests} | _Gs], _Known, _Defs, true)
+  when is_atom(Name) ->
+    E = "Duplicate groups named "++atom_to_list(Name)++" in "++
+	atom_to_list(Mod)++":groups/0",
+    throw({error,list_to_atom(E)});
+
+find(Mod, Name, all, [{Name1,Props,Tests} | Gs], Known, Defs, true)
+  when is_atom(Name1), is_list(Props), is_list(Tests) ->
+    cyclic_test(Mod, Name1, Known),
+    [make_conf(Mod, Name1, Props,
+	       find(Mod, Name, all, Tests, [Name1 | Known], Defs, true)) |
+     find(Mod, Name, all, Gs, [], Defs, true)];
+
+find(Mod, Name, TCs, [{group,Name1} | Gs], Known, Defs, Found) when is_atom(Name1) ->
+    find(Mod, Name, TCs, [expand(Mod, Name1, Defs) | Gs], Known, Defs, Found);
+
+find(Mod, Name, TCs, [{Name1,Tests} | Gs], Known, Defs, Found)
+  when is_atom(Name1), is_list(Tests) ->
+    find(Mod, Name, TCs, [{Name1,[],Tests} | Gs], Known, Defs, Found);
+
+find(Mod, Name, TCs, [TC | Gs], Known, Defs, false) when is_atom(TC) ->
+    find(Mod, Name, TCs, Gs, Known, Defs, false);
+
+find(Mod, Name, TCs, [TC | Gs], Known, Defs, true) when is_atom(TC) ->
+    [TC | find(Mod, Name, TCs, Gs, Known, Defs, true)];
+
+find(Mod, _Name, _TCs, [BadTerm | _Gs], Known, _Defs, _Found) ->
+    Where = if length(Known) == 0 ->
 		    atom_to_list(Mod)++":groups/0";
 	       true ->
-		    "group "++atom_to_list(lists:last(Levels))++
+		    "group "++atom_to_list(lists:last(Known))++
 			" in "++atom_to_list(Mod)++":groups/0"
 	    end,		 
     Term = io_lib:format("~p", [BadTerm]),
     E = "Bad term "++lists:flatten(Term)++" in "++Where,
     throw({error,list_to_atom(E)});
 
-check_groups(_Mod, [], _Defs, _) ->
+find(_Mod, _Name, _TCs,  [], _Known, _Defs, false) ->
+    ['$NOMATCH'];
+
+find(_Mod, _Name, _TCs,  [], _Known, _Defs, _Found) ->
     [].
 
-find_group(Mod, Name, Defs) ->
+delete_subs([Conf | Confs], All) ->
+    All1 = delete_conf(Conf, All),
+    case is_sub(Conf, All1) of
+	true ->
+	    delete_subs(Confs, All1);
+	false ->
+	    delete_subs(Confs, All)
+    end;
+
+delete_subs([], All) ->
+    All.
+
+delete_conf({conf,Props,_,_,_}, Confs) ->
+    Name = proplists:get_value(name, Props),
+    [Conf || Conf = {conf,Props0,_,_,_} <- Confs,
+	     Name =/= proplists:get_value(name, Props0)].
+
+is_sub({conf,Props,_,_,_}=Conf, [{conf,_,_,Tests,_} | Confs]) ->
+    Name = proplists:get_value(name, Props),
+    case lists:any(fun({conf,Props0,_,_,_}) ->
+			   case proplists:get_value(name, Props0) of
+			       N when N == Name ->
+				   true;
+			       _ ->
+				   false
+			   end;
+		      (_) ->
+			   false
+		   end, Tests) of
+	true ->
+	    true;
+	false ->
+	    is_sub(Conf, Tests) or is_sub(Conf, Confs)
+    end;
+
+is_sub(Conf, [_TC | Tests]) ->
+    is_sub(Conf, Tests);
+
+is_sub(_Conf, []) ->
+    false.
+
+trim(['$NOMATCH' | Tests]) ->
+    trim(Tests);
+
+trim([{conf,Props,Init,Tests,End} | Confs]) ->
+    case trim(Tests) of
+	[] ->
+	    trim(Confs);
+	Trimmed ->
+	    [{conf,Props,Init,Trimmed,End} | trim(Confs)]
+    end;
+
+trim([TC | Tests]) ->
+    [TC | trim(Tests)];
+
+trim([]) ->
+    [].
+
+cyclic_test(Mod, Name, Names) ->
+    case lists:member(Name, Names) of
+	true ->
+	    E = "Cyclic reference to group "++atom_to_list(Name)++
+		" in "++atom_to_list(Mod)++":groups/0",
+	    throw({error,list_to_atom(E)});
+	false ->
+	    ok
+    end.
+
+expand(Mod, Name, Defs) ->
     case lists:keysearch(Name, 1, Defs) of
 	{value,Def} -> 
 	    Def;
@@ -750,10 +865,59 @@ find_group(Mod, Name, Defs) ->
 	    throw({error,list_to_atom(E)})
     end.
 
-make_conf(Mod, Name, Props, TestSpec) ->
-    {conf,[{name,Name}|Props],
-     {Mod,init_per_group},TestSpec,{Mod,end_per_group}}.
+make_all_conf(Dir, Mod, _Props) ->
+    case code:is_loaded(Mod) of
+	false ->
+	    code:load_abs(filename:join(Dir,atom_to_list(Mod)));
+	_ ->
+	    ok
+    end,
+    make_all_conf(Mod).
 
+make_all_conf(Mod) ->
+    case catch apply(Mod, groups, []) of
+	{'EXIT',_} ->
+	    {error,{invalid_group_definition,Mod}};
+	GroupDefs when is_list(GroupDefs) ->
+	    case catch find_groups(Mod, all, all, GroupDefs) of
+		{error,_} = Error ->
+		    %% this makes test_server call error_in_suite as first
+		    %% (and only) test case so we can report Error properly
+		    [{?MODULE,error_in_suite,[[Error]]}];
+		[] ->
+		    {error,{invalid_group_spec,Mod}};
+		ConfTests ->
+		    [{conf,Props,Init,all,End} || {conf,Props,Init,_,End} <- ConfTests]
+	    end
+    end.
+
+make_conf(Dir, Mod, Name, Props, TestSpec) ->
+    case code:is_loaded(Mod) of
+	false ->
+	    code:load_abs(filename:join(Dir,atom_to_list(Mod)));
+	_ ->
+	    ok
+    end,
+    make_conf(Mod, Name, Props, TestSpec).
+
+make_conf(Mod, Name, Props, TestSpec) ->
+    case code:is_loaded(Mod) of
+	false ->
+	    code:load_file(Mod);
+	_ ->
+	    ok
+    end,
+    {InitConf,EndConf} =
+	case erlang:function_exported(Mod,init_per_group,2) of
+	    true ->
+		{{Mod,init_per_group},{Mod,end_per_group}};
+	    false ->
+		{{?MODULE,ct_init_per_group},
+		 {?MODULE,ct_end_per_group}}
+	end,
+    {conf,[{name,Name}|Props],InitConf,TestSpec,EndConf}.
+
+%%%-----------------------------------------------------------------
 
 get_all(Mod, ConfTests) ->	
     case catch apply(Mod, all, []) of
@@ -916,6 +1080,19 @@ check_multiple(Mod,Seq,TCs) ->
 error_in_suite(Config) ->
     Reason = test_server:lookup_config(error,Config),
     exit(Reason).
+
+%% if the group config functions are missing in the suite,
+%% use these instead
+ct_init_per_group(GroupName, Config) ->
+    ct_logs:log("WARNING", "init_per_group/2 for ~w missing in suite, using default.", 
+		[GroupName]),
+    Config.
+
+ct_end_per_group(GroupName, _) ->
+    ct_logs:log("WARNING", "end_per_group/2 for ~w missing in suite, using default.", 
+		[GroupName]),
+    ok.
+
     
 %%%-----------------------------------------------------------------
 %%% @spec report(What,Data) -> ok
@@ -1056,4 +1233,31 @@ add_data_dir(File,Config) when is_list(File) ->
 	    File
     end.
 
+%%%-----------------------------------------------------------------
+%%% @spec overview_html_header(TestName) -> Header
+overview_html_header(TestName) ->
+    TestName1 = lists:flatten(io_lib:format("~p", [TestName])),
+    Label = case application:get_env(common_test, test_label) of
+		{ok,Lbl} when Lbl =/= undefined ->
+		    "<H1><FONT color=\"green\">" ++ Lbl ++ "</FONT></H1>\n";
+		_        ->
+		    ""
+	    end,
+    Bgr = case ct_logs:basic_html() of
+	      true ->
+		  "";
+	      false ->
+		  CTPath = code:lib_dir(common_test),
+		  TileFile = filename:join(filename:join(CTPath,"priv"),"tile1.jpg"),
+		  " background=\"" ++ TileFile ++ "\""
+	  end,
+
+    ["<html>\n",
+     "<head><title>Test ", TestName1, " results</title>\n",
+     "<meta http-equiv=\"cache-control\" content=\"no-cache\">\n",
+     "</head>\n",
+     "<body", Bgr, " bgcolor=\"white\" text=\"black\" ",
+     "link=\"blue\" vlink=\"purple\" alink=\"red\">\n",
+     Label,
+     "<H2>Results from test ", TestName1, "</H2>\n"].
 

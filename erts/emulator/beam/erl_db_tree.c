@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- * 
- * Copyright Ericsson AB 1998-2009. All Rights Reserved.
- * 
+ *
+ * Copyright Ericsson AB 1998-2010. All Rights Reserved.
+ *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- * 
+ *
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- * 
+ *
  * %CopyrightEnd%
  */
 
@@ -443,9 +443,9 @@ void db_initialize_tree(void)
     ets_select_reverse_exp.code[1] = am_reverse;
     ets_select_reverse_exp.code[2] = 3;
     ets_select_reverse_exp.code[3] =
-	(Eterm) em_apply_bif;
+	(BeamInstr) em_apply_bif;
     ets_select_reverse_exp.code[4] = 
-	(Eterm) &ets_select_reverse;
+	(BeamInstr) &ets_select_reverse;
     return;
 };
 
@@ -1081,11 +1081,12 @@ static int db_select_continue_tree(Process *p,
 static int db_select_tree(Process *p, DbTable *tbl, 
 			  Eterm pattern, int reverse, Eterm *ret)
 {
+    /* Strategy: Traverse backwards to build resulting list from tail to head */
     DbTableTree *tb = &tbl->tree;
     DbTreeStack* stack;
     struct select_context sc;
     struct mp_info mpi;
-    Eterm lastkey = NIL;
+    Eterm lastkey = THE_NON_VALUE;
     Eterm key;
     Eterm continuation;
     unsigned sz;
@@ -1293,7 +1294,7 @@ static int db_select_count_tree(Process *p, DbTable *tbl,
     DbTreeStack* stack;
     struct select_count_context sc;
     struct mp_info mpi;
-    Eterm lastkey = NIL;
+    Eterm lastkey = THE_NON_VALUE;
     Eterm key;
     Eterm continuation;
     unsigned sz;
@@ -1395,7 +1396,7 @@ static int db_select_chunk_tree(Process *p, DbTable *tbl,
     DbTreeStack* stack;
     struct select_context sc;
     struct mp_info mpi;
-    Eterm lastkey = NIL;
+    Eterm lastkey = THE_NON_VALUE;
     Eterm key;
     Eterm continuation;
     unsigned sz;
@@ -1636,7 +1637,7 @@ static int db_select_delete_tree(Process *p, DbTable *tbl,
     DbTableTree *tb = &tbl->tree;
     struct select_delete_context sc;
     struct mp_info mpi;
-    Eterm lastkey = NIL;
+    Eterm lastkey = THE_NON_VALUE;
     Eterm key;
     Eterm continuation;
     unsigned sz;
@@ -1817,10 +1818,14 @@ do_db_tree_foreach_offheap(TreeDbTerm *tdbt,
 			   void (*func)(ErlOffHeap *, void *),
 			   void * arg)
 {
+    ErlOffHeap tmp_offheap;
     if(!tdbt)
 	return;
     do_db_tree_foreach_offheap(tdbt->left, func, arg);
-    (*func)(&(tdbt->dbterm.off_heap), arg);
+    tmp_offheap.first = tdbt->dbterm.first_oh;
+    tmp_offheap.overhead = 0;
+    (*func)(&tmp_offheap, arg);
+    tdbt->dbterm.first_oh = tmp_offheap.first;
     do_db_tree_foreach_offheap(tdbt->right, func, arg);
 }
 
@@ -2529,7 +2534,9 @@ static TreeDbTerm *find_node(DbTableTree *tb, Eterm key)
 		this = this->right;
 	}
     }
-    release_stack(tb,stack);
+    if (stack) {
+	release_stack(tb,stack);
+    }
     return this;
 }
 
@@ -2572,6 +2579,7 @@ static int db_lookup_dbterm_tree(DbTable *tbl, Eterm key, DbUpdateHandle* handle
 static void db_finalize_dbterm_tree(DbUpdateHandle* handle)
 {
     if (handle->mustResize) {
+	ErlOffHeap tmp_offheap;
 	Eterm* top;
 	Eterm copy;
 	DbTerm* newDbTerm;
@@ -2586,18 +2594,15 @@ static void db_finalize_dbterm_tree(DbUpdateHandle* handle)
 	newDbTerm = &newp->dbterm;
     
 	newDbTerm->size = handle->new_size;
-	newDbTerm->off_heap.mso = NULL;
-	newDbTerm->off_heap.externals = NULL;
-    #ifndef HYBRID /* FIND ME! */
-	newDbTerm->off_heap.funs = NULL;
-    #endif
-	newDbTerm->off_heap.overhead = 0;
+	tmp_offheap.first = NULL;
+	tmp_offheap.overhead = 0;
 	
 	/* make a flat copy */
 	top = DBTERM_BUF(newDbTerm);
 	copy = copy_struct(make_tuple(handle->dbterm->tpl),
 			   handle->new_size,
-			   &top, &newDbTerm->off_heap);
+			   &top, &tmp_offheap);
+	newDbTerm->first_oh = tmp_offheap.first;
 	DBTERM_SET_TPL(newDbTerm,tuple_val(copy));
     
 	db_free_term_data(handle->dbterm);
@@ -2626,7 +2631,7 @@ static void traverse_backwards(DbTableTree *tb,
 {
     TreeDbTerm *this, *next;
 
-    if (lastkey == NIL) {
+    if (lastkey == THE_NON_VALUE) {
 	stack->pos = stack->slot = 0;
 	if (( this = tb->root ) == NULL) {
 	    return;
@@ -2664,7 +2669,7 @@ static void traverse_forward(DbTableTree *tb,
 {
     TreeDbTerm *this, *next;
 
-    if (lastkey == NIL) {
+    if (lastkey == THE_NON_VALUE) {
 	stack->pos = stack->slot = 0;
 	if (( this = tb->root ) == NULL) {
 	    return;
@@ -3021,7 +3026,7 @@ static int doit_select(DbTableTree *tb, TreeDbTerm *this, void *ptr,
     }
     ret = db_prog_match(sc->p, sc->mp,
 			make_tuple(this->dbterm.tpl), 
-			0, &dummy);
+			NULL,0, &dummy);
     if (is_value(ret)) {
 	Uint sz;
 	Eterm *hp;
@@ -3070,7 +3075,7 @@ static int doit_select_count(DbTableTree *tb, TreeDbTerm *this, void *ptr,
     }
     ret = db_prog_match(sc->p, sc->mp,
 			make_tuple(this->dbterm.tpl), 
-			0, &dummy);
+			NULL,0, &dummy);
     if (ret == am_true) {
 	++(sc->got);
     }
@@ -3103,7 +3108,7 @@ static int doit_select_chunk(DbTableTree *tb, TreeDbTerm *this, void *ptr,
 
     ret = db_prog_match(sc->p, sc->mp,
 			make_tuple(this->dbterm.tpl), 
-			0, &dummy);
+			NULL,0, &dummy);
     if (is_value(ret)) {
 	Uint sz;
 	Eterm *hp;
@@ -3156,7 +3161,7 @@ static int doit_select_delete(DbTableTree *tb, TreeDbTerm *this, void *ptr,
 	return 0;
     ret = db_prog_match(sc->p, sc->mp,
 			make_tuple(this->dbterm.tpl), 
-			0, &dummy);
+			NULL,0, &dummy);
     if (ret == am_true) {
 	key = GETKEY(sc->tb, this->dbterm.tpl);
 	linkout_tree(sc->tb, key);

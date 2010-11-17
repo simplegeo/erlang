@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 -module(code_SUITE).
@@ -26,16 +26,21 @@
 	 delete/1, purge/1, soft_purge/1, is_loaded/1, all_loaded/1,
 	 load_binary/1, dir_req/1, object_code/1, set_path_file/1,
 	 sticky_dir/1, pa_pz_option/1, add_del_path/1,
-	 dir_disappeared/1, ext_mod_dep/1,
+	 dir_disappeared/1, ext_mod_dep/1, clash/1,
 	 load_cached/1, start_node_with_cache/1, add_and_rehash/1,
 	 where_is_file_cached/1, where_is_file_no_cache/1,
 	 purge_stacktrace/1, mult_lib_roots/1, bad_erl_libs/1,
 	 code_archive/1, code_archive2/1, on_load/1,
-	 on_load_embedded/1]).
+	 on_load_embedded/1, on_load_errors/1, native_early_modules/1]).
 
 -export([init_per_testcase/2, fin_per_testcase/2, 
 	 init_per_suite/1, end_per_suite/1,
 	 sticky_compiler/1]).
+
+%% error_logger
+-export([init/1,
+	 handle_event/2, handle_call/2, handle_info/2,
+	 terminate/2]).
 
 all(suite) ->
     [set_path, get_path, add_path, add_paths, del_path,
@@ -43,11 +48,12 @@ all(suite) ->
      delete, purge, soft_purge, is_loaded, all_loaded,
      load_binary, dir_req, object_code, set_path_file,
      pa_pz_option, add_del_path,
-     dir_disappeared, ext_mod_dep,
+     dir_disappeared, ext_mod_dep, clash,
      load_cached, start_node_with_cache, add_and_rehash,
      where_is_file_no_cache, where_is_file_cached,
      purge_stacktrace, mult_lib_roots, bad_erl_libs,
-     code_archive, code_archive2, on_load, on_load_embedded].
+     code_archive, code_archive2, on_load, on_load_embedded,
+     on_load_errors, native_early_modules].
 
 init_per_suite(Config) ->
     %% The compiler will no longer create a Beam file if
@@ -525,7 +531,7 @@ pa_pz_option(Config) when is_list(Config) ->
 add_del_path(suite) ->
     [];
 add_del_path(doc) -> ["add_path, del_path should not cause priv_dir(App) to fail"];
-add_del_path(Config) ->
+add_del_path(Config) when is_list(Config) ->
     DDir = ?config(data_dir,Config),
     Dir1 = filename:join(DDir,"dummy_app-1.0/ebin"),
     Dir2 = filename:join(DDir,"dummy_app-2.0/ebin"),
@@ -537,11 +543,59 @@ add_del_path(Config) ->
     ?line code:del_path(Dir2),
     ?line PrivDir1 = code:priv_dir(dummy_app),
     ok.
-    
-    
+
+
+clash(Config) when is_list(Config) ->
+    DDir = ?config(data_dir,Config)++"clash/",
+    P = code:get_path(),
+
+    %% test non-clashing entries
+
+    %% remove "." to prevent clash with test-server path
+    ?line true = code:del_path("."),
+    ?line true = code:add_path(DDir++"foobar-0.1/ebin"),
+    ?line true = code:add_path(DDir++"zork-0.8/ebin"),
+    test_server:capture_start(),
+    ?line ok = code:clash(),
+    test_server:capture_stop(),
+    ?line [OKMsg|_] = test_server:capture_get(),
+    ?line true = lists:prefix("** Found 0 name clashes", OKMsg),
+    ?line true = code:set_path(P),
+
+    %% test clashing entries
+
+    %% remove "." to prevent clash with test-server path
+    ?line true = code:del_path("."),
+    ?line true = code:add_path(DDir++"foobar-0.1/ebin"),
+    ?line true = code:add_path(DDir++"foobar-0.1.ez/foobar-0.1/ebin"),
+    test_server:capture_start(),
+    ?line ok = code:clash(),
+    test_server:capture_stop(),
+    ?line [ClashMsg|_] = test_server:capture_get(),
+    ?line {match, [" hides "]} = re:run(ClashMsg, "\\*\\* .*( hides ).*",
+					[{capture,all_but_first,list}]),
+    ?line true = code:set_path(P),
+
+    %% test "Bad path can't read"
+
+    %% remove "." to prevent clash with test-server path
+    Priv = ?config(priv_dir, Config),
+    ?line true = code:del_path("."),
+    TmpEzFile = Priv++"foobar-0.tmp.ez",
+    ?line {ok, _} = file:copy(DDir++"foobar-0.1.ez", TmpEzFile),
+    ?line true = code:add_path(TmpEzFile++"/foobar-0.1/ebin"),
+    ?line ok = file:delete(TmpEzFile),
+    test_server:capture_start(),
+    ?line ok = code:clash(),
+    test_server:capture_stop(),
+    ?line [BadPathMsg|_] = test_server:capture_get(),
+    ?line true = lists:prefix("** Bad path can't read", BadPathMsg),
+    ?line true = code:set_path(P),
+    ok.
+
 ext_mod_dep(suite) ->
     [];
-ext_mod_dep(doce) -> 
+ext_mod_dep(doc) ->
     ["Every module that the code_server uses should be preloaded, "
      "this test case verifies that"];
 ext_mod_dep(Config) when is_list(Config) ->
@@ -671,6 +725,8 @@ check_funs({'$M_EXPR','$F_EXPR',2},
 check_funs({'$M_EXPR','$F_EXPR',1},
 	   [{lists,foreach,2},
 	    {hipe_unified_loader,patch_consts,3} | _]) -> 0;
+check_funs({'$M_EXPR',warning_msg,2},
+	   [{code_server,finish_on_load_report,2} | _]) -> 0;
 %% This is cheating! /raimo
 %% 
 %% check_funs(This = {M,_,_}, Path) ->
@@ -1228,6 +1284,109 @@ create_script(Config) ->
 is_source_dir() ->
     filename:basename(code:lib_dir(kernel)) =:= "kernel" andalso
 	filename:basename(code:lib_dir(stdlib)) =:= "stdlib".
+
+on_load_errors(Config) when is_list(Config) ->
+    Master = on_load_error_test_case_process,
+    ?line register(Master, self()),
+
+    ?line Data = filename:join([?config(data_dir, Config),"on_load_errors"]),
+    ?line ok = file:set_cwd(Data),
+    ?line up_to_date = make:all([{d,'MASTER',Master}]),
+
+    ?line do_on_load_error(an_atom),
+
+    ?line error_logger:add_report_handler(?MODULE, self()),
+
+    ?line do_on_load_error({something,terrible,is,wrong}),
+    receive
+	Any1 ->
+	    ?line {_, "The on_load function"++_,
+		   [on_load_error,
+		    {something,terrible,is,wrong},_]} = Any1
+    end,
+
+    ?line do_on_load_error(fail),		%Cause exception.
+    receive
+	Any2 ->
+	    ?line {_, "The on_load function"++_,
+		   [on_load_error,{failed,[_|_]},_]} = Any2
+    end,
+
+    %% There should be no more messages.
+    receive
+	Unexpected ->
+	    ?line ?t:fail({unexpected,Unexpected})
+    after 10 ->
+	    ok
+    end,
+
+    ok.
+
+do_on_load_error(ReturnValue) ->
+    ?line {_,Ref} = spawn_monitor(fun() ->
+					  exit(on_load_error:main())
+				  end),
+    receive {on_load_error,ErrorPid} -> ok end,
+    ?line ErrorPid ! ReturnValue,
+    receive
+	{'DOWN',Ref,process,_,Exit} ->
+	    ?line {undef,[{on_load_error,main,[]}|_]} = Exit
+    end.
+
+native_early_modules(suite) -> [];
+native_early_modules(doc) -> ["Test that the native code of early loaded modules is loaded"];
+native_early_modules(Config) when is_list(Config) ->
+    case erlang:system_info(hipe_architecture) of
+	undefined ->
+	    {skip,"Native code support is not enabled"};
+	Architecture ->
+	    native_early_modules_1(Architecture)
+    end.
+
+native_early_modules_1(Architecture) ->
+    ?line {lists, ListsBinary, _ListsFilename} = code:get_object_code(lists),
+    ?line ChunkName = hipe_unified_loader:chunk_name(Architecture),
+    ?line NativeChunk = beam_lib:chunks(ListsBinary, [ChunkName]),
+    ?line IsHipeCompiled = case NativeChunk of
+        {ok,{_,[{_,Bin}]}} when is_binary(Bin) -> true;
+        {error, beam_lib, _} -> false
+    end,
+    case IsHipeCompiled of
+        false ->
+	    {skip,"OTP apparently not configured with --enable-native-libs"};
+        true ->
+            ?line true = lists:all(fun code:is_module_native/1,
+				   [ets,file,filename,gb_sets,gb_trees,
+				    hipe_unified_loader,lists,os,packages]),
+            ok
+    end.
+
+%%-----------------------------------------------------------------
+%% error_logger handler.
+%% (Copied from stdlib/test/proc_lib_SUITE.erl.)
+%%-----------------------------------------------------------------
+init(Tester) ->
+    {ok, Tester}.
+
+handle_event({error, _GL, {emulator, _, _}}, Tester) ->
+    {ok, Tester};
+handle_event({error, _GL, Msg}, Tester) ->
+    Tester ! Msg,
+    {ok, Tester};
+handle_event(_Event, State) ->
+    {ok, State}.
+
+handle_info(_, State) ->
+    {ok, State}.
+
+handle_call(_Query, State) -> {ok, {error, bad_query}, State}.
+
+terminate(_Reason, State) ->
+    State.
+
+%%%
+%%% Common utility functions.
+%%%
 
 start_node(Name, Param) ->
     ?t:start_node(Name, slave, [{args, Param}]).

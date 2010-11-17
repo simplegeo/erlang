@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 1998-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 1998-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 -module(inet_gethost_native).
@@ -106,8 +106,11 @@
 	  pool_size = 4, % Number of C processes in pool.
 	  statistics % Statistics record (records error causes).
 }).
+-type state() :: #state{}.
 
 %% The supervisor bridge code
+-spec init([]) -> {'ok', pid(), pid()} | {'error', term()}.
+
 init([]) -> % Called by supervisor_bridge:start_link
     Ref = make_ref(),
     SaveTE = process_flag(trap_exit,true),
@@ -151,11 +154,13 @@ run_once() ->
 	{Port, {data, <<1:32, BinReply/binary>>}} ->
 	    Pid ! {R, {ok, BinReply}}
     after Timeout ->
-	    Pid ! {R,{error,timeout}}
+	    Pid ! {R, {error, timeout}}
     end.
 
-terminate(_Reason,Pid) ->
-    (catch exit(Pid,kill)),
+-spec terminate(term(), pid()) -> 'ok'.
+
+terminate(_Reason, Pid) ->
+    (catch exit(Pid, kill)),
     ok.
 
 %%-----------------------------------------------------------------------
@@ -337,14 +342,14 @@ pick_client(State,RID,Clid) ->
 		    {last, SoleClient}; % Note, not removed, the caller 
 					% should cleanup request data
 		CList ->
-		    case lists:keysearch(Clid,1,CList) of
-			{value, Client} ->
+		    case lists:keyfind(Clid,1,CList) of
+			false ->
+			    false;
+			Client ->
 			    NCList = lists:keydelete(Clid,1,CList),
 			    ets:insert(State#state.requests, 
 				       R#request{clients = NCList}),
-			    {more, Client};
-			false ->
-			    false
+			    {more, Client}
 		    end
 	    end
     end.
@@ -382,8 +387,7 @@ restart_port(#state{port = Port, requests = Requests}) ->
 	    end,
 	    Requests),
     NewPort.
-			    
-    
+
 
 do_open_port(Poolsize, ExtraArgs) ->
     try 
@@ -431,6 +435,7 @@ system_continue(_Parent, _, State) ->
 system_terminate(Reason, _Parent, _, _State) ->
     exit(Reason).
 
+-spec system_code_change(state(), module(), term(), term()) -> {'ok', state()}.
 system_code_change(State, _Module, _OldVsn, _Extra) ->
     {ok, State}. %% Nothing to do in this version.
 
@@ -443,19 +448,23 @@ gethostbyname(Name) ->
     gethostbyname(Name, inet).
 
 gethostbyname(Name, inet) when is_list(Name) ->
-    getit(?OP_GETHOSTBYNAME, ?PROTO_IPV4, Name);
+    getit(?OP_GETHOSTBYNAME, ?PROTO_IPV4, Name, Name);
 gethostbyname(Name, inet6) when is_list(Name) ->
-    getit(?OP_GETHOSTBYNAME, ?PROTO_IPV6, Name);
+    getit(?OP_GETHOSTBYNAME, ?PROTO_IPV6, Name, Name);
 gethostbyname(Name, Type) when is_atom(Name) ->
     gethostbyname(atom_to_list(Name), Type);
 gethostbyname(_, _)  ->
     {error, formerr}.
 
-gethostbyaddr({A,B,C,D}) when ?VALID_V4(A), ?VALID_V4(B), ?VALID_V4(C), ?VALID_V4(D) ->
-    getit(?OP_GETHOSTBYADDR, ?PROTO_IPV4, <<A,B,C,D>>);
-gethostbyaddr({A,B,C,D,E,F,G,H}) when ?VALID_V6(A), ?VALID_V6(B), ?VALID_V6(C), ?VALID_V6(D),
-				      ?VALID_V6(E), ?VALID_V6(F), ?VALID_V6(G), ?VALID_V6(H) ->
-    getit(?OP_GETHOSTBYADDR, ?PROTO_IPV6, <<A:16,B:16,C:16,D:16,E:16,F:16,G:16,H:16>>);
+gethostbyaddr({A,B,C,D}=Addr)
+  when ?VALID_V4(A), ?VALID_V4(B), ?VALID_V4(C), ?VALID_V4(D) ->
+    getit(?OP_GETHOSTBYADDR, ?PROTO_IPV4, <<A,B,C,D>>, Addr);
+gethostbyaddr({A,B,C,D,E,F,G,H}=Addr)
+  when ?VALID_V6(A), ?VALID_V6(B), ?VALID_V6(C), ?VALID_V6(D),
+       ?VALID_V6(E), ?VALID_V6(F), ?VALID_V6(G), ?VALID_V6(H) ->
+    getit
+      (?OP_GETHOSTBYADDR, ?PROTO_IPV6,
+       <<A:16,B:16,C:16,D:16,E:16,F:16,G:16,H:16>>, Addr);
 gethostbyaddr(Addr) when is_list(Addr) ->
     case inet_parse:address(Addr) of
         {ok, IP} -> gethostbyaddr(IP);
@@ -466,30 +475,30 @@ gethostbyaddr(Addr) when is_atom(Addr) ->
 gethostbyaddr(_) -> {error, formerr}.
 
 control({debug_level, Level}) when is_integer(Level) ->
-    getit(?OP_CONTROL, ?SETOPT_DEBUG_LEVEL, <<Level:32>>);
+    getit(?OP_CONTROL, ?SETOPT_DEBUG_LEVEL, <<Level:32>>, undefined);
 control(soft_restart) ->
-    getit(restart_port);
+    getit(restart_port, undefined);
 control(_) -> {error, formerr}.
 
-getit(Op, Proto, Data) ->
-    getit({Op, Proto, Data}).
+getit(Op, Proto, Data, DefaultName) ->
+    getit({Op, Proto, Data}, DefaultName).
 
-getit(Req) ->
+getit(Req, DefaultName) ->
     Pid = ensure_started(),
     Ref = make_ref(),
     Pid ! {{self(),Ref}, Req},
     receive
 	{Ref, {ok,BinHostent}} ->
-	    parse_address(BinHostent);
-	{Ref, Error} -> 
-	    Error
+	    parse_address(BinHostent, DefaultName);
+	{Ref, Result} ->
+	    Result
     after 5000 ->
 	    Ref2 = erlang:monitor(process,Pid),
 	    Res2 = receive
 		       {Ref, {ok,BinHostent}} ->
-			   parse_address(BinHostent);
-		       {Ref, Error} -> 
-			   Error;
+			   parse_address(BinHostent, DefaultName);
+		       {Ref, Result} ->
+			   Result;
 		       {'DOWN', Ref2, process, 
 			Pid, Reason} ->
 			   {error, Reason}
@@ -546,21 +555,23 @@ ensure_started() ->
 	    Pid
     end.
 
-parse_address(BinHostent) ->
+parse_address(BinHostent, DefaultName) ->
     case catch 
 	begin
 	    case BinHostent of
 		<<?UNIT_ERROR, Errstring/binary>> -> 
 		    {error, list_to_atom(listify(Errstring))};
 		<<?UNIT_IPV4, Naddr:32, T0/binary>> ->
-		    {T1,Addresses} = pick_addresses_v4(Naddr, T0),
-		    [Name | Names] = pick_names(T1),
+		    {T1, Addresses} = pick_addresses_v4(Naddr, T0),
+		    {Name, Names} =
+			expand_default_name(pick_names(T1), DefaultName),
 		    {ok, #hostent{h_addr_list = Addresses, h_addrtype = inet,
 				  h_aliases = Names, h_length = ?UNIT_IPV4, 
 				  h_name = Name}};
 		<<?UNIT_IPV6, Naddr:32, T0/binary>> ->
-		    {T1,Addresses} = pick_addresses_v6(Naddr, T0),
-		    [Name | Names] = pick_names(T1),
+		    {T1, Addresses} = pick_addresses_v6(Naddr, T0),
+		    {Name, Names} =
+			expand_default_name(pick_names(T1), DefaultName),
 		    {ok, #hostent{h_addr_list = Addresses, h_addrtype = inet6,
 				  h_aliases = Names, h_length = ?UNIT_IPV6, 
 				  h_name = Name}};
@@ -573,7 +584,15 @@ parse_address(BinHostent) ->
 	Normal ->
 	    Normal
     end.
-	    
+
+expand_default_name([], DefaultName) when is_list(DefaultName) ->
+    {DefaultName, []};
+expand_default_name([], DefaultName) when is_tuple(DefaultName) ->
+    {inet_parse:ntoa(DefaultName), []};
+expand_default_name([Name|Names], DefaultName)
+  when is_list(DefaultName); is_tuple(DefaultName) ->
+    {Name, Names}.
+
 listify(Bin) ->
     N = byte_size(Bin) - 1,
     <<Bin2:N/binary, Ch>> = Bin,

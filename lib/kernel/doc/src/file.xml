@@ -4,7 +4,7 @@
 <erlref>
   <header>
     <copyright>
-      <year>1996</year><year>2009</year>
+      <year>1996</year><year>2010</year>
       <holder>Ericsson AB. All Rights Reserved.</holder>
     </copyright>
     <legalnotice>
@@ -13,12 +13,12 @@
       compliance with the License. You should have received a copy of the
       Erlang Public License along with this software. If not, it can be
       retrieved online at http://www.erlang.org/.
-    
+
       Software distributed under the License is distributed on an "AS IS"
       basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
       the License for the specific language governing rights and limitations
       under the License.
-    
+
     </legalnotice>
 
     <title>file</title>
@@ -62,6 +62,25 @@ time() = {{Year, Month, Day}, {Hour, Minute, Second}}
   </section>
   <funcs>
     <func>
+      <name>advise(IoDevice, Offset, Length, Advise) -> ok | {error, Reason}</name>
+      <fsummary>Predeclare an access pattern for file data</fsummary>
+      <type>
+        <v>IoDevice = io_device()</v>
+        <v>Offset = int()</v>
+        <v>Length = int()</v>
+        <v>Advise = posix_file_advise()</v>
+        <v>posix_file_advise() = normal | sequential | random | no_reuse
+          | will_need | dont_need</v>
+        <v>Reason = ext_posix()</v>
+      </type>
+      <desc>
+        <p><c>advise/4</c> can be used to announce an intention to access file
+          data in a specific pattern in the future, thus allowing the
+          operating system to perform appropriate optimizations.</p>
+        <p>On some platforms, this function might have no effect.</p>
+      </desc>
+    </func>
+    <func>
       <name>change_group(Filename, Gid) -> ok | {error, Reason}</name>
       <fsummary>Change group of a file</fsummary>
       <type>
@@ -71,6 +90,19 @@ time() = {{Year, Month, Day}, {Hour, Minute, Second}}
       </type>
       <desc>
         <p>Changes group of a file. See
+          <seealso marker="#write_file_info/2">write_file_info/2</seealso>.</p>
+      </desc>
+    </func>
+    <func>
+      <name>change_mode(Filename, Mode) -> ok | {error, Reason}</name>
+      <fsummary>Change permissions of a file</fsummary>
+      <type>
+        <v>Filename = name()</v>
+        <v>Mode = int()</v>
+        <v>Reason = ext_posix()</v>
+      </type>
+      <desc>
+        <p>Changes permissions of a file. See
           <seealso marker="#write_file_info/2">write_file_info/2</seealso>.</p>
       </desc>
     </func>
@@ -571,7 +603,7 @@ f.txt:  {person, "kalle", 25}.
       <type>
         <v>Filename = name()</v>
         <v>Modes = [Mode]</v>
-        <v>&nbsp;Mode = read | write | append | raw | binary | {delayed_write, Size, Delay} | delayed_write | {read_ahead, Size} | read_ahead | compressed</v>
+        <v>&nbsp;Mode = read | write | append | exclusive | raw | binary | {delayed_write, Size, Delay} | delayed_write | {read_ahead, Size} | read_ahead | compressed</v>
         <v>&nbsp;&nbsp;Size = Delay = int()</v>
         <v>IoDevice = io_device()</v>
         <v>Reason = ext_posix() | system_limit</v>
@@ -597,6 +629,17 @@ f.txt:  {person, "kalle", 25}.
               created if it does not exist. Every write operation to a
               file opened with <c>append</c> will take place at
               the end of the file.</p>
+          </item>
+          <tag><c>exclusive</c></tag>
+          <item>
+            <p>The file, when opened for writing, is created if it
+              does not exist. If the file exists, open will return
+              <c>{error, eexist}</c>.</p>
+	    <warning><p>This option does not guarantee exclusiveness on
+	    file systems that do not support O_EXCL properly,
+	    such as NFS. Do not depend on this option unless you
+	    know that the file system supports it (in general, local
+	    file systems should be safe).</p></warning>
           </item>
           <tag><c>raw</c></tag>
           <item>
@@ -1186,7 +1229,7 @@ f.txt:  {person, "kalle", 25}.
           </item>
           <tag><c>{no_translation, unicode, latin1}</c></tag>
           <item>
-            <p>The file is was opened with another <c>encoding</c> than <c>latin1</c> and the data on the file can not be translated to the byte-oriented data that this function returns.</p>
+            <p>The file was opened with another <c>encoding</c> than <c>latin1</c> and the data in the file can not be translated to the byte-oriented data that this function returns.</p>
           </item>
         </taglist>
       </desc>
@@ -1368,7 +1411,7 @@ f.txt:  {person, "kalle", 25}.
       </type>
       <desc>
         <p>Reads a line of bytes/characters from the file referenced by
-          <c>IoDevice</c>. Lines are defined to be delimited by the linefeed (LF, <c>\\n</c>) character, but any carriage return (CR, <c>\\r</c>) followed by a newline is also treated as a single LF character (the carriage return is silently ignored). The line is returned <em>including</em> the LF, but excluding any CR immediately followed by a LF. This behaviour is consistent with the behaviour of <seealso marker="stdlib:io#get_line/2">io:get_line/2</seealso>. If end of file is reached without any LF ending the last line, a line with no trailing LF is returned.</p> 
+          <c>IoDevice</c>. Lines are defined to be delimited by the linefeed (LF, <c>\n</c>) character, but any carriage return (CR, <c>\r</c>) followed by a newline is also treated as a single LF character (the carriage return is silently ignored). The line is returned <em>including</em> the LF, but excluding any CR immediately followed by a LF. This behaviour is consistent with the behaviour of <seealso marker="stdlib:io#get_line/2">io:get_line/2</seealso>. If end of file is reached without any LF ending the last line, a line with no trailing LF is returned.</p> 
 	  <p>The function can be used on files opened in <c>raw</c> mode. It is however inefficient to use it on <c>raw</c> files if the file is not opened with the option <c>{read_ahead, Size}</c> specified, why combining <c>raw</c> and <c>{read_ahead, Size}</c> is highly recommended when opening a text file for raw line oriented reading.</p> 
 	  <p>If <c>encoding</c> is set to something else than <c>latin1</c>, the <c>read_line/1</c> call will fail if the data contains characters larger than 255, why the <seealso marker="stdlib:io">io(3)</seealso> module is to be preferred when reading such a file.</p> 
 	  <p>The function returns:</p>
@@ -1625,6 +1668,33 @@ f.txt:  {person, "kalle", 25}.
             <p>Not enough space left to write the file.</p>
           </item>
         </taglist>
+      </desc>
+    </func>
+    <func>
+      <name>datasync(IoDevice) -> ok | {error, Reason}</name>
+      <fsummary>Synchronizes the in-memory data of a file, ignoring most of its metadata, with that on the physical medium</fsummary>
+      <type>
+        <v>IoDevice = io_device()</v>
+        <v>Reason = ext_posix() | terminated</v>
+      </type>
+      <desc>
+        <p>Makes sure that any buffers kept by the operating system
+          (not by the Erlang runtime system) are written to disk. In
+          many ways it's resembles fsync but it not requires to update
+          some of file's metadata such as the access time. On
+          some platforms, this function might have no effect.</p>
+        <p>Applications that access databases or log files often write
+          a tiny data fragment (e.g., one line in a log file) and then
+          call fsync() immediately in order to ensure that the written
+          data is physically stored on the harddisk. Unfortunately, fsync()
+          will always initiate two write operations: one for the newly
+          written data and another one in order to update the modification
+          time stored in the inode. If the modification time is not a part
+          of the transaction concept fdatasync() can be used to avoid
+          unnecessary inode disk write operations.</p>
+        <p>Available only in some POSIX systems. This call results in a
+          call to fsync(), or has no effect, in systems not implementing
+          the fdatasync syscall.</p>
       </desc>
     </func>
     <func>

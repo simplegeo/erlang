@@ -1,24 +1,26 @@
 %% 
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 2004-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 2004-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %% 
 
 -module(snmp_usm).
 
+%% Avoid warning for local function error/1 clashing with autoimported BIF.
+-compile({no_auto_import,[error/1]}).
 -export([passwd2localized_key/3, localize_key/3]).
 -export([auth_in/4, auth_out/4, set_msg_auth_params/3]).
 -export([des_encrypt/3, des_decrypt/3]).
@@ -198,7 +200,7 @@ des_encrypt(PrivKey, Data, SaltFun) ->
     [A,B,C,D,E,F,G,H | PreIV] = PrivKey,
     DesKey = [A,B,C,D,E,F,G,H],
     Salt = SaltFun(),
-    IV = snmp_misc:str_xor(PreIV, Salt),
+    IV = list_to_binary(snmp_misc:str_xor(PreIV, Salt)),
     TailLen = (8 - (length(Data) rem 8)) rem 8,
     Tail = mk_tail(TailLen),
     EncData = crypto:des_cbc_encrypt(DesKey, IV, [Data,Tail]),
@@ -206,29 +208,41 @@ des_encrypt(PrivKey, Data, SaltFun) ->
 
 des_decrypt(PrivKey, MsgPrivParams, EncData) 
   when length(MsgPrivParams) =:= 8 ->
+    ?vtrace("des_decrypt -> entry with"
+	    "~n   PrivKey:       ~p"
+	    "~n   MsgPrivParams: ~p"
+	    "~n   EncData:       ~p", [PrivKey, MsgPrivParams, EncData]),
     [A,B,C,D,E,F,G,H | PreIV] = PrivKey,
     DesKey = [A,B,C,D,E,F,G,H],
     Salt = MsgPrivParams,
-    IV = snmp_misc:str_xor(PreIV, Salt),
+    IV = list_to_binary(snmp_misc:str_xor(PreIV, Salt)),
     %% Whatabout errors here???  E.g. not a mulitple of 8!
     Data = binary_to_list(crypto:des_cbc_decrypt(DesKey, IV, EncData)),
     Data2 = snmp_pdus:strip_encrypted_scoped_pdu_data(Data),
-    {ok, Data2}.
+    {ok, Data2};
+des_decrypt(PrivKey, BadMsgPrivParams, EncData) ->
+    ?vtrace("des_decrypt -> entry when bad MsgPrivParams"
+	    "~n   PrivKey:          ~p"
+	    "~n   BadMsgPrivParams: ~p"
+	    "~n   EncData:          ~p", 
+	    [PrivKey, BadMsgPrivParams, EncData]),
+    throw({error, {bad_msgPrivParams, PrivKey, BadMsgPrivParams, EncData}}).
+    
 
 aes_encrypt(PrivKey, Data, SaltFun) ->
     AesKey = PrivKey,
     Salt = SaltFun(),
     EngineBoots = snmp_framework_mib:get_engine_boots(),
     EngineTime = snmp_framework_mib:get_engine_time(),
-    IV = [?i32(EngineBoots), ?i32(EngineTime) | Salt],
+    IV = list_to_binary([?i32(EngineBoots), ?i32(EngineTime) | Salt]),
     EncData = crypto:aes_cfb_128_encrypt(AesKey, IV, Data),
     {ok, binary_to_list(EncData), Salt}.
 
 aes_decrypt(PrivKey, MsgPrivParams, EncData, EngineBoots, EngineTime)
-  when length(MsgPrivParams) == 8 ->
+  when length(MsgPrivParams) =:= 8 ->
     AesKey = PrivKey,
     Salt = MsgPrivParams,
-    IV = [?i32(EngineBoots), ?i32(EngineTime) | Salt],
+    IV = list_to_binary([?i32(EngineBoots), ?i32(EngineTime) | Salt]),
     %% Whatabout errors here???  E.g. not a mulitple of 8!
     Data = binary_to_list(crypto:aes_cfb_128_decrypt(AesKey, IV, EncData)),
     Data2 = snmp_pdus:strip_encrypted_scoped_pdu_data(Data),

@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 2008-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 2008-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %% This file is generated DO NOT EDIT
 
@@ -64,7 +64,7 @@ new(Name)
 
 %% @spec (X::integer()|string(),X::integer()|term()) -> wxImage()
 %% @doc See <a href="http://www.wxwidgets.org/manuals/stable/wx_wximage.html#wximagewximage">external documentation</a>.
-%% <br /> Alternatives: 
+%% <br /> Alternatives:
 %% <p><c>
 %% new(Width::integer(), Height::integer()) -> new(Width,Height, []) </c></p>
 %% <p><c>
@@ -87,7 +87,7 @@ new(Name, Options)
 
 %% @spec (X::integer()|string(),X::integer()|string(),X::binary()|term()) -> wxImage()
 %% @doc See <a href="http://www.wxwidgets.org/manuals/stable/wx_wximage.html#wximagewximage">external documentation</a>.
-%% <br /> Alternatives: 
+%% <br /> Alternatives:
 %% <p><c>
 %% new(Width::integer(), Height::integer(), Data::binary()) -> new(Width,Height,Data, []) </c></p>
 %% <p><c>
@@ -121,7 +121,7 @@ new(Name,Mimetype, Options)
 
 %% @spec (Width::integer(),Height::integer(),Data::binary(),X::binary()|term()) -> wxImage()
 %% @doc See <a href="http://www.wxwidgets.org/manuals/stable/wx_wximage.html#wximagewximage">external documentation</a>.
-%% <br /> Alternatives: 
+%% <br /> Alternatives:
 %% <p><c>
 %% new(Width::integer(), Height::integer(), Data::binary(), Alpha::binary()) -> new(Width,Height,Data,Alpha, []) </c></p>
 %% <p><c>
@@ -239,7 +239,7 @@ create(This,Width,Height)
 
 %% @spec (This::wxImage(),Width::integer(),Height::integer(),X::binary()|term()) -> bool()
 %% @doc See <a href="http://www.wxwidgets.org/manuals/stable/wx_wximage.html#wximagecreate">external documentation</a>.
-%% <br /> Alternatives: 
+%% <br /> Alternatives:
 %% <p><c>
 %% create(This::wxImage(), Width::integer(), Height::integer(), Data::binary()) -> create(This,Width,Height,Data, []) </c></p>
 %% <p><c>
@@ -261,7 +261,7 @@ create(#wx_ref{type=ThisT,ref=ThisRef},Width,Height, Options)
 
 %% @spec (This::wxImage(),Width::integer(),Height::integer(),Data::binary(),X::binary()|term()) -> bool()
 %% @doc See <a href="http://www.wxwidgets.org/manuals/stable/wx_wximage.html#wximagecreate">external documentation</a>.
-%% <br /> Alternatives: 
+%% <br /> Alternatives:
 %% <p><c>
 %% create(This::wxImage(), Width::integer(), Height::integer(), Data::binary(), Alpha::binary()) -> create(This,Width,Height,Data,Alpha, []) </c></p>
 %% <p><c>
@@ -691,7 +691,7 @@ saveFile(#wx_ref{type=ThisT,ref=ThisRef},Name)
 
 %% @spec (This::wxImage(),Name::string(),X::integer()|string()) -> bool()
 %% @doc See <a href="http://www.wxwidgets.org/manuals/stable/wx_wximage.html#wximagesavefile">external documentation</a>.
-%% <br /> Alternatives: 
+%% <br /> Alternatives:
 %% <p><c>
 %% saveFile(This::wxImage(), Name::string(), Type::integer()) -> bool() </c>
 %% </p>
@@ -852,7 +852,7 @@ setMaskFromImage(#wx_ref{type=ThisT,ref=ThisRef},#wx_ref{type=MaskT,ref=MaskRef}
 
 %% @spec (This::wxImage(),Name::string(),X::integer()|string()) -> ok
 %% @doc See <a href="http://www.wxwidgets.org/manuals/stable/wx_wximage.html#wximagesetoption">external documentation</a>.
-%% <br /> Alternatives: 
+%% <br /> Alternatives:
 %% <p><c>
 %% setOption(This::wxImage(), Name::string(), Value::integer()) -> ok </c>
 %% </p>
@@ -899,7 +899,7 @@ setRGB(#wx_ref{type=ThisT,ref=ThisRef},X,Y,R,G,B)
 
 %% @spec (This::wxImage()) -> ok
 %% @doc Destroys this object, do not use object again
-destroy(Obj=#wx_ref{type=Type}) -> 
+destroy(Obj=#wx_ref{type=Type}) ->
   ?CLASS(Type,wxImage),
   wxe_util:destroy(?DESTROY_OBJECT,Obj),
   ok.

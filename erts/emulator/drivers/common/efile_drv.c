@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- * 
- * Copyright Ericsson AB 1996-2009. All Rights Reserved.
- * 
+ *
+ * Copyright Ericsson AB 1996-2010. All Rights Reserved.
+ *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- * 
+ *
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- * 
+ *
  * %CopyrightEnd%
  */
 /*
@@ -53,6 +53,8 @@
 #define FILE_IPREAD             27
 #define FILE_ALTNAME            28
 #define FILE_READ_LINE          29
+#define FILE_FDATASYNC          30
+#define FILE_FADVISE            31
 
 /* Return codes */
 
@@ -102,7 +104,7 @@
 #include <ctype.h>
 #include <sys/types.h>
 
-extern void erl_exit(int n, char *fmt, _DOTS_);
+void erl_exit(int n, char *fmt, ...);
 
 static ErlDrvSysInfo sys_info;
 
@@ -196,9 +198,9 @@ enum e_timer {timer_idle, timer_again, timer_write};
 struct t_data;
 
 typedef struct {
-    Sint            fd;
+    SWord           fd;
     ErlDrvPort      port;
-    unsigned        key;      /* Async queue key */
+    unsigned int    key;      /* Async queue key */
     unsigned        flags;    /* Original flags from FILE_OPEN. */
     void          (*invoke)(void *);
     struct t_data  *d;
@@ -306,7 +308,7 @@ struct t_data
     int            result_ok;
     Efile_error    errInfo;
     int            flags;
-    Sint           fd;
+    SWord          fd;
     /**/
     Efile_info        info;
     EFILE_DIR_HANDLE  dir_handle; /* Handle to open directory. */
@@ -357,6 +359,11 @@ struct t_data
 	    struct t_readdir_buf *first_buf;
 	    struct t_readdir_buf *last_buf;
 	} read_dir;
+	struct {
+	    Sint64 offset;
+	    Sint64 length;
+	    int advise;
+	} fadvise;
     } c;
     char b[1];
 };
@@ -605,7 +612,7 @@ file_start(ErlDrvPort port, char* command)
     }
     desc->fd = FILE_FD_INVALID;
     desc->port = port;
-    desc->key = (unsigned) (Uint) port;
+    desc->key = (unsigned int) (UWord) port;
     desc->flags = 0;
     desc->invoke = NULL;
     desc->d = NULL;
@@ -630,7 +637,7 @@ static void free_data(void *data)
     EF_FREE(data);
 }
 
-static void do_close(int flags, Sint fd) {
+static void do_close(int flags, SWord fd) {
     if (flags & EFILE_COMPRESSED) {
 	erts_gzclose((gzFile)(fd));
     } else {
@@ -709,7 +716,7 @@ static void reply_Uint_posix_error(file_descriptor *desc, Uint num,
     TRACE_C('N');
 
     response[0] = FILE_RESP_NUMERR;
-#if SIZEOF_VOID_P == 4
+#if SIZEOF_VOID_P == 4 || HALFWORD_HEAP
     put_int32(0, response+1);
 #else
     put_int32(num>>32, response+1);
@@ -767,7 +774,7 @@ static int reply_Uint(file_descriptor *desc, Uint result) {
     TRACE_C('R');
 
     tmp[0] = FILE_RESP_NUMBER;
-#if SIZEOF_VOID_P == 4
+#if SIZEOF_VOID_P == 4 || HALFWORD_HEAP
     put_int32(0, tmp+1);
 #else
     put_int32(result>>32, tmp+1);
@@ -881,6 +888,15 @@ static void invoke_delete_file(void *data)
 static void invoke_chdir(void *data)
 {
     invoke_name(data, efile_chdir);
+}
+
+static void invoke_fdatasync(void *data)
+{
+    struct t_data *d = (struct t_data *) data;
+    int fd = (int) d->fd;
+
+    d->again = 0;
+    d->result_ok = efile_fdatasync(&d->errInfo, fd);
 }
 
 static void invoke_fsync(void *data)
@@ -1620,7 +1636,7 @@ static void invoke_open(void *data)
 	    status = efile_may_openfile(&d->errInfo, d->b);
 	    if (status || (d->errInfo.posix_errno != EISDIR)) {
 		mode = (d->flags & EFILE_MODE_READ) ? "rb" : "wb";
-		d->fd = (Sint) erts_gzopen(d->b, mode);
+		d->fd = (SWord) erts_gzopen(d->b, mode);
 		if ((gzFile)d->fd) {
 		    status = 1;
 		} else {
@@ -1635,6 +1651,18 @@ static void invoke_open(void *data)
     }
 
     d->result_ok = status;
+}
+
+static void invoke_fadvise(void *data)
+{
+    struct t_data *d = (struct t_data *) data;
+    int fd = (int) d->fd;
+    off_t offset = (off_t) d->c.fadvise.offset;
+    off_t length = (off_t) d->c.fadvise.length;
+    int advise = (int) d->c.fadvise.advise;
+
+    d->again = 0;
+    d->result_ok = efile_fadvise(&d->errInfo, fd, offset, length, advise);
 }
 
 static void free_readdir(void *data)
@@ -1919,12 +1947,14 @@ file_async_ready(ErlDrvData e, ErlDrvThreadData data)
       case FILE_RMDIR:
       case FILE_CHDIR:
       case FILE_DELETE:
+      case FILE_FDATASYNC:
       case FILE_FSYNC:
       case FILE_TRUNCATE:
       case FILE_LINK:
       case FILE_SYMLINK:
       case FILE_RENAME:
       case FILE_WRITE_INFO:
+      case FILE_FADVISE:
 	reply(desc, d->result_ok, &d->errInfo);
 	free_data(data);
 	break;
@@ -2209,6 +2239,18 @@ file_output(ErlDrvData e, char* buf, int count)
 	    goto done;
 	}
 
+    case FILE_FDATASYNC:
+    {
+	    d = EF_SAFE_ALLOC(sizeof(struct t_data));
+
+	    d->fd = fd;
+	    d->command = command;
+	    d->invoke = invoke_fdatasync;
+	    d->free = free_data;
+	    d->level = 2;
+	    goto done;
+    }
+
     case FILE_FSYNC:
     {
 	d = EF_SAFE_ALLOC(sizeof(struct t_data));
@@ -2331,6 +2373,21 @@ file_output(ErlDrvData e, char* buf, int count)
 	    d->level = 2;
 	    goto done;
 	}
+
+    case FILE_FADVISE:
+    {
+        d = EF_SAFE_ALLOC(sizeof(struct t_data));
+
+        d->fd = fd;
+        d->command = command;
+        d->invoke = invoke_fadvise;
+        d->free = free_data;
+        d->level = 2;
+        d->c.fadvise.offset = get_int64((uchar*) buf);
+        d->c.fadvise.length = get_int64(((uchar*) buf) + sizeof(Sint64));
+        d->c.fadvise.advise = get_int32(((uchar*) buf) + 2 * sizeof(Sint64));
+        goto done;
+    }
 
     }
 

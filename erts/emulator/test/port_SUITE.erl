@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 1997-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 1997-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 
@@ -88,7 +88,8 @@
 	 otp_3906/1, otp_4389/1, win_massive/1, win_massive_client/1,
 	 mix_up_ports/1, otp_5112/1, otp_5119/1, otp_6224/1,
 	 exit_status_multi_scheduling_block/1, ports/1,
-	 spawn_driver/1,spawn_executable/1]).
+	 spawn_driver/1, spawn_executable/1, close_deaf_port/1,
+	 unregister_name/1]).
 
 -export([]).
 
@@ -112,7 +113,8 @@ all(suite) ->
      otp_3906, otp_4389, win_massive, mix_up_ports,
      otp_5112, otp_5119,
      exit_status_multi_scheduling_block,
-     ports, spawn_driver, spawn_executable
+     ports, spawn_driver, spawn_executable, close_deaf_port,
+     unregister_name
     ].
 
 -define(DEFAULT_TIMEOUT, ?t:minutes(5)).
@@ -876,11 +878,19 @@ env2(Config) ->
 			    "nisse" = os:getenv(Long)
 		    end),
 
-
+    
     ?line env_slave(Temp, [{"must_define_something","some_value"},
-			   {"certainly_not_existing",false},
+			    {"certainly_not_existing",false},
+                           {"ends_with_equal", "value="},
 			   {Long,false},
 			   {"glurf","a glorfy string"}]),
+
+    %% A lot of non existing variables (mingled with existing)
+    NotExistingList = [{lists:flatten(io_lib:format("V~p_not_existing",[X])),false} 
+                        ||  X <- lists:seq(1,150)],
+    ExistingList = [{lists:flatten(io_lib:format("V~p_existing",[X])),"a_value"} 
+                        ||  X <- lists:seq(1,150)],
+    ?line env_slave(Temp, lists:sort(ExistingList ++ NotExistingList)),
 
     ?line test_server:timetrap_cancel(Dog),
     ok.
@@ -1433,6 +1443,10 @@ spawn_executable(Config) when is_list(Config) ->
     end,
     ?line test_server:timetrap_cancel(Dog),
     ok.
+
+unregister_name(Config) when is_list(Config) ->
+    ?line true = register(crash, open_port({spawn, "sleep 100"}, [])),
+    ?line true = unregister(crash).
 
 test_bat_file(Dir) ->
     FN = "tf.bat",
@@ -2286,3 +2300,16 @@ load_driver(Dir, Driver) ->
 	    io:format("~s\n", [erl_ddll:format_error(Error)]),
 	    Res
     end.
+
+
+close_deaf_port(doc) -> ["Send data to port program that does not read it, then close port."];
+close_deaf_port(suite) -> [];
+close_deaf_port(Config) when is_list(Config) ->
+    ?line Dog = test_server:timetrap(test_server:seconds(100)),
+    ?line DataDir = ?config(data_dir, Config),
+    ?line DeadPort = os:find_executable("dead_port", DataDir),
+
+    ?line Port = open_port({spawn,DeadPort++" 60"},[]),
+    ?line erlang:port_command(Port,"Hello, can you hear me!?!?"),
+    ?line port_close(Port),
+    ok.

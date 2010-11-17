@@ -4,7 +4,7 @@
 <chapter>
   <header>
     <copyright>
-      <year>2004</year><year>2009</year>
+      <year>2004</year><year>2010</year>
       <holder>Ericsson AB. All Rights Reserved.</holder>
     </copyright>
     <legalnotice>
@@ -13,12 +13,12 @@
       compliance with the License. You should have received a copy of the
       Erlang Public License along with this software. If not, it can be
       retrieved online at http://www.erlang.org/.
-    
+
       Software distributed under the License is distributed on an "AS IS"
       basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
       the License for the specific language governing rights and limitations
       under the License.
-    
+
     </legalnotice>
 
     <title>Xmerl Release Notes</title>
@@ -31,6 +31,71 @@
   <p>This document describes the changes made to the Xmerl application.</p>
 
 
+<section><title>Xmerl 1.2.6</title>
+
+    <section><title>Fixed Bugs and Malfunctions</title>
+      <list>
+        <item>
+	    <p> Fixed problem with hex entities in UTF-8 documents:
+	    When a document was in UTF-8 encoding, xmerl_scan
+	    improperly replaced hex entities by the UTF-8 bytes
+	    instead of returning the character, as it does with
+	    inline UTF-8 text and decimal entities. (Thanks to Paul
+	    Guyot.) </p>
+          <p>
+	    Own Id: OTP-8697</p>
+        </item>
+      </list>
+    </section>
+
+</section>
+
+<section><title>Xmerl 1.2.5</title>
+
+    <section><title>Improvements and New Features</title>
+      <list>
+        <item>
+          <p>
+            All Erlang files are now built by the test server instead of the test directory Makefile.
+          </p>
+          <p>
+            Erlang files in data directories are now built by the test suites instead of using 
+            prebuilt versions under version control.
+          </p>
+          <p>
+            Removed a number of obsolete guards.
+          </p>
+          <p>
+            Own Id: OTP-8537
+          </p>
+        </item>
+        <item>
+          <p>
+           An empty element declared as a simpleContent was not properly validated.
+          </p>
+          <p>
+            Own Id: OTP-8599
+          </p>
+        </item>
+      </list>
+    </section>
+
+</section>
+
+<section><title>Xmerl 1.2.4</title>
+
+    <section><title>Improvements and New Features</title>
+      <list>
+        <item>
+            <p>Updated the documentation Makefile to work with the 
+               new documentation build process.</p>
+            <p>
+            Own Id: OTP-8343</p>
+        </item>
+      </list>
+    </section>
+
+</section>
 
 
 <section><title>Xmerl 1.2.3</title>
@@ -40,7 +105,7 @@
         <item>
           <p>
             A continuation clause of <c>parse_reference/3</c> had
-            it's parameters in wrong order.</p>
+            its parameters in wrong order.</p>
           <p>
             Own Id: OTP-8251 Aux Id: seq11429 </p>
         </item>

@@ -1,19 +1,19 @@
 #
 # %CopyrightBegin%
-# 
-# Copyright Ericsson AB 1997-2009. All Rights Reserved.
-# 
+#
+# Copyright Ericsson AB 1997-2010. All Rights Reserved.
+#
 # The contents of this file are subject to the Erlang Public License,
 # Version 1.1, (the "License"); you may not use this file except in
 # compliance with the License. You should have received a copy of the
 # Erlang Public License along with this software. If not, it can be
 # retrieved online at http://www.erlang.org/.
-# 
+#
 # Software distributed under the License is distributed on an "AS IS"
 # basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 # the License for the specific language governing rights and limitations
 # under the License.
-# 
+#
 # %CopyrightEnd%
 #
 
@@ -61,7 +61,7 @@ MODULES= \
 	exception_SUITE \
 	float_SUITE \
 	fun_SUITE \
-	fun_r11_SUITE \
+	fun_r12_SUITE \
 	gc_SUITE \
 	guard_SUITE \
 	hash_SUITE \
@@ -75,12 +75,12 @@ MODULES= \
 	node_container_SUITE \
 	nofrag_SUITE \
 	num_bif_SUITE \
-	obsolete_SUITE \
 	op_SUITE \
 	port_SUITE \
 	port_bif_SUITE \
 	process_SUITE \
 	pseudoknot_SUITE \
+	receive_SUITE \
 	ref_SUITE \
 	register_SUITE \
 	save_calls_SUITE \
@@ -100,6 +100,7 @@ MODULES= \
 	trace_local_SUITE \
 	trace_meta_SUITE \
 	trace_call_count_SUITE \
+	trace_call_time_SUITE \
 	scheduler_SUITE \
 	old_scheduler_SUITE \
 	z_SUITE \
@@ -117,7 +118,8 @@ NO_OPT= bs_bincomp \
 	bs_match_int \
 	bs_match_tail \
 	bs_match_misc \
-	bs_utf
+	bs_utf \
+	guard
 
 
 NO_OPT_MODULES= $(NO_OPT:%=%_no_opt_SUITE)

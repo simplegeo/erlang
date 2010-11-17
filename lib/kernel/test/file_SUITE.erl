@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 
@@ -52,8 +52,8 @@
 	 old_modes/1, new_modes/1, path_open/1, open_errors/1]).
 -export([file_info/1, file_info_basic_file/1, file_info_basic_directory/1,
 	 file_info_bad/1, file_info_times/1, file_write_file_info/1]).
--export([rename/1, access/1, truncate/1, sync/1,
-	 read_write/1, pread_write/1, append/1]).
+-export([rename/1, access/1, truncate/1, datasync/1, sync/1,
+	 read_write/1, pread_write/1, append/1, exclusive/1]).
 -export([errors/1, e_delete/1, e_rename/1, e_make_dir/1, e_del_dir/1]).
 -export([otp_5814/1]).
 
@@ -82,6 +82,10 @@
 
 -export([read_line_1/1, read_line_2/1, read_line_3/1,read_line_4/1]).
 
+-export([advise/1]).
+
+-export([standard_io/1,mini_server/1]).
+
 %% Debug exports
 -export([create_file_slow/2, create_file/2, create_bin/2]).
 -export([verify_file/2, verify_bin/3]).
@@ -101,7 +105,8 @@ all(suite) ->
       compression, links, copy,
       delayed_write, read_ahead, segment_read, segment_write,
       ipread, pid2name, interleaved_read_write, 
-      otp_5814, large_file, read_line_1, read_line_2, read_line_3, read_line_4],
+      otp_5814, large_file, read_line_1, read_line_2, read_line_3, read_line_4,
+      standard_io],
      fini}.
 
 init(Config) when is_list(Config) ->
@@ -168,6 +173,85 @@ time_dist(DT, {YY, MM, DD, H, M, S}) ->
 time_dist({_D1, _T1} = DT1, {_D2, _T2} = DT2) ->
     calendar:datetime_to_gregorian_seconds(DT2)
 	- calendar:datetime_to_gregorian_seconds(DT1).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+mini_server(Parent) ->
+    receive
+	die ->
+	    ok;
+	{io_request,From,To,{put_chars,Data}} ->
+	    Parent ! {io_request,From,To,{put_chars,Data}},
+	    From ! {io_reply, To, ok},
+	    mini_server(Parent);
+	{io_request,From,To,{get_chars,'',N}} ->
+	    Parent ! {io_request,From,To,{get_chars,'',N}},
+	    From ! {io_reply, To, {ok, lists:duplicate(N,$a)}},
+	    mini_server(Parent);
+	{io_request,From,To,{get_line,''}} ->
+	    Parent ! {io_request,From,To,{get_line,''}},
+	    From ! {io_reply, To, {ok, "hej\n"}},
+	    mini_server(Parent)
+    end.
+
+standard_io(suite) ->
+    [];
+standard_io(doc) ->
+    ["Test that standard i/o-servers work with file module"];
+standard_io(Config) when is_list(Config) ->
+    %% Really just a smoke test
+    ?line Pid = spawn(?MODULE,mini_server,[self()]),
+    ?line register(mini_server,Pid),
+    ?line ok = file:write(mini_server,<<"hej\n">>),
+    ?line receive
+	     {io_request,_,_,{put_chars,<<"hej\n">>}} ->
+		  ok
+	  after 1000 ->
+		  exit(noreply)
+	  end,
+    ?line {ok,"aaaaa"} = file:read(mini_server,5),
+    ?line receive
+	     {io_request,_,_,{get_chars,'',5}} ->
+		  ok
+	  after 1000 ->
+		  exit(noreply)
+	  end,
+    ?line {ok,"hej\n"} = file:read_line(mini_server),
+    ?line receive
+	     {io_request,_,_,{get_line,''}} ->
+		  ok
+	  after 1000 ->
+		  exit(noreply)
+	  end,
+    ?line OldGL = group_leader(),
+    ?line group_leader(Pid,self()),
+    ?line ok = file:write(standard_io,<<"hej\n">>),
+    ?line group_leader(OldGL,self()),
+    ?line receive
+	     {io_request,_,_,{put_chars,<<"hej\n">>}} ->
+		  ok
+	  after 1000 ->
+		  exit(noreply)
+	  end,
+    ?line group_leader(Pid,self()),
+    ?line {ok,"aaaaa"} = file:read(standard_io,5),
+    ?line group_leader(OldGL,self()),
+    ?line receive
+	     {io_request,_,_,{get_chars,'',5}} ->
+		  ok
+	  after 1000 ->
+		  exit(noreply)
+	  end,
+    ?line group_leader(Pid,self()),
+    ?line {ok,"hej\n"} = file:read_line(standard_io),
+    ?line group_leader(OldGL,self()),
+    ?line receive
+	     {io_request,_,_,{get_line,''}} ->
+		  ok
+	  after 1000 ->
+		  exit(noreply)
+	  end,
+    Pid ! die,
+    receive after 1000 -> ok end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -270,7 +354,10 @@ make_del_dir(Config) when is_list(Config) ->
     %% Try deleting some bad directories
     %% Deleting the parent directory to the current, sounds dangerous, huh?
     %% Don't worry ;-) the parent directory should never be empty, right?
-    ?line {error, eexist} = ?FILE_MODULE:del_dir('..'),
+    case ?FILE_MODULE:del_dir('..') of
+	{error, eexist} -> ok;
+	{error, einval} -> ok			%FreeBSD
+    end,
     ?line {error, enoent} = ?FILE_MODULE:del_dir(""),
     ?line {error, badarg} = ?FILE_MODULE:del_dir([3,2,1,{}]),
 
@@ -374,10 +461,12 @@ win_cur_dir_1(_Config) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-files(suite) -> [open,pos,file_info,consult,eval,script,truncate,sync].
+files(suite) ->
+    [open,pos,file_info,consult,eval,script,truncate,
+     sync,datasync,advise].
 
 open(suite) -> [open1,old_modes,new_modes,path_open,close,access,read_write,
-	       pread_write,append,open_errors].
+	       pread_write,append,open_errors,exclusive].
 
 open1(suite) -> [];
 open1(doc) -> [];
@@ -748,6 +837,22 @@ open_errors(Config) when is_list(Config) ->
     ?line {eisdir,eisdir,eisdir,eisdir} = {E1,E2,E3,E4},
 
     ?line [] = flush(),
+    ?line test_server:timetrap_cancel(Dog),
+    ok.
+
+exclusive(suite) -> [];
+exclusive(doc) -> "Test exclusive access to a file.";
+exclusive(Config) when is_list(Config) ->
+    ?line Dog = test_server:timetrap(test_server:seconds(5)),
+    ?line RootDir = ?config(priv_dir,Config),
+    ?line NewDir = filename:join(RootDir,
+				 atom_to_list(?MODULE)
+				 ++"_exclusive"),
+    ?line ok = ?FILE_MODULE:make_dir(NewDir),
+    ?line Name = filename:join(NewDir, "ex_file.txt"),
+    ?line {ok, Fd} = ?FILE_MODULE:open(Name, [write, exclusive]),
+    ?line {error, eexist} = ?FILE_MODULE:open(Name, [write, exclusive]),
+    ?line ok = ?FILE_MODULE:close(Fd),
     ?line test_server:timetrap_cancel(Dog),
     ok.
 
@@ -1352,6 +1457,30 @@ truncate(Config) when is_list(Config) ->
     ok.
 
 
+datasync(suite) -> [];
+datasync(doc) -> "Tests that ?FILE_MODULE:datasync/1 at least doesn't crash.";
+datasync(Config) when is_list(Config) ->
+    ?line Dog = test_server:timetrap(test_server:seconds(5)),
+    ?line PrivDir = ?config(priv_dir, Config),
+    ?line Sync = filename:join(PrivDir,
+			       atom_to_list(?MODULE)
+			       ++"_sync.fil"),
+
+    %% Raw open.
+    ?line {ok, Fd} = ?FILE_MODULE:open(Sync, [write, raw]),
+    ?line ok = ?FILE_MODULE:datasync(Fd),
+    ?line ok = ?FILE_MODULE:close(Fd),
+
+    %% Ordinary open.
+    ?line {ok, Fd2} = ?FILE_MODULE:open(Sync, [write]),
+    ?line ok = ?FILE_MODULE:datasync(Fd2),
+    ?line ok = ?FILE_MODULE:close(Fd2),
+
+    ?line [] = flush(),
+    ?line test_server:timetrap_cancel(Dog),
+    ok.
+
+
 sync(suite) -> [];
 sync(doc) -> "Tests that ?FILE_MODULE:sync/1 at least doesn't crash.";
 sync(Config) when is_list(Config) ->
@@ -1370,6 +1499,77 @@ sync(Config) when is_list(Config) ->
     ?line {ok, Fd2} = ?FILE_MODULE:open(Sync, [write]),
     ?line ok = ?FILE_MODULE:sync(Fd2),
     ?line ok = ?FILE_MODULE:close(Fd2),
+
+    ?line [] = flush(),
+    ?line test_server:timetrap_cancel(Dog),
+    ok.
+
+advise(suite) -> [];
+advise(doc) -> "Tests that ?FILE_MODULE:advise/4 at least doesn't crash.";
+advise(Config) when is_list(Config) ->
+    ?line Dog = test_server:timetrap(test_server:seconds(5)),
+    ?line PrivDir = ?config(priv_dir, Config),
+    ?line Advise = filename:join(PrivDir,
+			       atom_to_list(?MODULE)
+			       ++"_advise.fil"),
+
+    Line1 = "Hello\n",
+    Line2 = "World!\n",
+
+    ?line {ok, Fd} = ?FILE_MODULE:open(Advise, [write]),
+    ?line ok = ?FILE_MODULE:advise(Fd, 0, 0, normal),
+    ?line ok = io:format(Fd, "~s", [Line1]),
+    ?line ok = io:format(Fd, "~s", [Line2]),
+    ?line ok = ?FILE_MODULE:close(Fd),
+
+    ?line {ok, Fd2} = ?FILE_MODULE:open(Advise, [write]),
+    ?line ok = ?FILE_MODULE:advise(Fd2, 0, 0, random),
+    ?line ok = io:format(Fd2, "~s", [Line1]),
+    ?line ok = io:format(Fd2, "~s", [Line2]),
+    ?line ok = ?FILE_MODULE:close(Fd2),
+
+    ?line {ok, Fd3} = ?FILE_MODULE:open(Advise, [write]),
+    ?line ok = ?FILE_MODULE:advise(Fd3, 0, 0, sequential),
+    ?line ok = io:format(Fd3, "~s", [Line1]),
+    ?line ok = io:format(Fd3, "~s", [Line2]),
+    ?line ok = ?FILE_MODULE:close(Fd3),
+
+    ?line {ok, Fd4} = ?FILE_MODULE:open(Advise, [write]),
+    ?line ok = ?FILE_MODULE:advise(Fd4, 0, 0, will_need),
+    ?line ok = io:format(Fd4, "~s", [Line1]),
+    ?line ok = io:format(Fd4, "~s", [Line2]),
+    ?line ok = ?FILE_MODULE:close(Fd4),
+
+    ?line {ok, Fd5} = ?FILE_MODULE:open(Advise, [write]),
+    ?line ok = ?FILE_MODULE:advise(Fd5, 0, 0, dont_need),
+    ?line ok = io:format(Fd5, "~s", [Line1]),
+    ?line ok = io:format(Fd5, "~s", [Line2]),
+    ?line ok = ?FILE_MODULE:close(Fd5),
+
+    ?line {ok, Fd6} = ?FILE_MODULE:open(Advise, [write]),
+    ?line ok = ?FILE_MODULE:advise(Fd6, 0, 0, no_reuse),
+    ?line ok = io:format(Fd6, "~s", [Line1]),
+    ?line ok = io:format(Fd6, "~s", [Line2]),
+    ?line ok = ?FILE_MODULE:close(Fd6),
+
+    ?line {ok, Fd7} = ?FILE_MODULE:open(Advise, [write]),
+    ?line {error, einval} = ?FILE_MODULE:advise(Fd7, 0, 0, bad_advise),
+    ?line ok = ?FILE_MODULE:close(Fd7),
+
+    %% test write without advise, then a read after an advise
+    ?line {ok, Fd8} = ?FILE_MODULE:open(Advise, [write]),
+    ?line ok = io:format(Fd8, "~s", [Line1]),
+    ?line ok = io:format(Fd8, "~s", [Line2]),
+    ?line ok = ?FILE_MODULE:close(Fd8),
+    ?line {ok, Fd9} = ?FILE_MODULE:open(Advise, [read]),
+    Offset = 0,
+    %% same as a 0 length in some implementations
+    Length = length(Line1) + length(Line2),
+    ?line ok = ?FILE_MODULE:advise(Fd9, Offset, Length, sequential),
+    ?line {ok, Line1} = ?FILE_MODULE:read_line(Fd9),
+    ?line {ok, Line2} = ?FILE_MODULE:read_line(Fd9),
+    ?line eof = ?FILE_MODULE:read_line(Fd9),
+    ?line ok = ?FILE_MODULE:close(Fd9),
 
     ?line [] = flush(),
     ?line test_server:timetrap_cancel(Dog),
@@ -3371,7 +3571,7 @@ read_line_create_files(TestData) ->
     [ Function(File) || {Function,File,_,_} <- TestData ].
 
 read_line_remove_files(TestData) ->
-    [ file:delete(File) || {Function,File,_,_} <- TestData ].
+    [ file:delete(File) || {_Function,File,_,_} <- TestData ].
 
 read_line_1(suite) -> 
     [];

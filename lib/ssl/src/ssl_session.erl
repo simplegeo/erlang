@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %% 
-%% Copyright Ericsson AB 2007-2009. All Rights Reserved.
+%% Copyright Ericsson AB 2007-2010. All Rights Reserved.
 %% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -32,11 +32,10 @@
 
 -define(GEN_UNIQUE_ID_MAX_TRIES, 10).
 
+-type seconds()   :: integer(). 
+
 %%--------------------------------------------------------------------
-%% Function: is_new(ClientSuggestedId, ServerDecidedId) -> true | false
-%%
-%%      ClientSuggestedId = binary() 
-%%      ServerDecidedId = binary()
+-spec is_new(session_id(), session_id()) -> boolean().
 %%
 %% Description: Checks if the session id decided by the server is a
 %%              new or resumed sesion id.
@@ -45,17 +44,11 @@ is_new(<<>>, _) ->
     true;
 is_new(SessionId, SessionId) ->
     false;
-is_new(_, _) ->
+is_new(_ClientSuggestion, _ServerDecision) ->
     true.
 
 %%--------------------------------------------------------------------
-%% Function: id(ClientInfo, Cache, CacheCb) -> SessionId 
-%%
-%%      ClientInfo = {HostIP, Port, SslOpts}
-%%      HostIP = ipadress()
-%%      Port = integer() 
-%%      CacheCb = atom()
-%%      SessionId = binary()
+-spec id({host(), port_num(), #ssl_options{}}, cache_ref(), atom()) -> binary().
 %%
 %% Description: Should be called by the client side to get an id 
 %%              for the client hello message.
@@ -69,14 +62,8 @@ id(ClientInfo, Cache, CacheCb) ->
     end.
 
 %%--------------------------------------------------------------------
-%% Function: id(Port, SuggestedSessionId, ReuseFun, CacheCb,
-%%              SecondLifeTime) -> SessionId 
-%%
-%%      Port = integer() 
-%%      SuggestedSessionId = SessionId = binary()
-%%      ReuseFun = fun(SessionId, PeerCert, Compression, CipherSuite) -> 
-%%                                                             true | false 
-%%      CacheCb = atom()
+-spec id(port_num(), binary(), #ssl_options{}, cache_ref(), 
+	 atom(), seconds()) -> binary().
 %%
 %% Description: Should be called by the server side to get an id 
 %%              for the server hello message.
@@ -95,10 +82,7 @@ id(Port, SuggestedSessionId, #ssl_options{reuse_sessions = ReuseEnabled,
 	    new_id(Port, ?GEN_UNIQUE_ID_MAX_TRIES, Cache, CacheCb)
     end.
 %%--------------------------------------------------------------------
-%% Function: valid_session(Session, LifeTime) -> true | false 
-%%
-%%	Session  = #session{}
-%%      LifeTime = integer() - seconds
+-spec valid_session(#session{}, seconds()) -> boolean().
 %%
 %% Description: Check that the session has not expired
 %%--------------------------------------------------------------------
@@ -129,7 +113,7 @@ select_session(Sessions, #ssl_options{ciphers = Ciphers,
  	List ->
  	    hd(List)
     end.
-	    
+
 %% If we can not generate a not allready in use session ID in
 %% ?GEN_UNIQUE_ID_MAX_TRIES we make the new session uncacheable The
 %% value of ?GEN_UNIQUE_ID_MAX_TRIES is stolen from open SSL which

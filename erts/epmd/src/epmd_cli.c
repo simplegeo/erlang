@@ -1,7 +1,7 @@
 /*
  * %CopyrightBegin%
  * 
- * Copyright Ericsson AB 1998-2009. All Rights Reserved.
+ * Copyright Ericsson AB 1998-2010. All Rights Reserved.
  * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
@@ -42,7 +42,47 @@ void kill_epmd(EpmdVars *g)
 	epmd_cleanup_exit(g,1);
     }
     if ((rval = read_fill(fd,buf,2)) == 2) {
-	printf("Killed\n");
+	if (buf[0] == 'O' && buf[1] == 'K') {
+	    printf("Killed\n");
+	} else {
+	    printf("Killing not allowed - living nodes in database.\n");
+	}
+	epmd_cleanup_exit(g,0);
+    } else if (rval < 0) {
+	printf("epmd: failed to read answer from local epmd\n");
+	epmd_cleanup_exit(g,1);
+    } else { 			/* rval is now 0 or 1 */
+	buf[rval] = '\0';
+	printf("epmd: local epmd responded with <%s>\n", buf);
+	epmd_cleanup_exit(g,1);
+    }
+}
+
+void stop_cli(EpmdVars *g, char *name)
+{
+    char buf[1024];
+    int fd, rval, bsize;
+
+    bsize = strlen(name);
+    if (bsize > 1000) {
+	printf("epmd: Name too long!");
+	epmd_cleanup_exit(g, 1);
+    }
+
+    fd = conn_to_epmd(g);
+    bsize++;
+    put_int16(bsize, buf);
+    buf[2] = EPMD_STOP_REQ;
+    bsize += 2;
+    strcpy(buf+3, name);
+
+    if (write(fd, buf, bsize) != bsize) {
+	printf("epmd: Can't write to epmd\n");
+	epmd_cleanup_exit(g,1);
+    }
+    if ((rval = read_fill(fd,buf,7)) == 7) {
+	buf[7] = '\000';
+	printf("%s\n", buf);
 	epmd_cleanup_exit(g,0);
     } else if (rval < 0) {
 	printf("epmd: failed to read answer from local epmd\n");

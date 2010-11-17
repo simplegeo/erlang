@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 2008-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 2008-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 
@@ -65,41 +65,57 @@ filter_fun() ->
 open(F) ->
     open(filter_fun(), undefined, F).
 
-open(FilterFun, FilterAcc, F) ->
-    case ?CATCH do_open(FilterFun, FilterAcc, F) of
-	{ok, PrimZip, Acc} ->
-	    {ok, PrimZip, Acc};
-	Error ->
-	    {error, Error}
-    end.
+open(FilterFun, FilterAcc, F) when is_function(FilterFun, 2) ->
+    try
+	do_open(FilterFun, FilterAcc, F)
+    catch
+	throw:{filter_fun_throw, Reason} ->
+	    throw(Reason);
+	throw:InternalReason ->
+	    {error, InternalReason};
+	Class:Reason ->
+	    erlang:error(erlang:raise(Class, Reason, erlang:get_stacktrace()))
+    end;
+open(_, _, _) ->
+    {error, einval}.
 
 do_open(FilterFun, FilterAcc, F) ->
     Input = get_zip_input(F),
     In0 = Input({open, F, [read, binary, raw]}, []),
     Z = zlib:open(),
     PrimZip = #primzip{files = [], zlib = Z, in = In0, input = Input},
-    {PrimZip2, FilterAcc2} = get_central_dir(PrimZip, FilterFun, FilterAcc),
-    {ok, PrimZip2, FilterAcc2}.
+    try
+	{PrimZip2, FilterAcc2} = get_central_dir(PrimZip, FilterFun, FilterAcc),
+	{ok, PrimZip2, FilterAcc2}
+    catch
+	Class:Reason ->
+	    close(PrimZip),
+	    erlang:error(erlang:raise(Class, Reason, erlang:get_stacktrace()))
+    end.
 
 %% iterate over all files in a zip archive
-foldl(FilterFun, FilterAcc, #primzip{files = Files} = PrimZip) ->
-    case ?CATCH do_foldl(FilterFun, FilterAcc, Files, [], PrimZip, PrimZip) of
-	{ok, FilterAcc2, PrimZip2} -> {ok, PrimZip2, FilterAcc2};
-	Error                      -> {error, Error}
+foldl(FilterFun, FilterAcc, #primzip{files = Files} = PrimZip)
+  when is_function(FilterFun, 2) ->
+    try
+	{ok, FilterAcc2, PrimZip2} =
+	    do_foldl(FilterFun, FilterAcc, Files, [], PrimZip, PrimZip),
+	{ok, PrimZip2, FilterAcc2}
+    catch
+	throw:{filter_fun_throw, Reason} ->
+	    throw(Reason);
+	throw:InternalReason ->
+	    {error, InternalReason};
+	Class:Reason ->
+	    erlang:error(erlang:raise(Class, Reason, erlang:get_stacktrace()))
     end;
 foldl(_, _, _) ->
     {error, einval}.
 
 do_foldl(FilterFun, FilterAcc, [PF | Tail], Acc0, PrimZip, PrimZipOrig) ->
     #primzip_file{name = F, get_info = GetInfo, get_bin = GetBin} = PF,
-    case FilterFun({F, GetInfo, GetBin}, FilterAcc) of
+    try FilterFun({F, GetInfo, GetBin}, FilterAcc) of
 	{Continue, Include, FilterAcc2} ->
-	    Acc1 =
-		case Include of
-		    false -> Acc0;
-		    true -> [PF | Acc0];
-		    {true, Nick} -> [PF#primzip_file{name = Nick} | Acc0]
-		end,
+	    Acc1 = include_acc(Include, PF, Acc0),
 	    case Continue of
 		true ->
 		    do_foldl(FilterFun, FilterAcc2, Tail, Acc1, PrimZip, PrimZipOrig);
@@ -108,9 +124,36 @@ do_foldl(FilterFun, FilterAcc, [PF | Tail], Acc0, PrimZip, PrimZipOrig) ->
 	    end;
 	FilterRes ->
 	    throw({illegal_filter, FilterRes})
+    catch
+	throw:Reason ->
+	    throw({filter_fun_throw, Reason})
     end;
 do_foldl(_FilterFun, FilterAcc, [], Acc, PrimZip, _PrimZipOrig) ->
     {ok, FilterAcc, PrimZip#primzip{files = reverse(Acc)}}.
+
+include_acc(Include, PF, Acc) ->
+    case Include of
+	false ->
+	    Acc;
+	true ->
+	    [PF | Acc];
+	{true, Nick} ->
+	    [PF#primzip_file{name = Nick} | Acc];
+	{true, Nick, GetInfo, GetBin} ->
+	    PF2 = #primzip_file{name = Nick, get_info = GetInfo, get_bin = GetBin},
+	    [PF2 | Acc];
+	List when is_list(List) ->
+	    %% Add new entries
+	    Fun = fun(I, A) -> include_acc(I, PF, A) end,
+	    lists_foldl(Fun, Acc, List);
+	Bad ->
+	    throw({illegal_filter, Bad})
+    end.
+
+lists_foldl(F, Accu, [Hd|Tail]) ->
+    lists_foldl(F, F(Hd, Accu), Tail);
+lists_foldl(F, Accu, []) when is_function(F, 2) ->
+    Accu.
 
 %% close a zip archive
 close(#primzip{in = In0, input = Input, zlib = Z}) ->
@@ -122,7 +165,9 @@ close(_) ->
 get_zip_input({F, B}) when is_binary(B), is_list(F) ->
     fun binary_io/2;
 get_zip_input(F) when is_list(F) ->
-    fun prim_file_io/2.
+    fun prim_file_io/2;
+get_zip_input(_) ->
+    throw(einval).
 
 %% get a file from the archive
 get_z_file(F, Offset, ChunkSize, #primzip{zlib = Z, in = In0, input = Input}) ->
@@ -199,15 +244,25 @@ get_cd_loop(N, BCD, Acc0, PrimZip, FileName, Offset, CFH, EndOffset, FilterFun, 
 	end,
     %% erlang:display({FileName, N, Offset, Size, NextPF}),
     GetInfo = fun() -> cd_file_header_to_file_info(FileName, CFH, <<>>) end,
-    GetBin  = fun() -> get_z_file(FileName, Offset, Size, PrimZip) end,
+    GetBin = fun() -> get_z_file(FileName, Offset, Size, PrimZip) end,
     PF = #primzip_file{name = FileName, get_info = GetInfo, get_bin = GetBin},
-    case FilterFun({FileName, GetInfo, GetBin}, FilterAcc) of
+    try FilterFun({FileName, GetInfo, GetBin}, FilterAcc) of
 	{Continue, Include, FilterAcc2} ->
 	    Acc1 =
 		case Include of
-		    false -> Acc0;
-		    true -> [PF | Acc0];
-		    {true, Nick} -> [PF#primzip_file{name = Nick} | Acc0]
+		    false ->
+			Acc0;
+		    true ->
+			[PF | Acc0];
+		    {true, Nick} ->
+			[PF#primzip_file{name = Nick} | Acc0];
+		    {true, Nick, GI, GB} ->
+			PF2 = #primzip_file{name = Nick, get_info = GI, get_bin = GB},
+			[PF2 | Acc0];
+		    List when is_list(List) ->
+			%% Add new entries
+			Fun = fun(I, A) -> include_acc(I, PF, A) end,
+			lists_foldl(Fun, Acc0, List)
 		end,
 	    case Continue of
 		true when N > 1 ->
@@ -220,13 +275,16 @@ get_cd_loop(N, BCD, Acc0, PrimZip, FileName, Offset, CFH, EndOffset, FilterFun, 
 	    end;
 	FilterRes ->
 	    throw({illegal_filter, FilterRes})
+    catch
+	throw:Reason ->
+	    throw({filter_fun_throw, Reason})
     end.
 
 get_file_header(BCD) ->
     BCFH =
 	case BCD of
 	    <<?CENTRAL_FILE_MAGIC:32/little,
-	     B:(?CENTRAL_FILE_HEADER_SZ-4)/binary, 
+	     B:(?CENTRAL_FILE_HEADER_SZ-4)/binary,
 	     _/binary>> ->
 		B;
 	    _ ->
@@ -239,11 +297,11 @@ get_file_header(BCD) ->
     ToGet = FileNameLen + ExtraLen + CommentLen,
     {B2, BCDRest} =
 	case BCD of
-	    <<_:?CENTRAL_FILE_HEADER_SZ/binary, 
+	    <<_:?CENTRAL_FILE_HEADER_SZ/binary,
 	     G:ToGet/binary,
-	     Rest/binary>> -> 
+	     Rest/binary>> ->
 		{G, Rest};
-	    _ -> 
+	    _ ->
 		throw(bad_central_directory)
 	end,
     FileName = get_filename_from_b2(B2, FileNameLen, ExtraLen, CommentLen),
@@ -292,9 +350,9 @@ prim_file_io({file_info, F}, _) ->
     end;
 prim_file_io({open, FN, Opts}, _) ->
     case ?CATCH prim_file:open(FN, Opts++[binary]) of
-	{ok, H} -> 
+	{ok, H} ->
 	    H;
-	{error, E} -> 
+	{error, E} ->
 	    throw(E)
     end;
 prim_file_io({read, N}, H) ->
@@ -449,7 +507,7 @@ cd_file_header_to_file_info(FileName,
 %%     FI;     % not yet supported, and not widely used
 add_extra_info(FI, _) ->
     FI.
-%% 
+%%
 %% unix_extra_field_and_var_from_bin(<<TSize:16/little,
 %% 				   ATime:32/little,
 %% 				   MTime:32/little,
@@ -473,7 +531,7 @@ dos_date_time_to_datetime(DosDate, DosTime) ->
     <<Hour:5, Min:6, Sec:5>> = <<DosTime:16>>,
     <<YearFrom1980:7, Month:4, Day:5>> = <<DosDate:16>>,
     {{YearFrom1980+1980, Month, Day},
-     {Hour, Min, Sec}}. 
+     {Hour, Min, Sec}}.
 
 cd_file_header_from_bin(<<VersionMadeBy:16/little,
 			 VersionNeeded:16/little,
@@ -595,7 +653,7 @@ reverse(X) ->
 
 reverse([H|T], Y) ->
     reverse(T, [H|Y]);
-reverse([], X) -> 
+reverse([], X) ->
     X.
 
 last([E|Es]) -> last(E, Es).

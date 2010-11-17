@@ -1,28 +1,28 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 1997-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 1997-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 %%
 -module(asn1ct_gen).
 
 -include("asn1_records.hrl").
-%%-compile(export_all).
+
 -export([pgen_exports/3,
-	 pgen_hrl/4,
+	 pgen_hrl/5,
 	 gen_head/3,
 	 demit/1,
 	 emit/1,
@@ -41,28 +41,29 @@
 	 rt2ct_suffix/0,
 	 index2suffix/1,
 	 get_record_name_prefix/0]).
--export([pgen/4,
-	 pgen_module/5,
+-export([pgen/5,
+	 pgen_module/6,
 	 mk_var/1, 
 	 un_hyphen_var/1]).
 -export([gen_encode_constructed/4,
 	 gen_decode_constructed/4]).
 
-%% pgen(Erules, Module, TypeOrVal)
+%% pgen(Outfile, Erules, Module, TypeOrVal, Options)
 %% Generate Erlang module (.erl) and (.hrl) file corresponding to an ASN.1 module
 %% .hrl file is only generated if necessary
 %% Erules = per | ber | ber_bin | per_bin
 %% Module = atom()
 %% TypeOrVal = {TypeList,ValueList}
 %% TypeList = ValueList = [atom()]
+%% Options = [Options] from asn1ct:compile()
 
-pgen(OutFile,Erules,Module,TypeOrVal) ->
-    pgen_module(OutFile,Erules,Module,TypeOrVal,true).
+pgen(OutFile,Erules,Module,TypeOrVal,Options) ->
+    pgen_module(OutFile,Erules,Module,TypeOrVal,Options,true).
 
 
 pgen_module(OutFile,Erules,Module,
 	    TypeOrVal = {Types,_Values,_Ptypes,_Classes,_Objects,_ObjectSets},
-	    Indent) ->
+	    Options,Indent) ->
     N2nConvEnums = [CName|| {n2n,CName} <- get(encoding_options)],
     case N2nConvEnums -- Types of
 	[] ->
@@ -72,7 +73,7 @@ pgen_module(OutFile,Erules,Module,
 		   UnmatchedTypes})
     end,
     put(outfile,OutFile),
-    HrlGenerated = pgen_hrl(Erules,Module,TypeOrVal,Indent),
+    HrlGenerated = pgen_hrl(Erules,Module,TypeOrVal,Options,Indent),
     asn1ct_name:start(),
     ErlFile = lists:concat([OutFile,".erl"]),
     Fid = fopen(ErlFile,[write]),
@@ -86,7 +87,7 @@ pgen_module(OutFile,Erules,Module,
 % gen_vars(asn1_db:mod_to_vars(Module)),
 % gen_tag_table(AllTypes),
     file:close(Fid),
-    io:format("--~p--~n",[{generated,ErlFile}]).
+    asn1ct:report_verbose("--~p--~n",[{generated,ErlFile}],Options).
 
 
 pgen_typeorval(Erules,Module,N2nConvEnums,{Types,Values,_Ptypes,_Classes,Objects,ObjectSets}) ->
@@ -535,14 +536,19 @@ gen_part_decode_funcs({primitive,bif},_TypeName,
 gen_part_decode_funcs(WhatKind,_TypeName,{_,Directive,_,_}) ->
     throw({error,{asn1,{"Not implemented yet",WhatKind," partial incomplete directive:",Directive}}}).
 
+
 gen_types(Erules,Tname,{RootL1,ExtList,RootL2}) 
   when is_list(RootL1), is_list(RootL2) ->
     gen_types(Erules,Tname,RootL1),
-    gen_types(Erules,Tname,ExtList),
+    Rtmod = list_to_atom(lists:concat(["asn1ct_gen_",erule(Erules),
+				       rt2ct_suffix(Erules)])),
+    gen_types(Erules,Tname,Rtmod:extaddgroup2sequence(ExtList)),
     gen_types(Erules,Tname,RootL2);
 gen_types(Erules,Tname,{RootList,ExtList}) when is_list(RootList) ->
     gen_types(Erules,Tname,RootList),
-    gen_types(Erules,Tname,ExtList);
+    Rtmod = list_to_atom(lists:concat(["asn1ct_gen_",erule(Erules),
+				       rt2ct_suffix(Erules)])),
+    gen_types(Erules,Tname,Rtmod:extaddgroup2sequence(ExtList));
 gen_types(Erules,Tname,[{'EXTENSIONMARK',_,_}|Rest]) ->
     gen_types(Erules,Tname,Rest);
 gen_types(Erules,Tname,[ComponentType|Rest]) ->
@@ -1301,8 +1307,8 @@ put_chars(undefined,X) ->
 put_chars(Y,X) ->
     io:put_chars(Y,X).
 
-fopen(F, Mode) ->
-    case file:open(F, Mode) of
+fopen(F, ModeList) ->
+    case file:open(F, ModeList) of
 	{ok, Fd} -> 
 	    Fd;
 	{error, Reason} ->
@@ -1310,7 +1316,7 @@ fopen(F, Mode) ->
 	    exit({error,Reason})
     end.
 
-pgen_hrl(Erules,Module,TypeOrVal,_Indent) ->
+pgen_hrl(Erules,Module,TypeOrVal,Options,_Indent) ->
     put(currmod,Module),
     {Types,Values,Ptypes,_,_,_} = TypeOrVal,
     Ret =
@@ -1334,8 +1340,9 @@ pgen_hrl(Erules,Module,TypeOrVal,_Indent) ->
 	Y ->
 	    Fid = get(gen_file_out),
 	    file:close(Fid),
-	    io:format("--~p--~n",
-		      [{generated,lists:concat([get(outfile),".hrl"])}]),
+	    asn1ct:report_verbose("--~p--~n",
+		      [{generated,lists:concat([get(outfile),".hrl"])}],
+		      Options),
 	    Y
     end.
 
@@ -1357,7 +1364,8 @@ pgen_hrltypes(Erules,Module,[H|T],NumRecords) ->
 
 %% Generates a macro for value Value defined in the ASN.1 module
 gen_macro(Value) when is_record(Value,valuedef) ->
-    emit({"-define('",Value#valuedef.name,"', ",
+    Prefix = get_macro_name_prefix(),
+    emit({"-define('",Prefix,Value#valuedef.name,"', ",
 	  {asis,Value#valuedef.value},").",nl}).
 
 %% Generate record functions **************
@@ -1540,19 +1548,18 @@ gen_record2(Name,SeqOrSet,Comps) ->
 
 gen_record2(_Name,_SeqOrSet,[],_Com,_Extension) ->
     true;
-gen_record2(Name,SeqOrSet,[{'EXTENSIONMARK',_,_}|T],Com,Extension) ->
-    gen_record2(Name,SeqOrSet,T,Com,Extension);
-gen_record2(_Name,_SeqOrSet,[H],Com,Extension) ->
-    #'ComponentType'{name=Cname} = H,
+gen_record2(_Name,_SeqOrSet,[H = #'ComponentType'{name=Cname}],Com,Extension) ->
     emit(Com),
     emit({asis,Cname}),
     gen_record_default(H, Extension);
-gen_record2(Name,SeqOrSet,[H|T],Com, Extension) ->
-    #'ComponentType'{name=Cname} = H,
+gen_record2(Name,SeqOrSet,[H = #'ComponentType'{name=Cname}|T],Com, Extension) ->
     emit(Com),
     emit({asis,Cname}),
     gen_record_default(H, Extension),
-    gen_record2(Name,SeqOrSet,T,", ", Extension).
+    gen_record2(Name,SeqOrSet,T,", ", Extension);
+gen_record2(Name,SeqOrSet,[_|T],Com,Extension) ->
+    %% skip EXTENSIONMARK, ExtensionAdditionGroup and other markers
+    gen_record2(Name,SeqOrSet,T,Com,Extension).
 
 gen_record_default(#'ComponentType'{prop='OPTIONAL'}, _)->
     emit(" = asn1_NOVALUE"); 
@@ -2059,6 +2066,14 @@ ensure_atom(List) when is_list(List) ->
     
 get_record_name_prefix() ->
     case lists:keysearch(record_name_prefix,1,get(encoding_options)) of
+	false ->
+	    "";
+	{value,{_,Prefix}} ->
+	    Prefix
+    end.
+
+get_macro_name_prefix() ->
+    case lists:keysearch(macro_name_prefix,1,get(encoding_options)) of
 	false ->
 	    "";
 	{value,{_,Prefix}} ->

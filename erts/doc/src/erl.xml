@@ -4,7 +4,7 @@
 <comref>
   <header>
     <copyright>
-      <year>1996</year><year>2009</year>
+      <year>1996</year><year>2010</year>
       <holder>Ericsson AB. All Rights Reserved.</holder>
     </copyright>
     <legalnotice>
@@ -13,12 +13,12 @@
       compliance with the License. You should have received a copy of the
       Erlang Public License along with this software. If not, it can be
       retrieved online at http://www.erlang.org/.
-    
+
       Software distributed under the License is distributed on an "AS IS"
       basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
       the License for the specific language governing rights and limitations
       under the License.
-    
+
     </legalnotice>
 
     <title>erl</title>
@@ -41,6 +41,26 @@
       to scroll back to text which has scrolled off the screen.
       The <c><![CDATA[erl]]></c> program must be used, however, in pipelines or if
       you want to redirect standard input or output.</p>
+      <note><p>As of ERTS version 5.8 (OTP-R14A) the runtime system will by
+               default bind schedulers to logical processors using the
+	       <c>default_bind</c> bind type if the amount of schedulers are
+	       at least equal to the amount of logical processors configured,
+	       binding of schedulers is supported, and a CPU topology is
+	       available at startup.
+	    </p><p>
+	       If the Erlang runtime system is the only operating system
+	       process that binds threads to logical processors, this
+	       improves the performance of the runtime system. However,
+	       if other operating system processes (as for example
+	       another Erlang runtime system) also bind threads to
+	       logical processors, there might be a performance penalty
+	       instead. If this is the case you, are are advised to
+	       unbind the schedulers using the
+	       <seealso marker="#+sbt">+sbtu</seealso> command line argument,
+	       or by invoking
+	       <seealso marker="erlang#system_flag_scheduler_bind_type">erlang:system_flag(scheduler_bind_type,
+	       unbound)</seealso>.</p>
+      </note>
   </description>
   <funcs>
     <func>
@@ -131,9 +151,8 @@
           see <seealso marker="kernel:app">app(4)</seealso> and
           <seealso marker="kernel:application">application(3)</seealso>.</p>
       </item>
-      <tag><c><![CDATA[-args_file FileName]]></c></tag>
+      <tag><marker id="args_file"><c><![CDATA[-args_file FileName]]></c></marker></tag>
       <item>
-        <marker id="args_file"></marker>
         <p>Command line arguments are read from the file <c><![CDATA[FileName]]></c>.
           The arguments read from the file replace the
           '<c><![CDATA[-args_file FileName]]></c>' flag on the resulting command line.</p>
@@ -197,9 +216,8 @@
           <seealso marker="kernel:app">app(4)</seealso> and
           <seealso marker="kernel:application">application(3)</seealso>.</p>
       </item>
-      <tag><c><![CDATA[-connect_all false]]></c></tag>
+      <tag><marker id="connect_all"><c><![CDATA[-connect_all false]]></c></marker></tag>
       <item>
-        <marker id="connect_all"></marker>
         <p>If this flag is present, <c><![CDATA[global]]></c> will not maintain a
           fully connected network of distributed Erlang nodes, and then
           global name registration cannot be used. See
@@ -252,7 +270,7 @@
           run as a distributed node. Hidden nodes always establish
           hidden connections to all other nodes except for nodes in the
           same global group. Hidden connections are not published on
-          neither of the connected nodes, i.e. neither of the connected
+          either of the connected nodes, i.e. neither of the connected
           nodes are part of the result from <c><![CDATA[nodes/0]]></c> on the other
           node. See also hidden global groups,
           <seealso marker="kernel:global_group">global_group(3)</seealso>.</p>
@@ -282,9 +300,8 @@
         <p>Makes <c><![CDATA[init]]></c> write some debug information while
           interpreting the boot script.</p>
       </item>
-      <tag><c><![CDATA[-instr]]></c>(emulator flag)</tag>
+      <tag><marker id="instr"><c><![CDATA[-instr]]></c>(emulator flag)</marker></tag>
       <item>
-        <marker id="instr"></marker>
         <p>Selects an instrumented Erlang runtime system (virtual
           machine) to run, instead of the ordinary one. When running an
           instrumented runtime system, some resource usage data can be
@@ -410,7 +427,7 @@
       <tag><c><![CDATA[-setcookie Cookie]]></c></tag>
       <item>
         <p>Sets the magic cookie of the node to <c><![CDATA[Cookie]]></c>, see
-          <seealso marker="erlang#erlang:set_cookie/2">erlang:set_cookie/2</seealso>.</p>
+          <seealso marker="erlang#set_cookie/2">erlang:set_cookie/2</seealso>.</p>
       </item>
       <tag><c><![CDATA[-shutdown_time Time]]></c></tag>
       <item>
@@ -431,9 +448,8 @@
           flag and those running with the <c><![CDATA[-name]]></c> flag, as node
           names must be unique in distributed Erlang systems.</p>
       </item>
-      <tag><c><![CDATA[-smp [enable|auto|disable]]]></c></tag>
+      <tag><marker id="smp"><c><![CDATA[-smp [enable|auto|disable]]]></c></marker></tag>
       <item>
-        <marker id="smp"></marker>
         <p><c>-smp enable</c> and <c>-smp</c> starts the Erlang runtime
 	  system with SMP support enabled. This may fail if no runtime
 	  system with SMP support is available. <c>-smp auto</c> starts
@@ -462,9 +478,8 @@
     <p><c><![CDATA[erl]]></c> invokes the code for the Erlang emulator (virtual
       machine), which supports the following flags:</p>
     <taglist>
-      <tag><c><![CDATA[+a size]]></c></tag>
+      <tag><marker id="async_thread_stack_size"><c><![CDATA[+a size]]></c></marker></tag>
       <item>
-        <marker id="async_thread_stack_size"></marker>
         <p>Suggested stack size, in kilowords, for threads in the
           async-thread pool. Valid range is 16-8192 kilowords. The
           default suggested stack size is 16 kilowords, i.e, 64
@@ -478,9 +493,8 @@
           suggestion, and it might even be ignored on some
           platforms.</p>
       </item>
-      <tag><c><![CDATA[+A size]]></c></tag>
+      <tag><marker id="async_thread_pool_size"><c><![CDATA[+A size]]></c></marker></tag>
       <item>
-        <marker id="async_thread_pool_size"></marker>
         <p>Sets the number of threads in async thread pool, valid range
           is 0-1024. Default is 0.</p>
       </item>
@@ -527,9 +541,14 @@
 	<p>Calling <c>erlang:halt/1</c> with a string argument will still
 	produce a crash dump.</p>
       </item>
-      <tag><c><![CDATA[+h Size]]></c></tag>
+      <tag><c><![CDATA[+hms Size]]></c></tag>
       <item>
         <p>Sets the default heap size of processes to the size
+          <c><![CDATA[Size]]></c>.</p>
+      </item>
+      <tag><c><![CDATA[+hmbs Size]]></c></tag>
+      <item>
+        <p>Sets the default binary virtual heap size of processes to the size
           <c><![CDATA[Size]]></c>.</p>
       </item>
       <tag><c><![CDATA[+K true | false]]></c></tag>
@@ -545,23 +564,20 @@
         <p>Enables auto load tracing, displaying info while loading
           code.</p>
       </item>
-      <tag><c><![CDATA[+MFlag Value]]></c></tag>
+      <tag><marker id="erts_alloc"><c><![CDATA[+MFlag Value]]></c></marker></tag>
       <item>
-        <marker id="erts_alloc"></marker>
         <p>Memory allocator specific flags, see
           <seealso marker="erts_alloc">erts_alloc(3)</seealso> for
           further information.</p>
       </item>
-      <tag><c><![CDATA[+P Number]]></c></tag>
+      <tag><marker id="max_processes"><c><![CDATA[+P Number]]></c></marker></tag>
       <item>
-        <marker id="max_processes"></marker>
         <p>Sets the maximum number of concurrent processes for this
           system. <c><![CDATA[Number]]></c> must be in the range 16..134217727.
           Default is 32768.</p>
       </item>
-      <tag><c><![CDATA[+R ReleaseNumber]]></c></tag>
+      <tag><marker id="compat_rel"><c><![CDATA[+R ReleaseNumber]]></c></marker></tag>
       <item>
-        <marker id="compat_rel"></marker>
         <p>Sets the compatibility mode.</p>
         <p>The distribution mechanism is not backwards compatible by
           default. This flags sets the emulator in compatibility mode
@@ -587,9 +603,26 @@
       <item>
         <p>Force ets memory block to be moved on realloc.</p>
       </item>
-      <tag><c><![CDATA[+S Schedulers:SchedulerOnline]]></c></tag>
+      <tag><marker id="+rg"><c><![CDATA[+rg ReaderGroupsLimit]]></c></marker></tag>
       <item>
-        <marker id="+S"></marker>
+        <p>Limits the amount of reader groups used by read/write locks
+	   optimized for read operations in the Erlang runtime system. By
+	   default the reader groups limit equals 8.</p>
+	<p>When the amount of schedulers is less than or equal to the reader
+	   groups limit, each scheduler has its own reader group. When the
+	   amount of schedulers is larger than the reader groups limit,
+	   schedulers share reader groups. Shared reader groups degrades
+	   read lock and read unlock performance while a large amount of
+	   reader groups degrades write lock performance, so the limit is a
+	   tradeoff between performance for read operations and performance
+	   for write operations. Each reader group currently consumes 64 byte
+	   in each read/write lock. Also note that a runtime system using
+	   shared reader groups benefits from <seealso marker="#+sbt">binding
+	   schedulers to logical processors</seealso>, since the reader groups
+	   are distributed better between schedulers.</p>
+      </item>
+      <tag><marker id="+S"><c><![CDATA[+S Schedulers:SchedulerOnline]]></c></marker></tag>
+      <item>
         <p>Sets the amount of scheduler threads to create and scheduler
 	  threads to set online when SMP support has been enabled.
 	  Valid range for both values are 1-1024. If the
@@ -610,9 +643,8 @@
       <item>
         <p>Scheduling specific flags.</p>
         <taglist>
-          <tag>+sbt BindType</tag>
+          <tag><marker id="+sbt"><c>+sbt BindType</c></marker></tag>
           <item>
-	    <marker id="+sbt"></marker>
             <p>Set scheduler bind type. Currently valid <c>BindType</c>s:
 	    </p>
 	    <taglist>
@@ -653,8 +685,8 @@
 	      <seealso marker="erlang#system_flag_scheduler_bind_type">erlang:system_flag(scheduler_bind_type, default_bind)</seealso>.
 	      </p></item>
 	    </taglist>
-	    <p>Binding of schedulers are currently only supported on newer
-	       Linux and Solaris systems.</p>
+	    <p>Binding of schedulers is currently only supported on newer
+	       Linux, Solaris, and Windows systems.</p>
 	    <p>If no CPU topology is available when the <c>+sbt</c> flag
 	       is processed and <c>BindType</c> is any other type than
 	       <c>u</c>, the runtime system will fail to start. CPU
@@ -663,13 +695,28 @@
 	       that the <c>+sct</c> flag may have to be passed before the
 	       <c>+sbt</c> flag on the command line (in case no CPU topology
 	       has been automatically detected).</p>
+            <p>The runtime system will by default bind schedulers to logical
+	       processors using the <c>default_bind</c> bind type if the amount
+	       of schedulers are at least equal to the amount of logical
+	       processors configured, binding of schedulers is supported,
+	       and a CPU topology is available at startup.
+	    </p>
+	    <p><em>NOTE:</em> If the Erlang runtime system is the only operating
+	       system process that binds threads to logical processors, this
+	       improves the performance of the runtime system. However, if other
+	       operating system processes (as for example another Erlang runtime
+	       system) also bind threads to logical processors, there might be a
+	       performance penalty instead. If this is the case you, are advised
+	       to unbind the schedulers using the <c>+sbtu</c> command line
+	       argument, or by invoking
+	       <seealso marker="erlang#system_flag_scheduler_bind_type">erlang:system_flag(scheduler_bind_type,
+	       unbound)</seealso>.</p>
 	    <p>For more information, see
 	    <seealso marker="erlang#system_flag_scheduler_bind_type">erlang:system_flag(scheduler_bind_type, SchedulerBindType)</seealso>.
 	    </p>
           </item>
-          <tag><c>+sct CpuTopology</c></tag>
+          <tag><marker id="+sct"><c>+sct CpuTopology</c></marker></tag>
           <item>
-	    <marker id="+sct"></marker>
             <list type="bulleted">
               <item><c><![CDATA[<Id> = integer(); when 0 =< <Id> =< 65535]]></c></item>
               <item><c><![CDATA[<IdRange> = <Id>-<Id>]]></c></item>
@@ -784,18 +831,34 @@
 	    <p>For more information, see
 	    <seealso marker="erlang#system_flag_cpu_topology">erlang:system_flag(cpu_topology, CpuTopology)</seealso>.</p>
           </item>
+	  <tag><marker id="+swt"><c>+swt very_low|low|medium|high|very_high</c></marker></tag>
+	  <item>
+             <p>Set scheduler wakeup threshold. Default is <c>medium</c>.
+	        The threshold determines when to wake up sleeping schedulers
+		when more work than can be handled by currently awake schedulers
+		exist. A low threshold will cause earlier wakeups, and a high
+		threshold will cause later wakeups. Early wakeups will
+		distribute work over multiple schedulers faster, but work will
+		more easily bounce between schedulers.
+	     </p>
+             <p><em>NOTE:</em> This flag may be removed or changed at any time
+	        without prior notice.
+	     </p>
+	  </item>
+	  <tag><marker id="sched_thread_stack_size"><c><![CDATA[+sss size]]></c></marker></tag>
+	  <item>
+	    <p>Suggested stack size, in kilowords, for scheduler threads.
+            Valid range is 4-8192 kilowords. The default stack size
+            is OS dependent.</p>
+	  </item>
         </taglist>
       </item>
-      <tag><c><![CDATA[+sss size]]></c></tag>
+      <tag><marker id="+t"><c><![CDATA[+t size]]></c></marker></tag>
       <item>
-        <marker id="sched_thread_stack_size"></marker>
-        <p>Suggested stack size, in kilowords, for scheduler threads.
-          Valid range is 4-8192 kilowords. The default stack size
-          is OS dependent.</p>
+        <p>Set the maximum number of atoms the VM can handle. Default is 1048576.</p>
       </item>
-      <tag><c><![CDATA[+T Level]]></c></tag>
+      <tag><marker id="+T"><c><![CDATA[+T Level]]></c></marker></tag>
       <item>
-        <marker id="+T"></marker>
         <p>Enables modified timing and sets the modified timing level.
           Currently valid range is 0-9. The timing of the runtime system
           will change. A high level usually means a greater change than

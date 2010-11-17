@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 2008-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 2008-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 
@@ -144,7 +144,7 @@ init2(CallingPid, Mode, SFile, GS) ->
 
 		    win     = Win,
 		    focus   = undefined,
-		    coords  = {0,0},
+		    coords  = {20,20},
 
 		    intdir  = element(2, file:get_cwd()),
 		    pinfos  = [],
@@ -170,7 +170,7 @@ init2(CallingPid, Mode, SFile, GS) ->
     CallingPid ! {initialization_complete, self()},
 
     if
-	SFile==default ->
+	SFile =:= default ->
 	    loop(State3);
 	true ->
 	    loop(load_settings(SFile, State3))
@@ -268,7 +268,7 @@ gui_cmd(ignore, State) ->
     State;
 gui_cmd(stopped, State) ->
     if
-	State#state.starter==true -> int:stop();
+	State#state.starter =:= true -> int:stop();
 	true -> int:auto_attach(false)
     end,
     exit(stop);
@@ -420,9 +420,9 @@ gui_cmd({'Trace Window', TraceWin}, State) ->
     State2;
 gui_cmd({'Auto Attach', When}, State) ->
     if
-	When==[] -> int:auto_attach(false);
+	When =:= [] -> int:auto_attach(false);
 	true ->
-	    Flags = lists:map(fun(Name) -> map(Name) end, When),
+	    Flags = [map(Name) || Name <- When],
 	    int:auto_attach(Flags, trace_function(State))
     end,
     State;
@@ -442,8 +442,7 @@ gui_cmd('Back Trace Size...', State) ->
 
 %% Help Menu
 gui_cmd('Debugger', State) ->
-    HelpFile = filename:join([code:lib_dir(debugger),
-			      "doc", "html", "part_frame.html"]),
+    HelpFile = filename:join([code:lib_dir(debugger), "doc", "html", "index.html"]),
     Window = dbg_wx_mon_win:get_window(State#state.win),
     dbg_wx_win:open_help(Window, HelpFile),
     State;
@@ -692,12 +691,12 @@ load_settings2(Settings, State) ->
 			      Break,
 			  int:break(Mod, Line),
 			  if
-			      Status==inactive ->
+			      Status =:= inactive ->
 				  int:disable_break(Mod, Line);
 			      true -> ignore
 			  end,
 			  if
-			      Action/=enable ->
+			      Action =/= enable ->
 				  int:action_at_break(Mod,Line,Action);
 			      true -> ignore
 			  end,
@@ -716,10 +715,7 @@ save_settings(SFile, State) ->
 		int:auto_attach(),
 		int:stack_trace(),
 		State#state.backtrace,
-		lists:map(fun(Mod) ->
-				  int:file(Mod)
-			  end,
-			  int:interpreted()),
+		[int:file(Mod) || Mod <- int:interpreted()],
 		int:all_breaks()},
 
     Binary = term_to_binary({debugger_settings, Settings}),
@@ -742,7 +738,7 @@ registered_name(Pid) ->
 
     Node = node(Pid),
     if
-	Node==node() ->
+	Node =:= node() ->
 	    case erlang:process_info(Pid, registered_name) of
 		{registered_name, Name} -> Name;
 		_ -> undefined

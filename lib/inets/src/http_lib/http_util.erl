@@ -1,27 +1,33 @@
 %%
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 2005-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 2005-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 %%
 -module(http_util).
 
--export([to_upper/1, to_lower/1, convert_netscapecookie_date/1,
+-export([
+	 to_upper/1, to_lower/1, 
+	 convert_netscapecookie_date/1,
 	 hexlist_to_integer/1, integer_to_hexlist/1, 
-	 convert_month/1, is_hostname/1]).
+	 convert_month/1, 
+	 is_hostname/1,
+	 timestamp/0, timeout/2
+	]).
+
 
 %%%=========================================================================
 %%%  Internal application API
@@ -32,13 +38,79 @@ to_upper(Str) ->
 to_lower(Str) ->
     string:to_lower(Str).
 
-convert_netscapecookie_date([_D,_A,_Y, $,, _SP,
-			     D1,D2,_DA,
-			     M,O,N,_DA,
-			     Y1,Y2,Y3,Y4,_SP,
-			     H1,H2,_Col,
-			     M1,M2,_Col,
+%% Example: Mon, 09-Dec-2002 13:46:00 GMT
+convert_netscapecookie_date([_D,_A,_Y, $,, $ ,
+			     D1,D2, $-,
+			     M,O,N, $-,
+			     Y1,Y2,Y3,Y4, $ ,
+			     H1,H2, $:,
+			     M1,M2, $:,
 			     S1,S2|_Rest]) -> 
+    Year  = list_to_integer([Y1,Y2,Y3,Y4]),
+    Day   = list_to_integer([D1,D2]),
+    Month = convert_month([M,O,N]),
+    Hour  = list_to_integer([H1,H2]),
+    Min   = list_to_integer([M1,M2]),
+    Sec   = list_to_integer([S1,S2]),
+    {{Year,Month,Day},{Hour,Min,Sec}};
+
+convert_netscapecookie_date([_D,_A,_Y, $,, $ ,
+			     D1,D2, $-,
+			     M,O,N, $-,
+			     Y3,Y4, $ ,
+			     H1,H2, $:,
+			     M1,M2, $:,
+			     S1,S2|_Rest]) -> 
+    {CurrentYear, _, _} = date(),
+    [Y1,Y2|_] = integer_to_list(CurrentYear),
+    Year      = list_to_integer([Y1,Y2,Y3,Y4]),
+    Day       = list_to_integer([D1,D2]),
+    Month     = convert_month([M,O,N]),
+    Hour      = list_to_integer([H1,H2]),
+    Min       = list_to_integer([M1,M2]),
+    Sec       = list_to_integer([S1,S2]),
+    {{Year,Month,Day},{Hour,Min,Sec}};
+
+convert_netscapecookie_date([_D,_A,_Y, $ ,
+			     D1,D2, $-,
+			     M,O,N, $-,
+			     Y1,Y2,Y3,Y4, $ ,
+			     H1,H2, $:,
+			     M1,M2, $:,
+			     S1,S2|_Rest]) -> 
+    Year  = list_to_integer([Y1,Y2,Y3,Y4]),
+    Day   = list_to_integer([D1,D2]),
+    Month = convert_month([M,O,N]),
+    Hour  = list_to_integer([H1,H2]),
+    Min   = list_to_integer([M1,M2]),
+    Sec   = list_to_integer([S1,S2]),
+    {{Year,Month,Day},{Hour,Min,Sec}};
+
+convert_netscapecookie_date([_D,_A,_Y, $ ,
+			     D1,D2, $-,
+			     M,O,N, $-,
+			     Y3,Y4, $ ,
+			     H1,H2, $:,
+			     M1,M2, $:,
+			     S1,S2|_Rest]) -> 
+    {CurrentYear, _, _} = date(),
+    [Y1,Y2|_] = integer_to_list(CurrentYear),
+    Year      = list_to_integer([Y1,Y2,Y3,Y4]),
+    Day       = list_to_integer([D1,D2]),
+    Month     = convert_month([M,O,N]),
+    Hour      = list_to_integer([H1,H2]),
+    Min       = list_to_integer([M1,M2]),
+    Sec       = list_to_integer([S1,S2]),
+    {{Year,Month,Day},{Hour,Min,Sec}};
+
+%% Sloppy...
+convert_netscapecookie_date([_D,_A,_Y, $,, _SP,
+                             D1,D2,_DA,
+                             M,O,N,_DA,
+                             Y1,Y2,Y3,Y4,_SP,
+                             H1,H2,_Col,
+                             M1,M2,_Col,
+                             S1,S2|_Rest]) ->
     Year=list_to_integer([Y1,Y2,Y3,Y4]),
     Day=list_to_integer([D1,D2]),
     Month=convert_month([M,O,N]),
@@ -48,12 +120,12 @@ convert_netscapecookie_date([_D,_A,_Y, $,, _SP,
     {{Year,Month,Day},{Hour,Min,Sec}};
 
 convert_netscapecookie_date([_D,_A,_Y, _SP,
-			     D1,D2,_DA,
-			     M,O,N,_DA,
-			     Y1,Y2,Y3,Y4,_SP,
-			     H1,H2,_Col,
-			     M1,M2,_Col,
-			     S1,S2|_Rest]) -> 
+                             D1,D2,_DA,
+                             M,O,N,_DA,
+                             Y1,Y2,Y3,Y4,_SP,
+                             H1,H2,_Col,
+                             M1,M2,_Col,
+                             S1,S2|_Rest]) ->
     Year=list_to_integer([Y1,Y2,Y3,Y4]),
     Day=list_to_integer([D1,D2]),
     Month=convert_month([M,O,N]),
@@ -62,17 +134,17 @@ convert_netscapecookie_date([_D,_A,_Y, _SP,
     Sec=list_to_integer([S1,S2]),
     {{Year,Month,Day},{Hour,Min,Sec}}.
 
-hexlist_to_integer([])->
+hexlist_to_integer([]) ->
     empty;
 %%When the string only contains one value its eaasy done.
 %% 0-9
-hexlist_to_integer([Size]) when Size >= 48 , Size =< 57 ->
+hexlist_to_integer([Size]) when (Size >= 48) andalso (Size =< 57) ->
    Size - 48;
 %% A-F
-hexlist_to_integer([Size]) when Size >= 65 , Size =< 70 ->
+hexlist_to_integer([Size]) when (Size >= 65) andalso (Size =< 70) ->
     Size - 55;
 %% a-f
-hexlist_to_integer([Size]) when Size >= 97 , Size =< 102 ->
+hexlist_to_integer([Size]) when (Size >= 97) andalso (Size =< 102) ->
     Size - 87;
 hexlist_to_integer([_Size]) ->
     not_a_num;
@@ -100,6 +172,21 @@ convert_month("Dec") -> 12.
 is_hostname(Dest) ->
     inet_parse:domain(Dest).
 
+
+timestamp() ->
+    {A,B,C} = os:timestamp(),
+    A*1000000000+B*1000+(C div 1000).
+
+timeout(Timeout, Started) ->
+    %% NewTimeout = Timeout - (timestamp() - Started),
+    case Timeout - (timestamp() - Started) of
+	NewTimeout when Timeout > 0 ->
+	    NewTimeout;
+	_ ->
+	    0
+    end.
+    
+
 %%%========================================================================
 %%% Internal functions
 %%%========================================================================
@@ -120,7 +207,7 @@ hexlist_to_integer2([HexVal | HexString], Pos, Sum)
 hexlist_to_integer2(_AfterHexString, _Pos, Sum)->
     Sum.
 
-integer_to_hexlist(Num, Pot, Res) when Pot<0 ->
+integer_to_hexlist(Num, Pot, Res) when Pot < 0 ->
     convert_to_ascii([Num | Res]);
 
 integer_to_hexlist(Num,Pot,Res) ->
@@ -142,7 +229,9 @@ convert_to_ascii(RevesedNum) ->
 
 convert_to_ascii([], Num)->
     Num;
-convert_to_ascii([Num | Reversed], Number) when Num > -1, Num < 10 ->
+convert_to_ascii([Num | Reversed], Number) 
+  when (Num > -1) andalso (Num < 10) ->
     convert_to_ascii(Reversed, [Num + 48 | Number]);
-convert_to_ascii([Num | Reversed], Number) when Num > 9, Num < 16 ->
+convert_to_ascii([Num | Reversed], Number) 
+  when (Num > 9) andalso (Num < 16) ->
     convert_to_ascii(Reversed, [Num + 55 | Number]).

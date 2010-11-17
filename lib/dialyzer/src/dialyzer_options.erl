@@ -1,20 +1,20 @@
 %% -*- erlang-indent-level: 2 -*-
 %%-----------------------------------------------------------------------
 %% %CopyrightBegin%
-%% 
-%% Copyright Ericsson AB 2006-2009. All Rights Reserved.
-%% 
+%%
+%% Copyright Ericsson AB 2006-2010. All Rights Reserved.
+%%
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%% 
+%%
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%% 
+%%
 %% %CopyrightEnd%
 %%
 
@@ -184,7 +184,7 @@ build_options([], Options) ->
 assert_filenames(Term, [FileName|Left]) when length(FileName) >= 0 ->
   case filelib:is_file(FileName) orelse filelib:is_dir(FileName) of
     true -> ok;
-    false -> bad_option("No such file or directory", FileName)
+    false -> bad_option("No such file, directory or application", FileName)
   end,
   assert_filenames(Term, Left);
 assert_filenames(_Term, []) ->
@@ -252,6 +252,8 @@ build_warnings([Opt|Opts], Warnings) ->
 	ordsets:add_element(?WARN_RETURN_ONLY_EXIT, Warnings);
       race_conditions ->
 	ordsets:add_element(?WARN_RACE_CONDITION, Warnings);
+      behaviours ->
+	ordsets:add_element(?WARN_BEHAVIOUR, Warnings);
       specdiffs ->
 	S = ordsets:from_list([?WARN_CONTRACT_SUBTYPE, 
 			       ?WARN_CONTRACT_SUPERTYPE,

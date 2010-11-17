@@ -1,19 +1,19 @@
 #
 # %CopyrightBegin%
-# 
-# Copyright Ericsson AB 1997-2009. All Rights Reserved.
-# 
+#
+# Copyright Ericsson AB 1997-2010. All Rights Reserved.
+#
 # The contents of this file are subject to the Erlang Public License,
 # Version 1.1, (the "License"); you may not use this file except in
 # compliance with the License. You should have received a copy of the
 # Erlang Public License along with this software. If not, it can be
 # retrieved online at http://www.erlang.org/.
-# 
+#
 # Software distributed under the License is distributed on an "AS IS"
 # basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 # the License for the specific language governing rights and limitations
 # under the License.
-# 
+#
 # %CopyrightEnd%
 #
 #
@@ -64,7 +64,6 @@ XML_REF3_FILES = \
 	orber_acl.xml
 
 XML_PART_FILES = \
-	part_notes_history.xml \
 	part.xml \
 	part_notes.xml
 
@@ -75,7 +74,6 @@ XML_CHAPTER_FILES = \
 	ch_ifr.xml \
 	ch_install.xml \
 	ch_idl_to_erlang_mapping.xml \
-	ch_example.xml \
 	ch_naming_service.xml \
 	ch_stubs.xml \
 	ch_security.xml \
@@ -84,10 +82,6 @@ XML_CHAPTER_FILES = \
 	ch_interceptors.xml \
 	ch_orberweb.xml \
 	ch_debugging.xml
-
-XML_HTML_FILES = \
-	notes_history.xml
-
 
 BOOK_FILES = book.xml
 
@@ -124,7 +118,6 @@ INTERNAL_HTML_FILES = $(TECHNICAL_DESCR_FILES:%.xml=$(HTMLDIR)/%.html)
 
 HTML_FILES = $(XML_APPLICATION_FILES:%.xml=$(HTMLDIR)/%.html) \
 	$(XML_CHAPTER_FILES:%.xml=$(HTMLDIR)/%.html) \
-	$(XML_HTML_FILES:%.xml=$(HTMLDIR)/%.html) \
 	$(XML_PART_FILES:%.xml=$(HTMLDIR)/%.html)
 
 INFO_FILE = ../../info

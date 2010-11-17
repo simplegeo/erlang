@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- * 
- * Copyright Ericsson AB 1996-2009. All Rights Reserved.
- * 
+ *
+ * Copyright Ericsson AB 1996-2010. All Rights Reserved.
+ *
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- * 
+ *
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- * 
+ *
  * %CopyrightEnd%
  */
 
@@ -21,6 +21,7 @@
 #define __GLOBAL_H__
 
 #include "sys.h"
+#include <stddef.h> /* offsetof() */
 #include "erl_alloc.h"
 #include "erl_vm.h"
 #include "erl_node_container_utils.h"
@@ -77,16 +78,21 @@ typedef struct line_buf {  /* Buffer used in line oriented I/O */
 
 struct enif_environment_t /* ErlNifEnv */
 {
-    void* nif_data;
+    struct erl_module_nif* mod_nif;
     Process* proc;
     Eterm* hp;
     Eterm* hp_end;
-    unsigned heap_frag_sz;
+    ErlHeapFragment* heap_frag;
     int fpe_was_unmasked;
+    struct enif_tmp_obj_t* tmp_obj_list;
 };
-extern void erts_pre_nif(struct enif_environment_t*, Process*, void* nif_data);
+extern void erts_pre_nif(struct enif_environment_t*, Process*,
+			 struct erl_module_nif*);
 extern void erts_post_nif(struct enif_environment_t* env);
-extern Eterm erts_nif_taints(Process* p); 
+extern Eterm erts_nif_taints(Process* p);
+extern void erts_print_nif_taints(int to, void* to_arg);
+void erts_unload_nif(struct erl_module_nif* nif);
+extern void erl_nif_init(void);
 
 /*
  * Port Specific Data.
@@ -381,16 +387,44 @@ extern Eterm erts_ddll_monitor_driver(Process *p,
 ** and Binary, the macros below can convert one type to the other, as they both
 ** in reality are equal.
 */
-typedef struct binary {
-    Uint flags;
-    erts_refc_t refc;
+
 #ifdef ARCH_32
-    Uint32 align__; /* *DO NOT USE* only for alignment. */
+ /* *DO NOT USE* only for alignment. */
+#define ERTS_BINARY_STRUCT_ALIGNMENT Uint32 align__;
+#else
+#define ERTS_BINARY_STRUCT_ALIGNMENT
 #endif
-    /* Add fields BEFORE this, otherwise the drivers crash */
+
+/* Add fields in ERTS_INTERNAL_BINARY_FIELDS, otherwise the drivers crash */
+#define ERTS_INTERNAL_BINARY_FIELDS				\
+    UWord flags;							\
+    erts_refc_t refc;						\
+    ERTS_BINARY_STRUCT_ALIGNMENT
+
+typedef struct binary {
+    ERTS_INTERNAL_BINARY_FIELDS
     long orig_size;
     char orig_bytes[1]; /* to be continued */
 } Binary;
+
+#define ERTS_SIZEOF_Binary(Sz) \
+    (offsetof(Binary,orig_bytes) + (Sz))
+
+typedef struct {
+    ERTS_INTERNAL_BINARY_FIELDS
+    long orig_size;
+    void (*destructor)(Binary *);
+    char magic_bin_data[1];
+} ErtsMagicBinary;
+
+typedef union {
+    Binary binary;
+    ErtsMagicBinary magic_binary;
+    struct {
+	ERTS_INTERNAL_BINARY_FIELDS
+	ErlDrvBinary binary;
+    } driver;
+} ErtsBinary;
 
 /*
  * 'Binary' alignment:
@@ -399,25 +433,23 @@ typedef struct binary {
  * 32-bits architectures and 8 bytes on 64-bits architectures.
  */
 
-/*
- * "magic" binary.
- */
-typedef struct {
-    void (*destructor)(Binary *);
-    char magic_bin_data[1];
-} ErtsBinaryMagicPart;
-
 #define ERTS_MAGIC_BIN_DESTRUCTOR(BP) \
-  (((ErtsBinaryMagicPart *) (BP)->orig_bytes)->destructor)
+  ((ErtsBinary *) (BP))->magic_binary.destructor
 #define ERTS_MAGIC_BIN_DATA(BP) \
-  ((void *) (((ErtsBinaryMagicPart *) (BP)->orig_bytes)->magic_bin_data))
+  ((void *) ((ErtsBinary *) (BP))->magic_binary.magic_bin_data)
 #define ERTS_MAGIC_BIN_DATA_SIZE(BP) \
-  ((BP)->orig_size - (sizeof(ErtsBinaryMagicPart) - 1))
+  ((BP)->orig_size - sizeof(void (*)(Binary *)))
+#define ERTS_MAGIC_BIN_ORIG_SIZE(Sz) \
+  (sizeof(void (*)(Binary *)) + (Sz))
+#define ERTS_MAGIC_BIN_SIZE(Sz) \
+  (offsetof(ErtsMagicBinary,magic_bin_data) + (Sz))
+#define ERTS_MAGIC_BIN_FROM_DATA(DATA) \
+  ((ErtsBinary*)((char*)(DATA) - offsetof(ErtsMagicBinary,magic_bin_data)))
 
-#define Binary2ErlDrvBinary(B) ((ErlDrvBinary *) (&((B)->orig_size)))
+#define Binary2ErlDrvBinary(B) (&((ErtsBinary *) (B))->driver.binary)
 #define ErlDrvBinary2Binary(D) ((Binary *) \
-				(((char *) (D)) - \
-				 ((char *) &(((Binary *) 0)->orig_size))))
+				(((char *) (D)) \
+				 - offsetof(ErtsBinary, driver.binary)))
 
 /* A "magic" binary flag */
 #define BIN_FLAG_MAGIC      1
@@ -432,7 +464,10 @@ typedef struct {
 typedef struct proc_bin {
     Eterm thing_word;		/* Subtag REFC_BINARY_SUBTAG. */
     Uint size;			/* Binary size in bytes. */
-    struct proc_bin *next;	/* Pointer to next ProcBin. */
+#if HALFWORD_HEAP
+    void* dummy_ptr_padding__;
+#endif
+    struct erl_off_heap_header *next;
     Binary *val;		/* Pointer to Binary structure. */
     byte *bytes;		/* Pointer to the actual data bytes. */
     Uint flags;			/* Flag word. */
@@ -462,8 +497,8 @@ erts_mk_magic_binary_term(Eterm **hpp, ErlOffHeap *ohp, Binary *mbp)
 
     pb->thing_word = HEADER_PROC_BIN;
     pb->size = 0;
-    pb->next = ohp->mso;
-    ohp->mso = pb;
+    pb->next = ohp->first;
+    ohp->first = (struct erl_off_heap_header*) pb;
     pb->val = mbp;
     pb->bytes = (byte *) mbp->orig_bytes;
     pb->flags = 0;
@@ -479,6 +514,15 @@ erts_mk_magic_binary_term(Eterm **hpp, ErlOffHeap *ohp, Binary *mbp)
   (is_binary((T)) \
    && (thing_subtag(*binary_val((T))) == REFC_BINARY_SUBTAG) \
    && (((ProcBin *) binary_val((T)))->val->flags & BIN_FLAG_MAGIC))
+
+
+union erl_off_heap_ptr {
+    struct erl_off_heap_header* hdr;
+    ProcBin *pb;
+    struct erl_fun_thing* fun;
+    struct external_thing_* ext;
+    Eterm* ep;
+};
 
 /* arrays that get malloced at startup */
 extern Port* erts_port;
@@ -685,6 +729,60 @@ do {									\
 #define ESTACK_POP(s) (*(--ESTK_CONCAT(s,_sp)))
 
 
+void erl_grow_wstack(UWord** start, UWord** sp, UWord** end);
+#define WSTK_CONCAT(a,b) a##b
+#define WSTK_SUBSCRIPT(s,i) *((UWord *)((byte *)WSTK_CONCAT(s,_start) + (i)))
+#define DEF_WSTACK_SIZE (16)
+
+#define DECLARE_WSTACK(s)						\
+    UWord WSTK_CONCAT(s,_default_stack)[DEF_WSTACK_SIZE];		\
+    UWord* WSTK_CONCAT(s,_start) = WSTK_CONCAT(s,_default_stack);	\
+    UWord* WSTK_CONCAT(s,_sp) = WSTK_CONCAT(s,_start);			\
+    UWord* WSTK_CONCAT(s,_end) = WSTK_CONCAT(s,_start) + DEF_WSTACK_SIZE
+
+#define DESTROY_WSTACK(s)						\
+do {									\
+    if (WSTK_CONCAT(s,_start) != WSTK_CONCAT(s,_default_stack)) {	\
+	erts_free(ERTS_ALC_T_ESTACK, WSTK_CONCAT(s,_start));		\
+    }									\
+} while(0)
+
+#define WSTACK_PUSH(s, x)						\
+do {									\
+    if (WSTK_CONCAT(s,_sp) == WSTK_CONCAT(s,_end)) {			\
+	erl_grow_wstack(&WSTK_CONCAT(s,_start), &WSTK_CONCAT(s,_sp),	\
+	               &WSTK_CONCAT(s,_end));				\
+    }									\
+    *WSTK_CONCAT(s,_sp)++ = (x);					\
+} while(0)
+
+#define WSTACK_PUSH2(s, x, y)						\
+do {									\
+    if (WSTK_CONCAT(s,_sp) > WSTK_CONCAT(s,_end) - 2) {			\
+	erl_grow_wstack(&WSTK_CONCAT(s,_start), &WSTK_CONCAT(s,_sp),	\
+		&WSTK_CONCAT(s,_end));	\
+    }									\
+    *WSTK_CONCAT(s,_sp)++ = (x);					\
+    *WSTK_CONCAT(s,_sp)++ = (y);					\
+} while(0)
+
+#define WSTACK_PUSH3(s, x, y, z)					\
+do {									\
+    if (WSTK_CONCAT(s,_sp) > WSTK_CONCAT(s,_end) - 3) {			\
+	erl_grow_wstack(&WSTK_CONCAT(s,_start), &WSTK_CONCAT(s,_sp),	\
+		&WSTK_CONCAT(s,_end));					\
+    }									\
+    *WSTK_CONCAT(s,_sp)++ = (x);					\
+    *WSTK_CONCAT(s,_sp)++ = (y);					\
+    *WSTK_CONCAT(s,_sp)++ = (z);					\
+} while(0)
+
+#define WSTACK_COUNT(s) (WSTK_CONCAT(s,_sp) - WSTK_CONCAT(s,_start))
+
+#define WSTACK_ISEMPTY(s) (WSTK_CONCAT(s,_sp) == WSTK_CONCAT(s,_start))
+#define WSTACK_POP(s) (*(--WSTK_CONCAT(s,_sp)))
+
+
 /* port status flags */
 
 #define ERTS_PORT_SFLG_CONNECTED	((Uint32) (1 <<  0))
@@ -737,7 +835,6 @@ Eterm erts_new_heap_binary(Process *p, byte *buf, int len, byte** datap);
 Eterm erts_new_mso_binary(Process*, byte*, int);
 Eterm new_binary(Process*, byte*, int);
 Eterm erts_realloc_binary(Eterm bin, size_t size);
-void erts_cleanup_mso(ProcBin* pb);
 
 /* erl_bif_info.c */
 
@@ -764,7 +861,7 @@ void erts_system_profile_clear(Process *c_p);
 int erts_load_module(Process *c_p, ErtsProcLocks c_p_locks,
 		     Eterm group_leader, Eterm* mod, byte* code, int size);
 void init_load(void);
-Eterm* find_function_from_pc(Eterm* pc);
+BeamInstr* find_function_from_pc(BeamInstr* pc);
 Eterm erts_module_info_0(Process* p, Eterm module);
 Eterm erts_module_info_1(Process* p, Eterm module, Eterm what);
 Eterm erts_make_stub_module(Process* p, Eterm Mod, Eterm Beam, Eterm Info);
@@ -795,6 +892,8 @@ Eterm copy_object(Eterm, Process*);
 Uint size_object(Eterm);
 Eterm copy_struct(Eterm, Uint, Eterm**, ErlOffHeap*);
 Eterm copy_shallow(Eterm*, Uint, Eterm**, ErlOffHeap*);
+void move_multi_frags(Eterm** hpp, ErlOffHeap*, ErlHeapFragment* first,
+		      Eterm* refs, unsigned nrefs);
 
 #ifdef HYBRID
 #define RRMA_DEFAULT_SIZE 256
@@ -927,7 +1026,7 @@ void print_pass_through(int, byte*, int);
 
 /* beam_emu.c */
 int catchlevel(Process*);
-void init_emulator(_VOID_);
+void init_emulator(void);
 void process_main(void);
 Eterm build_stacktrace(Process* c_p, Eterm exc);
 Eterm expand_error_value(Process* c_p, Uint freason, Eterm Value);
@@ -992,6 +1091,7 @@ Eterm erts_heap_sizes(Process* p);
 void erts_offset_off_heap(ErlOffHeap *, Sint, Eterm*, Eterm*);
 void erts_offset_heap_ptr(Eterm*, Uint, Sint, Eterm*, Eterm*);
 void erts_offset_heap(Eterm*, Uint, Sint, Eterm*, Eterm*);
+void erts_free_heap_frags(Process* p);
 
 #ifdef HYBRID
 int erts_global_garbage_collect(Process*, int, Eterm*, int);
@@ -1106,12 +1206,11 @@ erts_smp_port_unlock(Port *prt)
 {
 #ifdef ERTS_SMP
     long refc;
+    erts_smp_mtx_unlock(prt->lock);
     refc = erts_smp_atomic_dectest(&prt->refc);
     ASSERT(refc >= 0);
     if (refc == 0)
 	erts_port_cleanup(prt);
-    else
-	erts_smp_mtx_unlock(prt->lock);
 #endif
 }
 
@@ -1133,7 +1232,7 @@ erts_smp_port_unlock(Port *prt)
   ERTS_INVALID_PORT_OPT((PP), (ID), ERTS_PORT_SFLGS_INVALID_TRACER_LOOKUP)
 
 #define ERTS_PORT_SCHED_ID(P, ID) \
-  ((Uint) erts_prtsd_set((P), ERTS_PSD_SCHED_ID, (void *) (ID)))
+  ((Uint) (UWord) erts_prtsd_set((P), ERTS_PSD_SCHED_ID, (void *) (UWord) (ID)))
 
 #ifdef ERTS_SMP
 Port *erts_de2port(DistEntry *, Process *, ErtsProcLocks);
@@ -1405,8 +1504,12 @@ void p_slpq(_VOID_);
 
 /* utils.c */
 
+/*
+ * To be used to silence unused result warnings, but do not abuse it.
+ */
+void erts_silence_warn_unused_result(long unused);
+
 void erts_cleanup_offheap(ErlOffHeap *offheap);
-void erts_cleanup_externals(ExternalThing *);
 
 Uint erts_fit_in_bits(Uint);
 int list_length(Eterm);
@@ -1420,6 +1523,7 @@ Uint32 make_hash(Eterm);
 
 Eterm erts_bld_atom(Uint **hpp, Uint *szp, char *str);
 Eterm erts_bld_uint(Uint **hpp, Uint *szp, Uint ui);
+Eterm erts_bld_uword(Uint **hpp, Uint *szp, UWord uw);
 Eterm erts_bld_uint64(Uint **hpp, Uint *szp, Uint64 ui64);
 Eterm erts_bld_sint64(Uint **hpp, Uint *szp, Sint64 si64);
 Eterm erts_bld_cons(Uint **hpp, Uint *szp, Eterm car, Eterm cdr);
@@ -1438,7 +1542,7 @@ erts_bld_atom_2uint_3tup_list(Uint **hpp, Uint *szp, Sint length,
 			      Eterm atoms[], Uint uints1[], Uint uints2[]);
 
 Eterm store_external_or_ref_in_proc_(Process *, Eterm);
-Eterm store_external_or_ref_(Uint **, ExternalThing **, Eterm);
+Eterm store_external_or_ref_(Uint **, ErlOffHeap*, Eterm);
 
 #define NC_HEAP_SIZE(NC) \
  (ASSERT_EXPR(is_node_container((NC))), \
@@ -1472,7 +1576,9 @@ Sint cmp(Eterm, Eterm);
 #define CMP_EQ(a,b)	((a) == (b) || cmp_eq((a),(b)))
 #define CMP_NE(a,b)	((a) != (b) && cmp_ne((a),(b)))
 
+/* duplicates from big.h */
 int term_to_Uint(Eterm term, Uint *up);
+int term_to_UWord(Eterm, UWord*);
 
 #ifdef HAVE_ERTS_NOW_CPU
 extern int erts_cpu_timestamp;
@@ -1482,6 +1588,10 @@ void erts_init_bif_chksum(void);
 /* erl_bif_re.c */
 void erts_init_bif_re(void);
 Sint erts_re_set_loop_limit(Sint limit);
+/* erl_bif_binary.c */
+void erts_init_bif_binary(void);
+Sint erts_binary_set_loop_limit(Sint limit);
+
 /* erl_unicode.c */
 void erts_init_unicode(void);
 Sint erts_unicode_set_loop_limit(Sint limit);
@@ -1511,12 +1621,12 @@ void erts_queue_error_logger_message(Eterm, Eterm, ErlHeapFragment *);
 void erts_send_sys_msg_proc(Eterm, Eterm, Eterm, ErlHeapFragment *);
 void trace_send(Process*, Eterm, Eterm);
 void trace_receive(Process*, Eterm);
-Uint32 erts_call_trace(Process *p, Eterm mfa[], Binary *match_spec, Eterm* args,
+Uint32 erts_call_trace(Process *p, BeamInstr mfa[], Binary *match_spec, Eterm* args,
 		       int local, Eterm *tracer_pid);
-void erts_trace_return(Process* p, Eterm* fi, Eterm retval, Eterm *tracer_pid);
-void erts_trace_exception(Process* p, Eterm mfa[], Eterm class, Eterm value, 
+void erts_trace_return(Process* p, BeamInstr* fi, Eterm retval, Eterm *tracer_pid);
+void erts_trace_exception(Process* p, BeamInstr mfa[], Eterm class, Eterm value,
 			  Eterm *tracer);
-void erts_trace_return_to(Process *p, Uint *pc);
+void erts_trace_return_to(Process *p, BeamInstr *pc);
 void trace_sched(Process*, Eterm);
 void trace_proc(Process*, Process*, Eterm, Eterm);
 void trace_proc_spawn(Process*, Eterm pid, Eterm mod, Eterm func, Eterm args);
@@ -1546,7 +1656,7 @@ Uint erts_trace_flag2bit(Eterm flag);
 int erts_trace_flags(Eterm List, 
 		 Uint *pMask, Eterm *pTracer, int *pCpuTimestamp);
 Eterm erts_bif_trace(int bif_index, Process* p, 
-		     Eterm arg1, Eterm arg2, Eterm arg3, Uint *I);
+		     Eterm arg1, Eterm arg2, Eterm arg3, BeamInstr *I);
 
 #ifdef ERTS_SMP
 void erts_send_pending_trace_msgs(ErtsSchedulerData *esdp);
@@ -1563,7 +1673,7 @@ void bin_write(int, void*, byte*, int);
 int intlist_to_buf(Eterm, char*, int); /* most callers pass plain char*'s */
 
 struct Sint_buf {
-#ifdef ARCH_64
+#if defined(ARCH_64) && !HALFWORD_HEAP
     char s[22];
 #else
     char s[12];
@@ -1576,7 +1686,7 @@ int io_list_to_buf(Eterm, char*, int);
 int io_list_to_buf2(Eterm, char*, int);
 int io_list_len(Eterm);
 int is_string(Eterm);
-void erl_at_exit(FUNCTION(void,(*),(void*)), void*);
+void erl_at_exit(void (*) (void*), void*);
 Eterm collect_memory(Process *);
 void dump_memory_to_fd(int);
 int dump_memory_data(const char *);
@@ -1611,6 +1721,8 @@ Eterm erts_gc_abs_1(Process* p, Eterm* reg, Uint live);
 Eterm erts_gc_float_1(Process* p, Eterm* reg, Uint live);
 Eterm erts_gc_round_1(Process* p, Eterm* reg, Uint live);
 Eterm erts_gc_trunc_1(Process* p, Eterm* reg, Uint live);
+Eterm erts_gc_binary_part_3(Process* p, Eterm* reg, Uint live);
+Eterm erts_gc_binary_part_2(Process* p, Eterm* reg, Uint live);
 
 Uint erts_current_reductions(Process* current, Process *p);
 
@@ -1620,7 +1732,6 @@ int erts_print_system_version(int to, void *arg, Process *c_p);
  * Interface to erl_init
  */
 void erl_init(void);
-void erts_first_process(Eterm modname, void* code, unsigned size, int argc, char** argv);
 
 #define seq_trace_output(token, msg, type, receiver, process) \
 seq_trace_output_generic((token), (msg), (type), (receiver), (process), NIL)
@@ -1640,8 +1751,10 @@ struct trace_pattern_flags {
     unsigned int local      : 1; /* Local call trace breakpoint */
     unsigned int meta       : 1; /* Metadata trace breakpoint */
     unsigned int call_count : 1; /* Fast call count breakpoint */
+    unsigned int call_time  : 1; /* Fast call time breakpoint */
 };
 extern const struct trace_pattern_flags erts_trace_pattern_flags_off;
+extern int erts_call_time_breakpoint_tracing;
 int erts_set_trace_pattern(Eterm* mfa, int specified, 
 			   Binary* match_prog_set, Binary *meta_match_prog_set,
 			   int on, struct trace_pattern_flags,
@@ -1657,7 +1770,6 @@ void erts_bif_trace_init(void);
 /*
 ** Call_trace uses this API for the parameter matching functions
 */
-    struct erl_heap_fragment* saved_program_buf;
 
 #define MatchSetRef(MPSP) 			\
 do {						\
@@ -1686,18 +1798,20 @@ extern void erts_match_prog_foreach_offheap(Binary *b,
 					    void (*)(ErlOffHeap *, void *),
 					    void *);
 
-#define MATCH_SET_RETURN_TRACE 0x1 /* return trace requested */
-#define MATCH_SET_RETURN_TO_TRACE 0x2 /* Misleading name, it is not actually
-					 set by the match program, but by the
-					 breakpoint functions */
-#define MATCH_SET_EXCEPTION_TRACE 0x4 /* exception trace requested */
+#define MATCH_SET_RETURN_TRACE    (0x1) /* return trace requested */
+#define MATCH_SET_RETURN_TO_TRACE (0x2) /* Misleading name, it is not actually
+					   set by the match program, but by the
+					   breakpoint functions */
+#define MATCH_SET_EXCEPTION_TRACE (0x4) /* exception trace requested */
 #define MATCH_SET_RX_TRACE (MATCH_SET_RETURN_TRACE|MATCH_SET_EXCEPTION_TRACE)
 /*
  * Flag values when tracing bif
+ * Future note: flag field is 8 bits
  */
-#define BIF_TRACE_AS_LOCAL  0x1
-#define BIF_TRACE_AS_GLOBAL 0x2
-#define BIF_TRACE_AS_META   0x4
+#define BIF_TRACE_AS_LOCAL      (0x1)
+#define BIF_TRACE_AS_GLOBAL     (0x2)
+#define BIF_TRACE_AS_META       (0x4)
+#define BIF_TRACE_AS_CALL_TIME  (0x8)
 
 extern erts_driver_t vanilla_driver;
 extern erts_driver_t spawn_driver;
@@ -1797,4 +1911,61 @@ erts_alloc_message_heap(Uint size,
 
 #endif /* #if ERTS_GLB_INLINE_INCL_FUNC_DEF */
 
-#endif
+#if !HEAP_ON_C_STACK
+#  if defined(DEBUG)
+#    define DeclareTmpHeap(VariableName,Size,Process) \
+       Eterm *VariableName = erts_debug_allocate_tmp_heap(Size,Process)
+#    define DeclareTmpHeapNoproc(VariableName,Size) \
+       Eterm *VariableName = erts_debug_allocate_tmp_heap(Size,NULL)
+#    define UseTmpHeap(Size,Proc) \
+       do { \
+         erts_debug_use_tmp_heap((Size),(Proc)); \
+       } while (0)
+#    define UnUseTmpHeap(Size,Proc) \
+       do { \
+         erts_debug_unuse_tmp_heap((Size),(Proc)); \
+       } while (0)
+#    define UseTmpHeapNoproc(Size) \
+       do { \
+         erts_debug_use_tmp_heap(Size,NULL); \
+       } while (0)
+#    define UnUseTmpHeapNoproc(Size) \
+       do { \
+         erts_debug_unuse_tmp_heap(Size,NULL); \
+       } while (0)
+#  else
+#    define DeclareTmpHeap(VariableName,Size,Process) \
+       Eterm *VariableName = (ERTS_PROC_GET_SCHDATA(Process)->tmp_heap)+(ERTS_PROC_GET_SCHDATA(Process)->num_tmp_heap_used)
+#    define DeclareTmpHeapNoproc(VariableName,Size) \
+       Eterm *VariableName = (erts_get_scheduler_data()->tmp_heap)+(erts_get_scheduler_data()->num_tmp_heap_used)
+#    define UseTmpHeap(Size,Proc) \
+       do { \
+         ERTS_PROC_GET_SCHDATA(Proc)->num_tmp_heap_used += (Size); \
+       } while (0)
+#    define UnUseTmpHeap(Size,Proc) \
+       do { \
+         ERTS_PROC_GET_SCHDATA(Proc)->num_tmp_heap_used -= (Size); \
+       } while (0)
+#    define UseTmpHeapNoproc(Size) \
+       do { \
+         erts_get_scheduler_data()->num_tmp_heap_used += (Size); \
+       } while (0)
+#    define UnUseTmpHeapNoproc(Size) \
+       do { \
+         erts_get_scheduler_data()->num_tmp_heap_used -= (Size); \
+       } while (0)
+
+
+#  endif
+
+#else
+#  define DeclareTmpHeap(VariableName,Size,Process) \
+     Eterm VariableName[Size]
+#  define DeclareTmpHeapNoproc(VariableName,Size) \
+     Eterm VariableName[Size]
+#  define UseTmpHeap(Size,Proc) /* Nothing */
+#  define UnUseTmpHeap(Size,Proc) /* Nothing */
+#  define UseTmpHeapNoproc(Size) /* Nothing */
+#  define UnUseTmpHeapNoproc(Size) /* Nothing */
+#endif /* HEAP_ON_C_STACK */
+#endif /* !__GLOBAL_H__ */
