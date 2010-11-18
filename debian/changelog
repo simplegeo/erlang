@@ -1,3 +1,9 @@
+erlang (1:13.b.3-dfsg-2sg2) lucid; urgency=low
+
+  * Simplegeo version
+
+ -- Jeremy Grosser <jeremy@synack.me>  Thu, 18 Nov 2010 15:31:29 -0800
+
 erlang (1:13.b.3-dfsg-2ubuntu2.1) lucid-proposed; urgency=low
 
   [ Samuele Pedroni ]
