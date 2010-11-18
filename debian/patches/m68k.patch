@@ -1,0 +1,33 @@
+m68k.patch by Sergei Golovan <sgolovan@nes.ru>
+
+This patch fixes 2 issues on m68k architecture:
+
+(1) FTBFS because of insufficiently aligned variable (thanks to
+    Aleksey Shchepin for help in debugging it).
+
+(2) Non-working networking besause of blind conversion of long to a pointer.
+
+--- erlang-13.b.3-dfsg.orig/erts/emulator/beam/binary.c
++++ erlang-13.b.3-dfsg/erts/emulator/beam/binary.c
+@@ -31,6 +31,10 @@
+ #include "erl_binary.h"
+ #include "erl_bits.h"
+ 
++#ifdef __m68k__
++erts_atomic_t erts_allocated_binaries __attribute__ ((aligned (4)));
++#endif
++
+ #ifdef DEBUG
+ static int list_to_bitstr_buf(Eterm obj, char* buf, int len);
+ #else
+--- erlang-13.b.3-dfsg.orig/erts/emulator/beam/erl_driver.h
++++ erlang-13.b.3-dfsg/erts/emulator/beam/erl_driver.h
+@@ -570,7 +570,7 @@
+ EXTERN ErlDrvTermData driver_caller(ErlDrvPort);
+ extern const ErlDrvTermData driver_term_nil;
+ EXTERN ErlDrvTermData driver_mk_term_nil(void);
+-EXTERN ErlDrvPort driver_create_port(ErlDrvPort creator_port, 
++EXTERN long driver_create_port(long creator_port, 
+ 				     ErlDrvTermData connected, /* pid */
+ 				     char* name, /* driver name */
+ 				     ErlDrvData drv_data);

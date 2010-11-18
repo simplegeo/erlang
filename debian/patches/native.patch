@@ -1,0 +1,18 @@
+native.patch by Sergei Golovan <sgolovan@debian.org>
+
+Adds native code to all Erlang binaries if HiPE is enabled.
+
+--- erlang-13.b.3-dfsg.orig/make/otp.mk.in
++++ erlang-13.b.3-dfsg/make/otp.mk.in
+@@ -83,6 +83,11 @@
+       ERL_COMPILE_FLAGS += +slim
+     else
+       ERL_COMPILE_FLAGS += +debug_info
++      ifeq ($(HIPE_ENABLED),yes)
++        ifeq ($(BUILD_ALL),true)
++          ERL_COMPILE_FLAGS += +native
++        endif
++      endif
+     endif
+   endif
+ endif

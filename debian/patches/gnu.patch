@@ -1,0 +1,96 @@
+gnu.patch by Aurelien Jarno <aurel32@debian.org> and
+Sergei Golovan <sgolovan@debian.org>
+
+(1) Defines GNU macros not only for Linux but also for any system
+    with 'gnu' substring in OS name. Fixes FTBFS on GNU/kFreeBSD and GNU/Hurd.
+
+(2) Allows to build erlang regexp driver for common_test application.
+
+(3) Undefines BSD4_4 for os_mon application for GNU/Hurd;
+
+(4) Skips building SSL certificate examples for GNU/Hurd (Debian GNU/Hurd has
+    no a random translator yet).
+--- erlang-13.b.3-dfsg.orig/erts/configure.in
++++ erlang-13.b.3-dfsg/erts/configure.in
+@@ -339,7 +339,7 @@
+ 
+ dnl NOTE: CPPFLAGS will be included in CFLAGS at the end
+ case $host_os in
+-    linux*) CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE";; 
++    linux*|*gnu*) CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE";; 
+     win32)
+ 	# The ethread library requires _WIN32_WINNT of at least 0x0403.
+ 	# -D_WIN32_WINNT=* from CPPFLAGS is saved in ETHR_DEFS.
+@@ -996,7 +996,7 @@
+ 	    solaris*)
+ 		enable_child_waiter_thread=yes
+ 		;;
+-	    linux*)
++	    linux*|*gnu*)
+ 		AC_DEFINE(USE_RECURSIVE_MALLOC_MUTEX,[1],
+ 			[Define if malloc should use a recursive mutex])
+ 		AC_MSG_CHECKING([whether dlopen() needs to be called before first call to dlerror()])
+--- erlang-13.b.3-dfsg.orig/lib/common_test/Makefile
++++ erlang-13.b.3-dfsg/lib/common_test/Makefile
+@@ -30,9 +30,13 @@
+ ifeq ($(findstring solaris,$(TARGET)),solaris)
+ SUB_DIRECTORIES = doc/src src priv
+ else
++ifeq ($(findstring gnu,$(TARGET)),gnu)
++SUB_DIRECTORIES = doc/src src c_src priv
++else
+ SUB_DIRECTORIES = doc/src src priv
+ endif
+ endif
++endif
+ 
+ include vsn.mk
+ VSN = $(COMMON_TEST_VSN)
+--- erlang-13.b.3-dfsg.orig/lib/common_test/priv/Makefile.in
++++ erlang-13.b.3-dfsg/lib/common_test/priv/Makefile.in
+@@ -43,9 +43,13 @@
+ ifeq ($(findstring solaris,$(TARGET)),solaris)
+ XNIX = true
+ else
++ifeq ($(findstring gnu,$(TARGET)),gnu)
++XNIX = true
++else
+ XNIX = false
+ endif
+ endif
++endif
+ 
+ ifneq ($(findstring win32,$(TARGET)),win32)
+ 
+--- erlang-13.b.3-dfsg.orig/lib/os_mon/c_src/memsup.c
++++ erlang-13.b.3-dfsg/lib/os_mon/c_src/memsup.c
+@@ -110,6 +110,11 @@
+ #include <memLib.h>
+ #endif
+ 
++#ifdef __GNU__
++#warning "Undefined BSD4_4 for GNU/Hurd"
++#undef BSD4_4
++#endif
++
+ #ifdef BSD4_4
+ #include <sys/types.h>
+ #include <sys/sysctl.h>
+--- erlang-13.b.3-dfsg.orig/lib/ssl/Makefile
++++ erlang-13.b.3-dfsg/lib/ssl/Makefile
+@@ -32,8 +32,15 @@
+ SKIP_BUILDING_BINARIES := true
+ endif
+ else
++ifeq ($(HOST_OS),)
++HOST_OS := $(shell $(ERL_TOP)/erts/autoconf/config.guess)
++endif
++ifeq ($(findstring gnu0.3,$(HOST_OS)),gnu0.3)
++SKIP_BUILDING_BINARIES := true
++else
+ SKIP_BUILDING_BINARIES := false
+ endif
++endif
+ 
+ ifeq ($(SKIP_BUILDING_BINARIES), true)
+ SUB_DIRECTORIES = pkix src c_src doc/src 

@@ -1,0 +1,34 @@
+#!/usr/bin/env escript
+%% -*- erlang -*-
+
+main(Args) ->
+    {Func, File, Opts} = parse_args(Args),
+    case docb_gen:Func(File, Opts) of
+	ok ->
+	    ok;
+	{error, Reason} ->
+	    io:format("~p~n", [Reason]),
+	    halt(1)
+    end.
+
+parse_args(Args) ->
+    parse_args(Args, module, "", [], [], false, true).
+
+parse_args([], Func, File, Defs, Includes, Preprocess, Sort) ->
+    {Func, File, [{def, lists:reverse(Defs)},
+		  {includes, lists:reverse(Includes)},
+		  {preprocess, Preprocess},
+		  {sort_functions, Sort}]};
+parse_args(["-chapter" | Tail], _Func, File, Defs, Includes, Preprocess, Sort) ->
+    parse_args(Tail, users_guide, File, Defs, Includes, Preprocess, Sort);
+parse_args(["-def", Name, Value | Tail], Func, File, Defs, Includes, Preprocess, Sort) ->
+    parse_args(Tail, Func, File, [{list_to_atom(Name), Value} | Defs], Includes, Preprocess, Sort);
+parse_args(["-includes", Dir | Tail], Func, File, Defs, Includes, Preprocess, Sort) ->
+    parse_args(Tail, Func, File, Defs, [Dir | Includes], Preprocess, Sort);
+parse_args(["-preprocess", P | Tail], Func, File, Defs, Includes, _Preprocess, Sort) ->
+    parse_args(Tail, Func, File, Defs, Includes, list_to_atom(P), Sort);
+parse_args(["-sort_functions", S | Tail], Func, File, Defs, Includes, Preprocess, _Sort) ->
+    parse_args(Tail, Func, File, Defs, Includes, Preprocess, list_to_atom(S));
+parse_args([F | Tail], Func, _File, Defs, Includes, Preprocess, Sort) ->
+    parse_args(Tail, Func, F, Defs, Includes, Preprocess, Sort).
+

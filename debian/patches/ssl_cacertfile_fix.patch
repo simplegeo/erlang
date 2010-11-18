@@ -1,0 +1,62 @@
+Index: erlang-13.b.3-dfsg/lib/public_key/src/pubkey_cert.erl
+===================================================================
+--- erlang-13.b.3-dfsg.orig/lib/public_key/src/pubkey_cert.erl	2010-09-24 09:34:23.136278790 +0200
++++ erlang-13.b.3-dfsg/lib/public_key/src/pubkey_cert.erl	2010-09-24 09:34:32.848278799 +0200
+@@ -176,9 +176,15 @@
+ 
+ validate_extensions(OtpCert, ValidationState, Verify, AccErr) ->
+     TBSCert = OtpCert#'OTPCertificate'.tbsCertificate,
+-    Extensions = TBSCert#'OTPTBSCertificate'.extensions,
+-    validate_extensions(Extensions, ValidationState, no_basic_constraint,
+-			is_self_signed(OtpCert), [], Verify, AccErr).
++    case TBSCert#'OTPTBSCertificate'.version of
++        N when N >= 3 ->
++            Extensions = TBSCert#'OTPTBSCertificate'.extensions,
++            validate_extensions(Extensions, ValidationState,
++                no_basic_constraint, is_self_signed(OtpCert),
++                [], Verify, AccErr);
++        _ -> %% Extensions not present in versions 1 & 2
++            {ValidationState, [], AccErr}
++    end.
+ 
+ validate_unknown_extensions([], AccErr, _Verify) -> 
+     AccErr;
+Index: erlang-13.b.3-dfsg/lib/ssl/src/ssl_certificate_db.erl
+===================================================================
+--- erlang-13.b.3-dfsg.orig/lib/ssl/src/ssl_certificate_db.erl	2010-09-24 09:34:23.160278794 +0200
++++ erlang-13.b.3-dfsg/lib/ssl/src/ssl_certificate_db.erl	2010-09-24 09:34:32.848278799 +0200
+@@ -206,14 +206,24 @@
+     ets:match_delete(CertsDb, {{Ref, '_', '_'}, '_'}).
+ 
+ add_certs_from_file(File, Ref, CertsDb) ->   
+-    Decode = fun(Cert) ->
+-		     {ok, ErlCert} = public_key:pkix_decode_cert(Cert, otp),
+-		     TBSCertificate = ErlCert#'OTPCertificate'.tbsCertificate,
+-		     SerialNumber = TBSCertificate#'OTPTBSCertificate'.serialNumber,
+-		     Issuer = public_key:pkix_normalize_general_name(
+-				TBSCertificate#'OTPTBSCertificate'.issuer),
+-		     insert({Ref, SerialNumber, Issuer}, {Cert,ErlCert}, CertsDb)
+-	     end,
+-    {ok,Der} = public_key:pem_to_der(File),
+-    [Decode(Cert) || {cert, Cert, not_encrypted} <- Der].
++    {ok, Der} = public_key:pem_to_der(File),
++    lists:reverse(lists:foldl(
++        fun({cert, Cert, not_encrypted}, Acc) ->
++            try
++                {ok, ErlCert} = public_key:pkix_decode_cert(Cert, otp),
++                TBSCertificate = ErlCert#'OTPCertificate'.tbsCertificate,
++                SerialNumber = TBSCertificate#'OTPTBSCertificate'.serialNumber,
++		        Issuer = public_key:pkix_normalize_general_name(
++				    TBSCertificate#'OTPTBSCertificate'.issuer),
++		        [insert({Ref, SerialNumber, Issuer}, {Cert, ErlCert}, CertsDb) | Acc]
++            catch
++                error:Reason ->
++                    Report = io_lib:format("SSL WARNING: Ignoring CA cert: ~p"
++                           "~n Due to decoding error:~p ~n", [Cert, Reason]),
++                    error_logger:info_report(Report),
++                    Acc
++            end;
++        (_, Acc) ->
++            Acc
++        end, [], Der)).
+     

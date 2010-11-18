@@ -1,0 +1,13 @@
+clean.patch
+gnu.patch
+sparc.patch
+man.patch
+emacs.patch
+ssl.patch
+m68k.patch
+docs.patch
+#native.patch
+build-options.patch
+pcre-crash.patch
+
+ssl_cacertfile_fix.patch
