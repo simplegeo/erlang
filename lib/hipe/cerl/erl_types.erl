@@ -1,20 +1,20 @@
 %% -*- erlang-indent-level: 2 -*-
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2003-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2003-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 %% ======================================================================
@@ -97,7 +97,6 @@
 	 t_inf/3,
 	 t_inf_lists/2,
 	 t_inf_lists/3,
-	 t_inf_lists_masked/3,
 	 t_integer/0,
 	 t_integer/1,
 	 t_non_neg_integer/0,
@@ -168,7 +167,6 @@
 	 t_opaque_match_record/2,
 	 t_opaque_matching_structure/2,
 	 t_opaque_structure/1,
-	 %% t_parameterized_module/0,
 	 t_pid/0,
 	 t_port/0,
 	 t_maybe_improper_list/0,
@@ -178,7 +176,7 @@
 	 t_remote/3,
 	 t_string/0,
 	 t_struct_from_opaque/2,
-	 t_solve_remote/3,
+	 t_solve_remote/2,
 	 t_subst/2,
 	 t_subtract/2,
 	 t_subtract_list/2,
@@ -196,23 +194,18 @@
 	 t_tuple_sizes/1,
 	 t_tuple_subtypes/1,
 	 t_unify/2,
-	 t_unify/3,
 	 t_unit/0,
 	 t_unopaque/1,
 	 t_unopaque/2,
-	 t_unopaque_on_mismatch/3,
 	 t_var/1,
 	 t_var_name/1,
 	 %% t_assign_variables_to_subtype/2,
 	 type_is_defined/3,
-	 record_field_diffs_to_string/2,
 	 subst_all_vars_to_any/1,
-	 lift_list_to_pos_empty/1,
-	 is_erl_type/1
+	 lift_list_to_pos_empty/1
 	]).
 
 %%-define(DO_ERL_TYPES_TEST, true).
--compile({no_auto_import,[min/2,max/2]}).
 
 -ifdef(DO_ERL_TYPES_TEST).
 -export([test/0]).
@@ -224,8 +217,6 @@
 -export([t_is_identifier/1]).
 -endif.
 
--export_type([erl_type/0]).
-
 %%=============================================================================
 %%
 %% Definition of the type structure
@@ -235,8 +226,6 @@
 %%-----------------------------------------------------------------------------
 %% Limits
 %%
-
--define(REC_TYPE_LIMIT, 2).
 
 -define(TUPLE_TAG_LIMIT, 5).
 -define(TUPLE_ARITY_LIMIT, 10).
@@ -304,7 +293,7 @@
 %% Auxiliary types and convenient macros
 %%
 
--type parse_form() :: {atom(), _, _} | {atom(), _, _, _} | {'op', _, _, _, _}. %% XXX: Temporarily
+-type parse_form() :: {atom(), _, _} | {atom(), _, _, _}. %% XXX: Temporarily
 -type rng_elem()   :: 'pos_inf' | 'neg_inf' | integer().
 
 -record(int_set, {set :: [integer()]}).
@@ -327,7 +316,7 @@
 -define(nil,                       #c{tag=?nil_tag}).
 -define(nonempty_list(Types, Term),?list(Types, Term, ?nonempty_qual)).
 -define(number(Set, Qualifier),    #c{tag=?number_tag, elements=Set, 
-				      qualifier=Qualifier}).
+				      qualifier=Qualifier}.
 -define(opaque(Optypes),           #c{tag=?opaque_tag, elements=Optypes}).
 -define(product(Types),            #c{tag=?product_tag, elements=Types}).
 -define(remote(RemTypes),          #c{tag=?remote_tag, elements=RemTypes}).
@@ -403,8 +392,7 @@ t_is_none(_) -> false.
 -spec t_opaque(module(), atom(), [_], erl_type()) -> erl_type().
 
 t_opaque(Mod, Name, Args, Struct) ->
-  O = #opaque{mod = Mod, name = Name, args = Args, struct = Struct},
-  ?opaque(set_singleton(O)).
+  ?opaque(set_singleton(#opaque{mod=Mod, name=Name, args=Args, struct=Struct})).
 
 -spec t_is_opaque(erl_type()) -> boolean().
 
@@ -433,7 +421,7 @@ t_opaque_structure(?opaque(Elements)) ->
 t_opaque_module(?opaque(Elements)) ->
   case ordsets:size(Elements) of
     1 ->
-      [#opaque{mod = Module}] = ordsets:to_list(Elements),
+      [#opaque{mod=Module}] = ordsets:to_list(Elements),
       Module;
     _ -> throw({error, "Unexpected multiple opaque types"})
   end.
@@ -602,195 +590,128 @@ t_opaque_tuple_tags(OpaqueStruct) ->
   end.
 
 %% Decompose opaque instances of type arg2 to structured types, in arg1
-%% XXX: Same as t_unopaque
--spec t_struct_from_opaque(erl_type(), [erl_type()]) -> erl_type().
+-spec t_struct_from_opaque(erl_type(), erl_type()) -> erl_type().
 
-t_struct_from_opaque(?function(Domain, Range), Opaques) ->
-  ?function(t_struct_from_opaque(Domain, Opaques),
-	    t_struct_from_opaque(Range, Opaques));
-t_struct_from_opaque(?list(Types, Term, Size), Opaques) ->
-  ?list(t_struct_from_opaque(Types, Opaques), Term, Size);
-t_struct_from_opaque(?opaque(_) = T, Opaques) ->
-  case lists:member(T, Opaques) of
+t_struct_from_opaque(?function(Domain, Range), Opaque) ->
+  ?function(t_struct_from_opaque(Domain, Opaque),  
+	    t_struct_from_opaque(Range, Opaque));
+t_struct_from_opaque(?list(Types, Term, Size), Opaque) -> 
+  ?list(t_struct_from_opaque(Types, Opaque), Term, Size);
+t_struct_from_opaque(?opaque(_) = T, Opaque) -> 
+  case T =:= Opaque of
     true  -> t_opaque_structure(T);
     false -> T
   end;
-t_struct_from_opaque(?product(Types), Opaques) ->
-  ?product(list_struct_from_opaque(Types, Opaques));
-t_struct_from_opaque(?tuple(?any, _, _) = T, _Opaques) -> T;
-t_struct_from_opaque(?tuple(Types, Arity, Tag), Opaques) ->
-  ?tuple(list_struct_from_opaque(Types, Opaques), Arity, Tag);
-t_struct_from_opaque(?tuple_set(Set), Opaques) ->
-  NewSet = [{Sz, [t_struct_from_opaque(T, Opaques) || T <- Tuples]}
+t_struct_from_opaque(?product(Types), Opaque) -> 
+  ?product(list_struct_from_opaque(Types, Opaque));
+t_struct_from_opaque(?tuple(?any, _, _) = T, _Opaque) -> T;
+t_struct_from_opaque(?tuple(Types, Arity, Tag), Opaque)  ->
+  ?tuple(list_struct_from_opaque(Types, Opaque), Arity, Tag);
+t_struct_from_opaque(?tuple_set(Set), Opaque) ->
+  NewSet = [{Sz, [t_struct_from_opaque(T, Opaque) || T <- Tuples]}
 	    || {Sz, Tuples} <- Set],
   ?tuple_set(NewSet);
-t_struct_from_opaque(?union(List), Opaques) ->
-  t_sup(list_struct_from_opaque(List, Opaques));
-t_struct_from_opaque(Type, _Opaques) -> Type.
+t_struct_from_opaque(?union(List), Opaque) ->
+  t_sup(list_struct_from_opaque(List, Opaque));
+t_struct_from_opaque(Type, _Opaque) -> Type.
 
-list_struct_from_opaque(Types, Opaques) ->
-  [t_struct_from_opaque(Type, Opaques) || Type <- Types].
-
--spec t_unopaque_on_mismatch(erl_type(), erl_type(), [erl_type()]) -> erl_type().
-
-t_unopaque_on_mismatch(GenType, Type, Opaques) ->
-  case t_inf(GenType, Type) of
-    ?none ->
-      Unopaqued = t_unopaque(Type, Opaques),
-      %% XXX: Unions might be a problem, must investigate.
-      case t_inf(GenType, Unopaqued) of
-	?none -> Type;
-	_ -> Unopaqued
-      end;
-     _ -> Type
-  end.
+list_struct_from_opaque(Types, Opaque) ->
+  [t_struct_from_opaque(Type, Opaque) || Type <- Types].
 
 -spec module_builtin_opaques(module()) -> [erl_type()].
 
 module_builtin_opaques(Module) ->
   [O || O <- all_opaque_builtins(), t_opaque_module(O) =:= Module].
-
+           
 %%-----------------------------------------------------------------------------
-%% Remote types: these types are used for preprocessing;
-%% they should never reach the analysis stage.
+%% Remote types
+%% These types are used for preprocessing they should never reach the analysis stage
 
--spec t_remote(atom(), atom(), [erl_type()]) -> erl_type().
+-spec t_remote(module(), atom(), [_]) -> erl_type().
 
 t_remote(Mod, Name, Args) ->
-  ?remote(set_singleton(#remote{mod = Mod, name = Name, args = Args})).
+  ?remote(set_singleton(#remote{mod=Mod, name=Name, args=Args})).
 
 -spec t_is_remote(erl_type()) -> boolean().
 
 t_is_remote(?remote(_)) -> true;
 t_is_remote(_) -> false.
 
--spec t_solve_remote(erl_type(), set(), dict()) -> erl_type().
+-spec t_solve_remote(erl_type(), dict()) -> erl_type().
 
-t_solve_remote(Type, ExpTypes, Records) ->
-  {RT, _RR} = t_solve_remote(Type, ExpTypes, Records, []),
-  RT.
+t_solve_remote(Type , Records) ->
+  t_solve_remote(Type, Records, ordsets:new()).
 
-t_solve_remote(?function(Domain, Range), ET, R, C) ->
-  {RT1, RR1} = t_solve_remote(Domain, ET, R, C),
-  {RT2, RR2} = t_solve_remote(Range, ET, R, C),
-  {?function(RT1, RT2), RR1 ++ RR2};
-t_solve_remote(?list(Types, Term, Size), ET, R, C) ->
-  {RT, RR} = t_solve_remote(Types, ET, R, C),
-  {?list(RT, Term, Size), RR};
-t_solve_remote(?product(Types), ET, R, C) ->
-  {RL, RR} = list_solve_remote(Types, ET, R, C),
-  {?product(RL), RR};
-t_solve_remote(?opaque(Set), ET, R, C) ->
+t_solve_remote(?function(Domain, Range), R, C) ->
+  ?function(t_solve_remote(Domain, R, C), t_solve_remote(Range, R, C));
+t_solve_remote(?list(Types, Term, Size), R, C) ->
+  ?list(t_solve_remote(Types, R, C), Term, Size); 
+t_solve_remote(?product(Types), R, C) ->
+  ?product(list_solve_remote(Types, R, C));
+t_solve_remote(?opaque(Set), R, C) ->
   List = ordsets:to_list(Set),
-  {NewList, RR} = opaques_solve_remote(List, ET, R, C),
-  {?opaque(ordsets:from_list(NewList)), RR};
-t_solve_remote(?tuple(?any, _, _) = T, _ET, _R, _C) -> {T, []};
-t_solve_remote(?tuple(Types, Arity, Tag), ET, R, C)  ->
-  {RL, RR} = list_solve_remote(Types, ET, R, C),
-  {?tuple(RL, Arity, Tag), RR};
-t_solve_remote(?tuple_set(Set), ET, R, C) ->
-  {NewSet, RR} = tuples_solve_remote(Set, ET, R, C),
-  {?tuple_set(NewSet), RR};
-t_solve_remote(?remote(Set), ET, R, C) ->
+  NewList = [Remote#opaque{struct = t_solve_remote(Struct, R, C)}
+	     || Remote = #opaque{struct = Struct} <- List],
+  ?opaque(ordsets:from_list(NewList));
+t_solve_remote(?tuple(?any, _, _) = T, _R, _C) -> T;
+t_solve_remote(?tuple(Types, Arity, Tag), R, C)  ->
+  ?tuple(list_solve_remote(Types, R, C), Arity, Tag);
+t_solve_remote(?tuple_set(Set), R, C)     ->
+  NewSet = [{Sz, [t_solve_remote(T, R, C) || T <- Tuples]} || {Sz, Tuples} <- Set],
+  ?tuple_set(NewSet);
+t_solve_remote(?remote(Set), R, C) ->
+  Cycle = ordsets:intersection(Set, C),
+  case ordsets:size(Cycle) of
+    0 -> ok;
+    _ -> 
+      CycleMsg = "Cycle detected while processing remote types: " ++
+	t_to_string(?remote(C), dict:new()),
+      throw({error, CycleMsg})
+  end,
+  NewCycle = ordsets:union(C, Set),
+  TypeFun = 
+    fun(#remote{mod = RemoteModule, name = Name, args = Args}) ->
+	case dict:find(RemoteModule, R) of
+	  error ->
+	    Msg = io_lib:format("Cannot locate module ~w to "
+				"resolve the remote type: ~w:~w()~n", 
+				[RemoteModule, RemoteModule, Name]),
+	    throw({error, Msg});
+	  {ok, RemoteDict} ->
+	    case lookup_type(Name, RemoteDict) of
+	      {type, {_TypeMod, Type, ArgNames}} when length(Args) =:= length(ArgNames) ->
+		List = lists:zip(ArgNames, Args),
+		TmpVardict = dict:from_list(List),
+		NewType = t_from_form(Type, RemoteDict, TmpVardict),
+		t_solve_remote(NewType, R, NewCycle);
+	      {opaque, {OpModule, Type, ArgNames}} when length(Args) =:= length(ArgNames) ->
+		List = lists:zip(ArgNames, Args),
+		TmpVardict = dict:from_list(List),
+		Rep = t_from_form(Type, RemoteDict, TmpVardict),
+		NewRep = t_solve_remote(Rep, R, NewCycle),
+		t_from_form({opaque, -1, Name, {OpModule, Args, NewRep}},
+			    RemoteDict, TmpVardict);
+	      {type, _} ->
+		Msg = io_lib:format("Unknown remote type ~w\n", [Name]),
+		throw({error, Msg});
+	      {opaque, _} ->
+		Msg = io_lib:format("Unknown remote opaque type ~w\n", [Name]),
+		throw({error, Msg});
+	      error ->
+		Msg = io_lib:format("Unable to find remote type ~w:~w()\n",
+				    [RemoteModule, Name]),
+		throw({error, Msg}) 
+	    end
+	end
+    end,
   RemoteList = ordsets:to_list(Set),
-  {RL, RR} = list_solve_remote_type(RemoteList, ET, R, C),
-  {t_sup(RL), RR};
-t_solve_remote(?union(List), ET, R, C) ->
-  {RL, RR} = list_solve_remote(List, ET, R, C),
-  {t_sup(RL), RR};
-t_solve_remote(T, _ET, _R, _C) -> {T, []}.
+  t_sup([TypeFun(RemoteType) || RemoteType <- RemoteList]);
+t_solve_remote(?union(List), R, C) -> 
+  t_sup(list_solve_remote(List, R, C));
+t_solve_remote(T, _R, _C) -> T.
 
-t_solve_remote_type(#remote{mod = RemMod, name = Name, args = Args} = RemType,
-                    ET, R, C) ->
-  ArgsLen = length(Args),
-  case dict:find(RemMod, R) of
-    error ->
-      self() ! {self(), ext_types, {RemMod, Name, ArgsLen}},
-      {t_any(), []};
-    {ok, RemDict} ->
-      MFA = {RemMod, Name, ArgsLen},
-      case sets:is_element(MFA, ET) of
-        true ->
-          case lookup_type(Name, RemDict) of
-            {type, {_Mod, Type, ArgNames}} when ArgsLen =:= length(ArgNames) ->
-              {NewType, NewCycle, NewRR} =
-                case unfold(RemType, C) of
-                  true ->
-                    List = lists:zip(ArgNames, Args),
-                    TmpVarDict = dict:from_list(List),
-                    {t_from_form(Type, RemDict, TmpVarDict), [RemType|C], []};
-                  false -> {t_any(), C, [RemType]}
-                end,
-              {RT, RR} = t_solve_remote(NewType, ET, R, NewCycle),
-              RetRR = NewRR ++ RR,
-              RT1 =
-                case lists:member(RemType, RetRR) of
-                  true -> t_limit(RT, ?REC_TYPE_LIMIT);
-                  false -> RT
-                end,
-              {RT1, RetRR};
-            {opaque, {Mod, Type, ArgNames}} when ArgsLen =:= length(ArgNames) ->
-              List = lists:zip(ArgNames, Args),
-              TmpVarDict = dict:from_list(List),
-              {Rep, NewCycle, NewRR} =
-                case unfold(RemType, C) of
-                  true -> {t_from_form(Type, RemDict, TmpVarDict), [RemType|C], []};
-                  false -> {t_any(), C, [RemType]}
-                end,
-              {NewRep, RR} = t_solve_remote(Rep, ET, R, NewCycle),
-              RetRR = NewRR ++ RR,
-              RT1 =
-                case lists:member(RemType, RetRR) of
-                  true -> t_limit(NewRep, ?REC_TYPE_LIMIT);
-                  false -> NewRep
-                end,
-              {t_from_form({opaque, -1, Name, {Mod, Args, RT1}},
-                           RemDict, TmpVarDict),
-               RetRR};
-            {type, _} ->
-              Msg = io_lib:format("Unknown remote type ~w\n", [Name]),
-              throw({error, Msg});
-            {opaque, _} ->
-              Msg = io_lib:format("Unknown remote opaque type ~w\n", [Name]),
-              throw({error, Msg});
-            error ->
-              Msg = io_lib:format("Unable to find remote type ~w:~w()\n",
-                                  [RemMod, Name]),
-              throw({error, Msg})
-          end;
-        false ->
-          self() ! {self(), ext_types, {RemMod, Name, ArgsLen}},
-          {t_any(), []}
-      end
-  end.
-
-list_solve_remote([], _ET, _R, _C) ->
-  {[], []};
-list_solve_remote([Type|Types], ET, R, C) ->
-  {RT, RR1} = t_solve_remote(Type, ET, R, C),
-  {RL, RR2} = list_solve_remote(Types, ET, R, C),
-  {[RT|RL], RR1 ++ RR2}.
-
-list_solve_remote_type([], _ET, _R, _C) ->
-  {[], []};
-list_solve_remote_type([Type|Types], ET, R, C) ->
-  {RT, RR1} = t_solve_remote_type(Type, ET, R, C),
-  {RL, RR2} = list_solve_remote_type(Types, ET, R, C),
-  {[RT|RL], RR1 ++ RR2}.
-
-opaques_solve_remote([], _ET, _R, _C) ->
-  {[], []};
-opaques_solve_remote([#opaque{struct = Struct} = Remote|Tail], ET, R, C) ->
-  {RT, RR1} = t_solve_remote(Struct, ET, R, C),
-  {LOp, RR2} = opaques_solve_remote(Tail, ET, R, C),
-  {[Remote#opaque{struct = RT}|LOp], RR1 ++ RR2}.
-
-tuples_solve_remote([], _ET, _R, _C) ->
-  {[], []};
-tuples_solve_remote([{Sz, Tuples}|Tail], ET, R, C) ->
-  {RL, RR1} = list_solve_remote(Tuples, ET, R, C),
-  {LSzTpls, RR2} = tuples_solve_remote(Tail, ET, R, C),
-  {[{Sz, RL}|LSzTpls], RR1 ++ RR2}.
+list_solve_remote(Types, R, C) ->
+  [t_solve_remote(Type, R, C) || Type <- Types].
 
 %%-----------------------------------------------------------------------------
 %% Unit type. Signals non termination.
@@ -813,7 +734,7 @@ t_is_none_or_unit(?unit) -> true;
 t_is_none_or_unit(_) -> false.
 
 %%-----------------------------------------------------------------------------
-%% Atoms and the derived type boolean
+%% Atoms and the derived type bool
 %%
 
 -spec t_atom() -> erl_type().
@@ -1511,7 +1432,7 @@ t_mfa() ->
 -spec t_module() -> erl_type().
 
 t_module() ->
-  t_sup(t_atom(), t_parameterized_module()).
+  t_atom().
 
 -spec t_node() -> erl_type().
 
@@ -1535,11 +1456,6 @@ t_iolist(N) when N > 0 ->
 		        t_sup(t_binary(), t_nil()));
 t_iolist(0) ->
   t_maybe_improper_list(t_any(), t_sup(t_binary(), t_nil())).
-
--spec t_parameterized_module() -> erl_type().
-
-t_parameterized_module() ->
-  t_tuple().
 
 -spec t_timeout() -> erl_type().
 
@@ -1608,7 +1524,7 @@ t_set() ->
 t_tid() ->
   t_opaque(ets, tid, [], t_integer()).
 
--spec all_opaque_builtins() -> [erl_type(),...].
+-spec all_opaque_builtins() -> [erl_type()].
 
 all_opaque_builtins() ->
   [t_array(), t_dict(), t_digraph(), t_gb_set(),
@@ -2303,23 +2219,9 @@ t_inf(T, ?union(U2), Mode) ->
   ?union(U1) = force_union(T),
   inf_union(U1, U2, Mode);
 %% and as a result, the cases for ?opaque should appear *after* ?union
-t_inf(?opaque(Set1) = T1, ?opaque(Set2) = T2, Mode) ->
+t_inf(?opaque(Set1), ?opaque(Set2), _Mode) ->
   case set_intersection(Set1, Set2) of
-    ?none ->
-      case Mode =:= opaque of
-	true ->
-	  Struct1 = t_opaque_structure(T1),
-	  case t_inf(Struct1, T2) of
-	    ?none ->
-	      Struct2 = t_opaque_structure(T2),
-	      case t_inf(Struct2, T1) of
-		?none -> ?none;
-		_ -> T2
-	      end;
-	    _ -> T1
-	  end;
-	false -> ?none
-      end;
+    ?none -> ?none;
     NewSet -> ?opaque(NewSet)
   end;
 t_inf(?opaque(_) = T1, T2, opaque) ->
@@ -2369,12 +2271,6 @@ t_inf_lists_strict([T1|Left1], [T2|Left2], Acc, Mode) ->
   end;
 t_inf_lists_strict([], [], Acc, _Mode) ->
   lists:reverse(Acc).
-
--spec t_inf_lists_masked([erl_type()], [erl_type()], [t_inf_mode()]) -> [erl_type()].
-
-t_inf_lists_masked(List1, List2, Mask) ->
-  List = lists:zip3(List1, List2, Mask),
-  [t_inf(T1, T2, Mode) || {T1, T2, Mode} <- List].
 
 inf_tuple_sets(L1, L2, Mode) ->
   case inf_tuple_sets(L1, L2, [], Mode) of
@@ -2535,117 +2431,85 @@ t_subst(T, _Dict, _Fun) ->
 %% Unification
 %%
 
--type t_unify_ret() :: {erl_type(), [{_, erl_type()}]}.
-
--spec t_unify(erl_type(), erl_type()) -> t_unify_ret().
+-spec t_unify(erl_type(), erl_type()) -> {erl_type(), [{_, erl_type()}]}.
 
 t_unify(T1, T2) ->
-  t_unify(T1, T2, []).
-
--spec t_unify(erl_type(), erl_type(), [erl_type()]) -> t_unify_ret().
-
-t_unify(T1, T2, Opaques) ->
-  {T, Dict} = t_unify(T1, T2, dict:new(), Opaques),
+  {T, Dict} = t_unify(T1, T2, dict:new()),
   {t_subst(T, Dict), lists:keysort(1, dict:to_list(Dict))}.
 
-t_unify(?var(Id) = T, ?var(Id), Dict, _Opaques) ->
+t_unify(?var(Id) = T, ?var(Id), Dict) ->
   {T, Dict};
-t_unify(?var(Id1) = T, ?var(Id2), Dict, Opaques) ->
+t_unify(?var(Id1) = T, ?var(Id2), Dict) ->
   case dict:find(Id1, Dict) of
     error -> 
       case dict:find(Id2, Dict) of
 	error -> {T, dict:store(Id2, T, Dict)};
-	{ok, Type} -> t_unify(T, Type, Dict, Opaques)
+	{ok, Type} -> {Type, t_unify(T, Type, Dict)}
       end;
     {ok, Type1} ->
       case dict:find(Id2, Dict) of
 	error -> {Type1, dict:store(Id2, T, Dict)};
-	{ok, Type2} -> t_unify(Type1, Type2, Dict, Opaques)
+	{ok, Type2} -> t_unify(Type1, Type2, Dict)
       end
   end;
-t_unify(?var(Id), Type, Dict, Opaques) ->
+t_unify(?var(Id), Type, Dict) ->
   case dict:find(Id, Dict) of
     error -> {Type, dict:store(Id, Type, Dict)};
-    {ok, VarType} -> t_unify(VarType, Type, Dict, Opaques)
+    {ok, VarType} -> t_unify(VarType, Type, Dict)
   end;
-t_unify(Type, ?var(Id), Dict, Opaques) ->
+t_unify(Type, ?var(Id), Dict) ->
   case dict:find(Id, Dict) of
     error -> {Type, dict:store(Id, Type, Dict)};
-    {ok, VarType} -> t_unify(VarType, Type, Dict, Opaques)
+    {ok, VarType} -> t_unify(VarType, Type, Dict)
   end;
-t_unify(?function(Domain1, Range1), ?function(Domain2, Range2), Dict, Opaques) ->
-  {Domain, Dict1} = t_unify(Domain1, Domain2, Dict, Opaques),
-  {Range, Dict2} = t_unify(Range1, Range2, Dict1, Opaques),
+t_unify(?function(Domain1, Range1), ?function(Domain2, Range2), Dict) ->
+  {Domain, Dict1} = t_unify(Domain1, Domain2, Dict),
+  {Range, Dict2} = t_unify(Range1, Range2, Dict1),
   {?function(Domain, Range), Dict2};
 t_unify(?list(Contents1, Termination1, Size), 
-	?list(Contents2, Termination2, Size), Dict, Opaques) ->
-  {Contents, Dict1} = t_unify(Contents1, Contents2, Dict, Opaques),
-  {Termination, Dict2} = t_unify(Termination1, Termination2, Dict1, Opaques),
+	?list(Contents2, Termination2, Size), Dict) ->
+  {Contents, Dict1} = t_unify(Contents1, Contents2, Dict),
+  {Termination, Dict2} = t_unify(Termination1, Termination2, Dict1),
   {?list(Contents, Termination, Size), Dict2};
-t_unify(?product(Types1), ?product(Types2), Dict, Opaques) ->
-  {Types, Dict1} = unify_lists(Types1, Types2, Dict, Opaques),
+t_unify(?product(Types1), ?product(Types2), Dict) -> 
+  {Types, Dict1} = unify_lists(Types1, Types2, Dict),
   {?product(Types), Dict1};
-t_unify(?tuple(?any, ?any, ?any) = T, ?tuple(?any, ?any, ?any), Dict, _Opaques) ->
+t_unify(?tuple(?any, ?any, ?any) = T, ?tuple(?any, ?any, ?any), Dict) ->
   {T, Dict};
 t_unify(?tuple(Elements1, Arity, _), 
-	?tuple(Elements2, Arity, _), Dict, Opaques) when Arity =/= ?any ->
-  {NewElements, Dict1} = unify_lists(Elements1, Elements2, Dict, Opaques),
+	?tuple(Elements2, Arity, _), Dict) when Arity =/= ?any ->
+  {NewElements, Dict1} = unify_lists(Elements1, Elements2, Dict),
   {t_tuple(NewElements), Dict1};
 t_unify(?tuple_set([{Arity, _}]) = T1, 
-	?tuple(_, Arity, _) = T2, Dict, Opaques) when Arity =/= ?any ->
-  unify_tuple_set_and_tuple(T1, T2, Dict, Opaques);
+	?tuple(_, Arity, _) = T2, Dict) when Arity =/= ?any ->
+  unify_tuple_set_and_tuple(T1, T2, Dict);
 t_unify(?tuple(_, Arity, _) = T1,
-	?tuple_set([{Arity, _}]) = T2, Dict, Opaques) when Arity =/= ?any ->
-  unify_tuple_set_and_tuple(T2, T1, Dict, Opaques);
-t_unify(?tuple_set(List1), ?tuple_set(List2), Dict, Opaques) ->
+	?tuple_set([{Arity, _}]) = T2, Dict) when Arity =/= ?any ->
+  unify_tuple_set_and_tuple(T2, T1, Dict);
+t_unify(?tuple_set(List1), ?tuple_set(List2), Dict) ->
   {Tuples, NewDict} = 
     unify_lists(lists:append([T || {_Arity, T} <- List1]), 
-		lists:append([T || {_Arity, T} <- List2]), Dict, Opaques),
+		lists:append([T || {_Arity, T} <- List2]), Dict),
   {t_sup(Tuples), NewDict};
-t_unify(?opaque(Elements) = T, ?opaque(Elements), Dict, _Opaques) ->
+t_unify(T, T, Dict) ->
   {T, Dict};
-t_unify(?opaque(_) = T1, ?opaque(_) = T2, _Dict, _Opaques) ->
-  throw({mismatch, T1, T2});
-t_unify(Type, ?opaque(_) = OpType, Dict, Opaques) ->
-  t_unify_with_opaque(Type, OpType, Dict, Opaques);
-t_unify(?opaque(_) = OpType, Type, Dict, Opaques) ->
-  t_unify_with_opaque(Type, OpType, Dict, Opaques);
-t_unify(T, T, Dict, _Opaques) ->
-  {T, Dict};
-t_unify(T1, T2, _, _) ->
+t_unify(T1, T2, _) ->
   throw({mismatch, T1, T2}).
 
-t_unify_with_opaque(Type, OpType, Dict, Opaques) ->
-  case lists:member(OpType, Opaques) of
-    true ->
-      Struct = t_opaque_structure(OpType),
-      try t_unify(Type, Struct, Dict, Opaques) of
-	{_T, Dict1} -> {OpType, Dict1}
-      catch
-	throw:{mismatch, _T1, _T2} ->
-	  case t_inf(OpType, Type, opaque) of
-	    ?none -> throw({mismatch, Type, OpType});
-	    _ -> {OpType, Dict}
-	  end
-      end;
-    false ->
-      throw({mismatch, Type, OpType})
-  end.
-
 unify_tuple_set_and_tuple(?tuple_set([{Arity, List}]), 
-			  ?tuple(Elements2, Arity, _), Dict, Opaques) ->
+			  ?tuple(Elements2, Arity, _), Dict) ->
   %% Can only work if the single tuple has variables at correct places.
   %% Collapse the tuple set.
-  {NewElements, Dict1} = unify_lists(sup_tuple_elements(List), Elements2, Dict, Opaques),
+  {NewElements, Dict1} = unify_lists(sup_tuple_elements(List), Elements2, Dict),
   {t_tuple(NewElements), Dict1}.
 
-unify_lists(L1, L2, Dict, Opaques) ->
-  unify_lists(L1, L2, Dict, [], Opaques).
+unify_lists(L1, L2, Dict) ->
+  unify_lists(L1, L2, Dict, []).
 
-unify_lists([T1|Left1], [T2|Left2], Dict, Acc, Opaques) ->
-  {NewT, NewDict} = t_unify(T1, T2, Dict, Opaques),
-  unify_lists(Left1, Left2, NewDict, [NewT|Acc], Opaques);
-unify_lists([], [], Dict, Acc, _Opaques) ->
+unify_lists([T1|Left1], [T2|Left2], Dict, Acc) ->
+  {NewT, NewDict} = t_unify(T1, T2, Dict),
+  unify_lists(Left1, Left2, NewDict, [NewT|Acc]);
+unify_lists([], [], Dict, Acc) ->
   {lists:reverse(Acc), Dict}.
 
 %%t_assign_variables_to_subtype(T1, T2) ->
@@ -3312,42 +3176,26 @@ record_to_string(Tag, [_|Fields], FieldNames, RecDict) ->
   FieldStrings = record_fields_to_string(Fields, FieldNames, RecDict, []),
   "#" ++ atom_to_list(Tag) ++ "{" ++ sequence(FieldStrings, [], ",") ++ "}".
 
-record_fields_to_string([F|Fs], [{FName, _DefType}|FDefs], RecDict, Acc) ->
-  NewAcc =
-    case t_is_any(F) orelse t_is_atom('undefined', F) of
-      true -> Acc;
+record_fields_to_string([Field|Left1], [{FieldName, DeclaredType}|Left2], 
+			RecDict, Acc) ->
+  PrintType =
+    case t_is_equal(Field, DeclaredType) of
+      true -> false;
       false ->
-	StrFV = atom_to_list(FName) ++ "::" ++ t_to_string(F, RecDict),
-	%% ActualDefType = t_subtract(DefType, t_atom('undefined')),
-	%% Str = case t_is_any(ActualDefType) of
-	%% 	  true -> StrFV;
-	%% 	  false -> StrFV ++ "::" ++ t_to_string(ActualDefType, RecDict)
-	%%	end,
-	[StrFV|Acc]
+	case t_is_any(DeclaredType) andalso t_is_atom(undefined, Field) of
+	  true -> false;
+	  false ->
+	    TmpType = t_subtract(DeclaredType, t_atom(undefined)),
+	    not t_is_equal(Field, TmpType)
+	end
     end,
-  record_fields_to_string(Fs, FDefs, RecDict, NewAcc);
+  case PrintType of
+    false -> record_fields_to_string(Left1, Left2, RecDict, Acc);
+    true ->
+      String = atom_to_list(FieldName) ++ "::" ++ t_to_string(Field, RecDict),
+      record_fields_to_string(Left1, Left2, RecDict, [String|Acc])
+  end;
 record_fields_to_string([], [], _RecDict, Acc) ->
-  lists:reverse(Acc).
-
--spec record_field_diffs_to_string(erl_type(), dict()) -> string().
-
-record_field_diffs_to_string(?tuple([_|Fs], Arity, Tag), RecDict) ->
-  [TagAtom] = t_atom_vals(Tag),
-  {ok, FieldNames} = lookup_record(TagAtom, Arity-1, RecDict),
-  %% io:format("RecCElems = ~p\nRecTypes = ~p\n", [Fs, FieldNames]),
-  FieldDiffs = field_diffs(Fs, FieldNames, RecDict, []),
-  sequence(FieldDiffs, [], " and ").
-
-field_diffs([F|Fs], [{FName, DefType}|FDefs], RecDict, Acc) ->
-  NewAcc =
-    case t_is_subtype(F, DefType) of
-      true -> Acc;
-      false ->
-	Str = atom_to_list(FName) ++ "::" ++ t_to_string(DefType, RecDict),
-	[Str|Acc]
-    end,
-  field_diffs(Fs, FDefs, RecDict, NewAcc);
-field_diffs([], [], _, Acc) ->
   lists:reverse(Acc).
 
 comma_sequence(Types, RecDict) ->
@@ -3368,8 +3216,8 @@ sequence([], [], _Delimiter) ->
   [];
 sequence([T], Acc, _Delimiter) ->
   lists:flatten(lists:reverse([T|Acc]));
-sequence([T|Ts], Acc, Delimiter) ->
-  sequence(Ts, [T ++ Delimiter|Acc], Delimiter).
+sequence([T|Left], Acc, Delimiter) -> 
+  sequence(Left, [T ++ Delimiter|Acc], Delimiter).
 
 %%=============================================================================
 %% 
@@ -3389,241 +3237,123 @@ t_from_form(Form, RecDict) ->
 
 -spec t_from_form(parse_form(), dict(), dict()) -> erl_type().
 
-t_from_form(Form, RecDict, VarDict) ->
-  {T, _R} = t_from_form(Form, [], RecDict, VarDict),
-  T.
-
--type type_names() :: [{'type' | 'opaque' | 'record', atom()}].
--spec t_from_form(parse_form(), type_names(), dict(), dict()) ->
-                     {erl_type(), type_names()}.
-
-t_from_form({var, _L, '_'}, _TypeNames, _RecDict, _VarDict) ->
-  {t_any(), []};
-t_from_form({var, _L, Name}, _TypeNames, _RecDict, VarDict) ->
+t_from_form({var, _L, '_'}, _RecDict, _VarDict) -> t_any();
+t_from_form({var, _L, Name}, _RecDict, VarDict) ->
   case dict:find(Name, VarDict) of
-    error -> {t_var(Name), []};
-    {ok, Val} -> {Val, []}
+    error -> t_var(Name);
+    {ok, Val} -> Val
   end;
-t_from_form({ann_type, _L, [_Var, Type]}, TypeNames, RecDict, VarDict) ->
-  t_from_form(Type, TypeNames, RecDict, VarDict);
-t_from_form({paren_type, _L, [Type]}, TypeNames, RecDict, VarDict) ->
-  t_from_form(Type, TypeNames, RecDict, VarDict);
+t_from_form({ann_type, _L, [_Var, Type]}, RecDict, VarDict) ->
+  t_from_form(Type, RecDict, VarDict);
+t_from_form({paren_type, _L, [Type]}, RecDict, VarDict) ->
+  t_from_form(Type, RecDict, VarDict);
 t_from_form({remote_type, _L, [{atom, _, Module}, {atom, _, Type}, Args]},
-	    TypeNames, RecDict, VarDict) ->
-  {L, R} = list_from_form(Args, TypeNames, RecDict, VarDict),
-  {t_remote(Module, Type, L), R};
-t_from_form({atom, _L, Atom}, _TypeNames, _RecDict, _VarDict) ->
-  {t_atom(Atom), []};
-t_from_form({integer, _L, Int}, _TypeNames, _RecDict, _VarDict) ->
-  {t_integer(Int), []};
-t_from_form({op, _L, _Op, _Arg} = Op, _TypeNames, _RecDict, _VarDict) ->
-  case erl_eval:partial_eval(Op) of
-    {integer, _, Val} ->
-      {t_integer(Val), []};
-    _ -> throw({error, io_lib:format("Unable evaluate type ~w\n", [Op])})
-  end;
-t_from_form({op, _L, _Op, _Arg1, _Arg2} = Op, _TypeNames, _RecDict, _VarDict) ->
-  case erl_eval:partial_eval(Op) of
-    {integer, _, Val} ->
-      {t_integer(Val), []};
-    _ -> throw({error, io_lib:format("Unable evaluate type ~w\n", [Op])})
-  end;
-t_from_form({type, _L, any, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_any(), []};
-t_from_form({type, _L, arity, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_arity(), []};
-t_from_form({type, _L, array, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_array(), []};
-t_from_form({type, _L, atom, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_atom(), []};
-t_from_form({type, _L, binary, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_binary(), []};
-t_from_form({type, _L, binary, [Base, Unit]} = Type,
-	    _TypeNames, _RecDict, _VarDict) ->
-  case {erl_eval:partial_eval(Base), erl_eval:partial_eval(Unit)} of
-    {{integer, _, BaseVal},
-     {integer, _, UnitVal}}
-      when BaseVal >= 0, UnitVal >= 0 ->
-      {t_bitstr(UnitVal, BaseVal), []};
-    _ -> throw({error, io_lib:format("Unable evaluate type ~w\n", [Type])})
-  end;
-t_from_form({type, _L, bitstring, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_bitstr(), []};
-t_from_form({type, _L, bool, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_boolean(), []};	% XXX: Temporarily
-t_from_form({type, _L, boolean, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_boolean(), []};
-t_from_form({type, _L, byte, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_byte(), []};
-t_from_form({type, _L, char, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_char(), []};
-t_from_form({type, _L, dict, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_dict(), []};
-t_from_form({type, _L, digraph, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_digraph(), []};
-t_from_form({type, _L, float, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_float(), []};
-t_from_form({type, _L, function, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_fun(), []};
-t_from_form({type, _L, 'fun', []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_fun(), []};
-t_from_form({type, _L, 'fun', [{type, _, any, []}, Range]}, TypeNames,
-            RecDict, VarDict) ->
-  {T, R} = t_from_form(Range, TypeNames, RecDict, VarDict),
-  {t_fun(T), R};
-t_from_form({type, _L, 'fun', [{type, _, product, Domain}, Range]},
-            TypeNames, RecDict, VarDict) ->
-  {L, R1} = list_from_form(Domain, TypeNames, RecDict, VarDict),
-  {T, R2} = t_from_form(Range, TypeNames, RecDict, VarDict),
-  {t_fun(L, T), R1 ++ R2};
-t_from_form({type, _L, gb_set, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_gb_set(), []};
-t_from_form({type, _L, gb_tree, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_gb_tree(), []};
-t_from_form({type, _L, identifier, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_identifier(), []};
-t_from_form({type, _L, integer, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_integer(), []};
-t_from_form({type, _L, iodata, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_iodata(), []};
-t_from_form({type, _L, iolist, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_iolist(), []};
-t_from_form({type, _L, list, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_list(), []};
-t_from_form({type, _L, list, [Type]}, TypeNames, RecDict, VarDict) ->
-  {T, R} = t_from_form(Type, TypeNames, RecDict, VarDict),
-  {t_list(T), R};
-t_from_form({type, _L, mfa, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_mfa(), []};
-t_from_form({type, _L, module, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_module(), []};
-t_from_form({type, _L, nil, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_nil(), []};
-t_from_form({type, _L, neg_integer, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_neg_integer(), []};
-t_from_form({type, _L, non_neg_integer, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_non_neg_integer(), []};
-t_from_form({type, _L, no_return, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_unit(), []};
-t_from_form({type, _L, node, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_node(), []};
-t_from_form({type, _L, none, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_none(), []};
-t_from_form({type, _L, nonempty_list, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_nonempty_list(), []};
-t_from_form({type, _L, nonempty_list, [Type]}, TypeNames, RecDict, VarDict) ->
-  {T, R} = t_from_form(Type, TypeNames, RecDict, VarDict),
-  {t_nonempty_list(T), R};
-t_from_form({type, _L, nonempty_improper_list, [Cont, Term]}, TypeNames,
-            RecDict, VarDict) ->
-  {T1, R1} = t_from_form(Cont, TypeNames, RecDict, VarDict),
-  {T2, R2} = t_from_form(Term, TypeNames, RecDict, VarDict),
-  {t_cons(T1, T2), R1 ++ R2};
-t_from_form({type, _L, nonempty_maybe_improper_list, []}, _TypeNames,
-            _RecDict, _VarDict) ->
-  {t_cons(?any, ?any), []};
-t_from_form({type, _L, nonempty_maybe_improper_list, [Cont, Term]}, TypeNames,
-            RecDict, VarDict) ->
-  {T1, R1} = t_from_form(Cont, TypeNames, RecDict, VarDict),
-  {T2, R2} = t_from_form(Term, TypeNames, RecDict, VarDict),
-  {t_cons(T1, T2), R1 ++ R2};
-t_from_form({type, _L, nonempty_string, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_nonempty_string(), []};
-t_from_form({type, _L, number, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_number(), []};
-t_from_form({type, _L, pid, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_pid(), []};
-t_from_form({type, _L, port, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_port(), []};
-t_from_form({type, _L, pos_integer, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_pos_integer(), []};
-t_from_form({type, _L, maybe_improper_list, []}, _TypeNames, _RecDict,
-            _VarDict) ->
-  {t_maybe_improper_list(), []};
-t_from_form({type, _L, maybe_improper_list, [Content, Termination]}, TypeNames,
-            RecDict, VarDict) ->
-  {T1, R1} = t_from_form(Content, TypeNames, RecDict, VarDict),
-  {T2, R2} = t_from_form(Termination, TypeNames, RecDict, VarDict),
-  {t_maybe_improper_list(T1, T2), R1 ++ R2};
-t_from_form({type, _L, product, Elements}, TypeNames, RecDict, VarDict) ->
-  {L, R} = list_from_form(Elements, TypeNames, RecDict, VarDict),
-  {t_product(L), R};
-t_from_form({type, _L, queue, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_queue(), []};
-t_from_form({type, _L, range, [From, To]} = Type,
-	    _TypeNames, _RecDict, _VarDict) ->
-  case {erl_eval:partial_eval(From), erl_eval:partial_eval(To)} of
-    {{integer, _, FromVal},
-     {integer, _, ToVal}} ->
-      {t_from_range(FromVal, ToVal), []};
-    _ -> throw({error, io_lib:format("Unable evaluate type ~w\n", [Type])})
-  end;
-t_from_form({type, _L, record, [Name|Fields]}, TypeNames, RecDict, VarDict) ->
-  record_from_form(Name, Fields, TypeNames, RecDict, VarDict);
-t_from_form({type, _L, reference, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_reference(), []};
-t_from_form({type, _L, set, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_set(), []};
-t_from_form({type, _L, string, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_string(), []};
-t_from_form({type, _L, term, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_any(), []};
-t_from_form({type, _L, tid, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_tid(), []};
-t_from_form({type, _L, timeout, []}, _TypeNames, _RecDict, _VarDict) ->
-  {t_timeout(), []};
-t_from_form({type, _L, tuple, any}, _TypeNames, _RecDict, _VarDict) ->
-  {t_tuple(), []};
-t_from_form({type, _L, tuple, Args}, TypeNames, RecDict, VarDict) ->
-  {L, R} = list_from_form(Args, TypeNames, RecDict, VarDict),
-  {t_tuple(L), R};
-t_from_form({type, _L, union, Args}, TypeNames, RecDict, VarDict) ->
-  {L, R} = list_from_form(Args, TypeNames, RecDict, VarDict),
-  {t_sup(L), R};
-t_from_form({type, _L, Name, Args}, TypeNames, RecDict, VarDict) ->
+	    RecDict, VarDict) ->
+  t_remote(Module, Type, [t_from_form(A, RecDict, VarDict) || A <- Args]);
+t_from_form({atom, _L, Atom}, _RecDict, _VarDict) -> t_atom(Atom);
+t_from_form({integer, _L, Int}, _RecDict, _VarDict) -> t_integer(Int);
+t_from_form({type, _L, any, []}, _RecDict, _VarDict) -> t_any();
+t_from_form({type, _L, arity, []}, _RecDict, _VarDict) -> t_arity();
+t_from_form({type, _L, array, []}, _RecDict, _VarDict) -> t_array();
+t_from_form({type, _L, atom, []}, _RecDict, _VarDict) -> t_atom();
+t_from_form({type, _L, binary, []}, _RecDict, _VarDict) -> t_binary();
+t_from_form({type, _L, binary, [{integer, _, Base}, {integer, _, Unit}]}, 
+	    _RecDict, _VarDict) -> 
+  t_bitstr(Unit, Base);
+t_from_form({type, _L, bitstring, []}, _RecDict, _VarDict) -> t_bitstr();
+t_from_form({type, _L, bool, []}, _RecDict, _VarDict) -> t_boolean();	% XXX: Temporarily
+t_from_form({type, _L, boolean, []}, _RecDict, _VarDict) -> t_boolean();
+t_from_form({type, _L, byte, []}, _RecDict, _VarDict) -> t_byte();
+t_from_form({type, _L, char, []}, _RecDict, _VarDict) -> t_char();
+t_from_form({type, _L, dict, []}, _RecDict, _VarDict) -> t_dict();
+t_from_form({type, _L, digraph, []}, _RecDict, _VarDict) -> t_digraph();
+t_from_form({type, _L, float, []}, _RecDict, _VarDict) -> t_float();
+t_from_form({type, _L, function, []}, _RecDict, _VarDict) -> t_fun();
+t_from_form({type, _L, 'fun', []}, _RecDict, _VarDict) -> t_fun();
+t_from_form({type, _L, 'fun', [{type, _, any, []}, Range]}, RecDict, VarDict) ->
+  t_fun(t_from_form(Range, RecDict, VarDict));
+t_from_form({type, _L, 'fun', [{type, _, product, Domain}, Range]}, 
+	    RecDict, VarDict) -> 
+  t_fun([t_from_form(D, RecDict, VarDict) || D <- Domain], 
+	t_from_form(Range, RecDict, VarDict));
+t_from_form({type, _L, gb_set, []}, _RecDict, _VarDict) -> t_gb_set();
+t_from_form({type, _L, gb_tree, []}, _RecDict, _VarDict) -> t_gb_tree();
+t_from_form({type, _L, identifier, []}, _RecDict, _VarDict) -> t_identifier();
+t_from_form({type, _L, integer, []}, _RecDict, _VarDict) -> t_integer();
+t_from_form({type, _L, iodata, []}, _RecDict, _VarDict) -> t_iodata();
+t_from_form({type, _L, iolist, []}, _RecDict, _VarDict) -> t_iolist();
+t_from_form({type, _L, list, []}, _RecDict, _VarDict) -> t_list();
+t_from_form({type, _L, list, [Type]}, RecDict, VarDict) -> 
+  t_list(t_from_form(Type, RecDict, VarDict));
+t_from_form({type, _L, mfa, []}, _RecDict, _VarDict) -> t_mfa();
+t_from_form({type, _L, module, []}, _RecDict, _VarDict) -> t_module();
+t_from_form({type, _L, nil, []}, _RecDict, _VarDict) -> t_nil();
+t_from_form({type, _L, neg_integer, []}, _RecDict, _VarDict) -> t_neg_integer();
+t_from_form({type, _L, non_neg_integer, []}, _RecDict, _VarDict) -> 
+  t_non_neg_integer();
+t_from_form({type, _L, no_return, []}, _RecDict, _VarDict) -> t_unit();
+t_from_form({type, _L, node, []}, _RecDict, _VarDict) -> t_node();
+t_from_form({type, _L, none, []}, _RecDict, _VarDict) -> t_none();
+t_from_form({type, _L, nonempty_list, []}, _RecDict, _VarDict) -> 
+  t_nonempty_list();
+t_from_form({type, _L, nonempty_list, [Type]}, RecDict, VarDict) -> 
+  t_nonempty_list(t_from_form(Type, RecDict, VarDict));
+t_from_form({type, _L, nonempty_improper_list, [Cont, Term]}, 
+	    RecDict, VarDict) -> 
+  t_cons(t_from_form(Cont, RecDict, VarDict), 
+	 t_from_form(Term, RecDict, VarDict));
+t_from_form({type, _L, nonempty_maybe_improper_list, []}, _RecDict, _VarDict) ->
+  t_cons(?any, ?any);
+t_from_form({type, _L, nonempty_maybe_improper_list, [Cont, Term]}, 
+	    RecDict, VarDict) -> 
+  t_cons(t_from_form(Cont, RecDict, VarDict), 
+	 t_from_form(Term, RecDict, VarDict));
+t_from_form({type, _L, nonempty_string, []}, _RecDict, _VarDict) -> 
+  t_nonempty_string();
+t_from_form({type, _L, number, []}, _RecDict, _VarDict) -> t_number();
+t_from_form({type, _L, pid, []}, _RecDict, _VarDict) -> t_pid();
+t_from_form({type, _L, port, []}, _RecDict, _VarDict) -> t_port();
+t_from_form({type, _L, pos_integer, []}, _RecDict, _VarDict) -> t_pos_integer();
+t_from_form({type, _L, maybe_improper_list, []}, _RecDict, _VarDict) -> 
+  t_maybe_improper_list();
+t_from_form({type, _L, maybe_improper_list, [Content, Termination]}, 
+	    RecDict, VarDict) ->
+  t_maybe_improper_list(t_from_form(Content, RecDict, VarDict), 
+			t_from_form(Termination, RecDict, VarDict));
+t_from_form({type, _L, product, Elements}, RecDict, VarDict) ->
+  t_product([t_from_form(E, RecDict, VarDict) || E <- Elements]);
+t_from_form({type, _L, queue, []}, _RecDict, _VarDict) -> t_queue();
+t_from_form({type, _L, range, [{integer, _, From}, {integer, _, To}]}, 
+	    _RecDict, _VarDict) -> 
+  t_from_range(From, To);
+t_from_form({type, _L, record, [Name|Fields]}, RecDict, VarDict) -> 
+  record_from_form(Name, Fields, RecDict, VarDict);
+t_from_form({type, _L, reference, []}, _RecDict, _VarDict) -> t_reference();
+t_from_form({type, _L, set, []}, _RecDict, _VarDict) -> t_set();
+t_from_form({type, _L, string, []}, _RecDict, _VarDict) -> t_string();
+t_from_form({type, _L, term, []}, _RecDict, _VarDict) -> t_any();
+t_from_form({type, _L, tid, []}, _RecDict, _VarDict) -> t_tid();
+t_from_form({type, _L, timeout, []}, _RecDict, _VarDict) -> t_timeout();
+t_from_form({type, _L, tuple, any}, _RecDict, _VarDict) -> t_tuple();
+t_from_form({type, _L, tuple, Args}, RecDict, VarDict) -> 
+  t_tuple([t_from_form(A, RecDict, VarDict) || A <- Args]);
+t_from_form({type, _L, union, Args}, RecDict, VarDict) -> 
+  t_sup([t_from_form(A, RecDict, VarDict) || A <- Args]);
+t_from_form({type, _L, Name, Args}, RecDict, VarDict) ->
   case lookup_type(Name, RecDict) of
     {type, {_Module, Type, ArgNames}} when length(Args) =:= length(ArgNames) ->
-      case unfold({type, Name}, TypeNames) of
-        true ->
-          List = lists:zipwith(
-                   fun(ArgName, ArgType) ->
-                       {Ttemp, _R} = t_from_form(ArgType, TypeNames,
-                                                     RecDict, VarDict),
-                       {ArgName, Ttemp}
-                   end,
-                   ArgNames, Args),
-          TmpVarDict = dict:from_list(List),
-          {T, R} = t_from_form(Type, [{type, Name}|TypeNames], RecDict,
-                               TmpVarDict),
-          case lists:member({type, Name}, R) of
-            true -> {t_limit(T, ?REC_TYPE_LIMIT), R};
-            false -> {T, R}
-          end;
-        false -> {t_any(), [{type, Name}]}
-      end;
+      List = lists:zipwith(fun(ArgName, ArgType) -> 
+			       {ArgName, t_from_form(ArgType, RecDict, VarDict)}
+			   end, ArgNames, Args),
+      TmpVardict = dict:from_list(List),
+      t_from_form(Type, RecDict, TmpVardict);
     {opaque, {Module, Type, ArgNames}} when length(Args) =:= length(ArgNames) ->
-      {Rep, Rret} =
-        case unfold({opaque, Name}, TypeNames) of
-          true ->
-            List = lists:zipwith(
-                     fun(ArgName, ArgType) ->
-                         {Ttemp, _R} =  t_from_form(ArgType, TypeNames,
-                                                    RecDict, VarDict),
-                         {ArgName, Ttemp}
-                     end,
-                     ArgNames, Args),
-            TmpVarDict = dict:from_list(List),
-            {T, R} = t_from_form(Type, [{opaque, Name}|TypeNames], RecDict,
-                                 TmpVarDict),
-            case lists:member({opaque, Name}, R) of
-              true -> {t_limit(T, ?REC_TYPE_LIMIT), R};
-              false -> {T, R}
-            end;
-          false -> {t_any(), [{opaque, Name}]}
-        end,
-      Tret = t_from_form({opaque, -1, Name, {Module, Args, Rep}},
-                         RecDict, VarDict),
-      {Tret, Rret};
+      List = lists:zipwith(fun(ArgName, ArgType) -> 
+			       {ArgName, t_from_form(ArgType, RecDict, VarDict)}
+			   end, ArgNames, Args),
+      TmpVardict = dict:from_list(List),
+      Rep = t_from_form(Type, RecDict, TmpVardict),
+      t_from_form({opaque, -1, Name, {Module, Args, Rep}}, RecDict, VarDict);
     {type, _} ->
       throw({error, io_lib:format("Unknown type ~w\n", [Name])});
     {opaque, _} ->
@@ -3631,70 +3361,48 @@ t_from_form({type, _L, Name, Args}, TypeNames, RecDict, VarDict) ->
     error ->
       throw({error, io_lib:format("Unable to find type ~w\n", [Name])}) 
   end;
-t_from_form({opaque, _L, Name, {Mod, Args, Rep}}, _TypeNames, _RecDict,
-            _VarDict) ->
+t_from_form({opaque, _L, Name, {Mod, Args, Rep}}, _RecDict, _VarDict) -> 
   case Args of
-    [] -> {t_opaque(Mod, Name, Args, Rep), []};
+    [] -> t_opaque(Mod, Name, Args, Rep);
     _ -> throw({error, "Polymorphic opaque types not supported yet"})
   end.
 
-record_from_form({atom, _, Name}, ModFields, TypeNames, RecDict, VarDict) ->
-  case unfold({record, Name}, TypeNames) of
-    true ->
-      case lookup_record(Name, RecDict) of
-        {ok, DeclFields} ->
-          TypeNames1 = [{record, Name}|TypeNames],
-          AreTyped = [is_erl_type(FieldType)
-                      || {_FieldName, FieldType} <- DeclFields],
-          {DeclFields1, R1} =
-            case lists:all(fun(Elem) -> Elem end, AreTyped) of
-              true -> {DeclFields, []};
-              false -> fields_from_form(DeclFields, TypeNames1,
-                                        RecDict, dict:new())
-            end,
-          {GetModRec, R2} = get_mod_record(ModFields, DeclFields1,
-                                           TypeNames1, RecDict, VarDict),
-          case GetModRec of
-            {error, FieldName} ->
-              throw({error, io_lib:format("Illegal declaration of ~w#{~w}\n",
-                                          [Name, FieldName])});
-            {ok, NewFields} ->
-              {t_tuple(
-                 [t_atom(Name)|[Type || {_FieldName, Type} <- NewFields]]),
-               R1 ++ R2}
-          end;
-        error ->
-          throw({error, erlang:error(io_lib:format("Unknown record #~w{}\n",
-                                                   [Name]))})
+record_from_form({atom, _, Name}, ModFields, RecDict, VarDict) ->
+  case lookup_record(Name, RecDict) of
+    {ok, DeclFields} ->
+      case get_mod_record(ModFields, DeclFields, RecDict, VarDict) of
+	{error, FieldName} ->
+	  throw({error, io_lib:format("Illegal declaration of ~w#{~w}\n", 
+				      [Name, FieldName])});
+	{ok, NewFields} ->
+	  t_tuple([t_atom(Name)|[Type || {_FieldName, Type} <- NewFields]])
       end;
-    false -> {t_any(), []}
+    error ->
+      throw({error, 
+	     erlang:error(io_lib:format("Unknown record #~w{}\n", [Name]))})
   end.
 
-get_mod_record([], DeclFields, _TypeNames, _RecDict, _VarDict) ->
-  {{ok, DeclFields}, []};
-get_mod_record(ModFields, DeclFields, TypeNames, RecDict, VarDict) ->
+get_mod_record([], DeclFields, _RecDict, _VarDict) ->
+  {ok, DeclFields};
+get_mod_record(ModFields, DeclFields, RecDict, VarDict) ->
   DeclFieldsDict = orddict:from_list(DeclFields),
-  {ModFieldsDict, R} = build_field_dict(ModFields, TypeNames,
-                                        RecDict, VarDict),
+  ModFieldsDict = build_field_dict(ModFields, RecDict, VarDict),
   case get_mod_record(DeclFieldsDict, ModFieldsDict, []) of
-    {error, _FieldName} = Error -> {Error, R};
+    {error, _FieldName} = Error -> Error;
     {ok, FinalOrdDict} ->
-      {{ok, [{FieldName, orddict:fetch(FieldName, FinalOrdDict)}
-             || {FieldName, _} <- DeclFields]},
-       R}
+      {ok, [{FieldName, orddict:fetch(FieldName, FinalOrdDict)}
+	    || {FieldName, _} <- DeclFields]}
   end.
 
-build_field_dict(FieldTypes, TypeNames, RecDict, VarDict) ->
-  build_field_dict(FieldTypes, TypeNames, RecDict, VarDict, []).
+build_field_dict(FieldTypes, RecDict, VarDict) ->
+  build_field_dict(FieldTypes, RecDict, VarDict, []).
 
 build_field_dict([{type, _, field_type, [{atom, _, Name}, Type]}|Left], 
-		 TypeNames, RecDict, VarDict, Acc) ->
-  {T, R1} = t_from_form(Type, TypeNames, RecDict, VarDict),
-  NewAcc = [{Name, T}|Acc],
-  {D, R2} = build_field_dict(Left, TypeNames, RecDict, VarDict, NewAcc),
-  {D, R1 ++ R2};
-build_field_dict([], _TypeNames, _RecDict, _VarDict, Acc) ->
-  {orddict:from_list(Acc), []}.
+		 RecDict, VarDict, Acc) ->
+  NewAcc = [{Name, t_from_form(Type, RecDict, VarDict)}|Acc],
+  build_field_dict(Left, RecDict, VarDict, NewAcc);
+build_field_dict([], _RecDict, _VarDict, Acc) ->
+  orddict:from_list(Acc).
 
 get_mod_record([{FieldName, DeclType}|Left1], 
 	       [{FieldName, ModType}|Left2], Acc) ->
@@ -3711,20 +3419,6 @@ get_mod_record(DeclFields, [], Acc) ->
 get_mod_record(_, [{FieldName2, _ModType}|_], _Acc) ->
   {error, FieldName2}.
 
-fields_from_form([], _TypeNames, _RecDict, _VarDict) ->
-  {[], []};
-fields_from_form([{Name, Type}|Tail], TypeNames, RecDict, VarDict) ->
-  {T, R1} = t_from_form(Type, TypeNames, RecDict, VarDict),
-  {F, R2} = fields_from_form(Tail, TypeNames, RecDict, VarDict),
-  {[{Name, T}|F], R1 ++ R2}.
-
-list_from_form([], _TypeNames, _RecDict, _VarDict) ->
-  {[], []};
-list_from_form([H|Tail], TypeNames, RecDict, VarDict) ->
-  {T, R1} = t_from_form(H, TypeNames, RecDict, VarDict),
-  {L, R2} = list_from_form(Tail, TypeNames, RecDict, VarDict),
-  {[T|L], R1 ++ R2}.
-
 -spec t_form_to_string(parse_form()) -> string().
 
 t_form_to_string({var, _L, '_'}) -> "_";
@@ -3732,16 +3426,6 @@ t_form_to_string({var, _L, Name}) -> atom_to_list(Name);
 t_form_to_string({atom, _L, Atom}) -> 
   io_lib:write_string(atom_to_list(Atom), $'); % To quote or not to quote... '
 t_form_to_string({integer, _L, Int}) -> integer_to_list(Int);
-t_form_to_string({op, _L, _Op, _Arg} = Op) ->
-  case erl_eval:partial_eval(Op) of
-    {integer, _, _} = Int -> t_form_to_string(Int);
-    _ -> io_lib:format("Bad formed type ~w",[Op])
-  end;
-t_form_to_string({op, _L, _Op, _Arg1, _Arg2} = Op) ->
-  case erl_eval:partial_eval(Op) of
-    {integer, _, _} = Int -> t_form_to_string(Int);
-    _ -> io_lib:format("Bad formed type ~w",[Op])
-  end;
 t_form_to_string({ann_type, _L, [Var, Type]}) ->
   t_form_to_string(Var) ++ "::" ++ t_form_to_string(Type);
 t_form_to_string({paren_type, _L, [Type]}) ->
@@ -3768,12 +3452,8 @@ t_form_to_string({type, _L, nonempty_list, [Type]}) ->
 t_form_to_string({type, _L, nonempty_string, []}) -> "nonempty_string()";
 t_form_to_string({type, _L, product, Elements}) ->
   "<" ++ sequence(t_form_to_string_list(Elements), ",") ++ ">";
-t_form_to_string({type, _L, range, [From, To]} = Type) ->
-  case {erl_eval:partial_eval(From), erl_eval:partial_eval(To)} of
-    {{integer, _, FromVal}, {integer, _, ToVal}} ->
-      io_lib:format("~w..~w", [FromVal, ToVal]);
-    _ -> io_lib:format("Bad formed type ~w",[Type])
-  end;
+t_form_to_string({type, _L, range, [{integer, _, From}, {integer, _, To}]}) ->
+  io_lib:format("~w..~w", [From, To]);
 t_form_to_string({type, _L, record, [{atom, _, Name}]}) ->
   io_lib:format("#~w{}", [Name]);
 t_form_to_string({type, _L, record, [{atom, _, Name}|Fields]}) ->
@@ -3792,17 +3472,13 @@ t_form_to_string({type, _L, Name, []} = T) ->
   try t_to_string(t_from_form(T))
   catch throw:{error, _} -> atom_to_list(Name) ++ "()"
   end;
-t_form_to_string({type, _L, binary, [X,Y]} = Type) ->
-  case {erl_eval:partial_eval(X), erl_eval:partial_eval(Y)} of
-    {{integer, _, XVal}, {integer, _, YVal}} ->
-      case YVal of
-	0 ->
-	  case XVal of
-	    0 -> "<<>>";
-	    _ -> io_lib:format("<<_:~w>>", [XVal])
-	  end
-      end;
-    _ -> io_lib:format("Bad formed type ~w",[Type])
+t_form_to_string({type, _L, binary, [{integer, _, X}, {integer, _, Y}]}) ->
+  case Y of
+    0 ->
+      case X of
+	0 -> "<<>>";
+	_ -> io_lib:format("<<_:~w>>", [X])
+      end
   end;
 t_form_to_string({type, _L, Name, List}) -> 
   io_lib:format("~w(~s)", [Name, sequence(t_form_to_string_list(List), ",")]).
@@ -3834,21 +3510,11 @@ any_none_or_unit([?unit|_]) -> true;
 any_none_or_unit([_|Left]) -> any_none_or_unit(Left);
 any_none_or_unit([]) -> false.
 
--spec is_erl_type(any()) -> boolean().
-
-is_erl_type(?any) -> true;
-is_erl_type(?none) -> true;
-is_erl_type(?unit) -> true;
-is_erl_type(#c{}) -> true;
-is_erl_type(_) -> false.
-
--spec lookup_record(atom(), dict()) ->
-        'error' | {'ok', [{atom(), parse_form() | erl_type()}]}.
+-spec lookup_record(atom(), dict()) -> 'error' | {'ok', [{atom(), erl_type()}]}.
 
 lookup_record(Tag, RecDict) when is_atom(Tag) ->
   case dict:find({record, Tag}, RecDict) of
-    {ok, [{_Arity, Fields}]} ->
-      {ok, Fields};
+    {ok, [{_Arity, Fields}]} -> {ok, Fields};
     {ok, List} when is_list(List) ->
       %% This will have to do, since we do not know which record we
       %% are looking for.
@@ -3880,9 +3546,6 @@ lookup_type(Name, RecDict) ->
 
 type_is_defined(TypeOrOpaque, Name, RecDict) ->
   dict:is_key({TypeOrOpaque, Name}, RecDict).
-
-unfold(TypeName, TypeNames) ->
-  not lists:member(TypeName, TypeNames).
 
 %% -----------------------------------
 %% Set

@@ -4,7 +4,7 @@
 <erlref>
   <header>
     <copyright>
-      <year>2000</year><year>2010</year>
+      <year>2000</year><year>2009</year>
       <holder>Ericsson AB. All Rights Reserved.</holder>
     </copyright>
     <legalnotice>
@@ -13,12 +13,12 @@
       compliance with the License. You should have received a copy of the
       Erlang Public License along with this software. If not, it can be
       retrieved online at http://www.erlang.org/.
-
+    
       Software distributed under the License is distributed on an "AS IS"
       basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
       the License for the specific language governing rights and limitations
       under the License.
-
+    
     </legalnotice>
 
     <title>megaco</title>
@@ -40,16 +40,6 @@
   <section>
     <title>DATA TYPES</title>
     <code type="none"><![CDATA[
-megaco_mid() = ip4Address() | ip6Address() | 
-               domainName() | deviceName() | 
-               mtpAddress() 
-ip4Address() = #'IP4Address'{}
-ip6Address() = #'IP6Address'{}
-domainName() = #'DomainName'{}
-deviceName() = pathName() 
-pathName()   = ia5String(1..64)
-mtpAddress() = octetString(2..4)
-
 action_request() = #'ActionRequest'{}
 action_reply() = #'ActionReply'{}
 error_desc() = #'ErrorDescriptor'{}
@@ -662,7 +652,7 @@ megaco_incr_timer() = #megaco_incr_timer{}
             <taglist>
               <tag><c><![CDATA[none]]></c></tag>
               <item>
-                <p>Do not segment outgoing reply messages. This is useful when
+                <p>Do not segment outgoing reply messages. This is usefull when
                   either it is known that messages are never to large or
                   that the transport protocol can handle such things
                   on its own (e.g. TCP or SCTP).</p>
@@ -1182,7 +1172,7 @@ megaco_incr_timer() = #megaco_incr_timer{}
             <taglist>
               <tag><c><![CDATA[none]]></c></tag>
               <item>
-                <p>Do not segment outgoing reply messages. This is useful when
+                <p>Do not segment outgoing reply messages. This is usefull when
                   either it is known that messages are never to large or
                   that the transport protocol can handle such things
                   on its own (e.g. TCP or SCTP).</p>

@@ -1,19 +1,19 @@
 # 
 # %CopyrightBegin%
-#
-# Copyright Ericsson AB 1999-2010. All Rights Reserved.
-#
+# 
+# Copyright Ericsson AB 1999-2009. All Rights Reserved.
+# 
 # The contents of this file are subject to the Erlang Public License,
 # Version 1.1, (the "License"); you may not use this file except in
 # compliance with the License. You should have received a copy of the
 # Erlang Public License along with this software. If not, it can be
 # retrieved online at http://www.erlang.org/.
-#
+# 
 # Software distributed under the License is distributed on an "AS IS"
 # basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 # the License for the specific language governing rights and limitations
 # under the License.
-#
+# 
 # %CopyrightEnd%
 
 include $(ERL_TOP)/make/target.mk
@@ -52,15 +52,13 @@ endif
 
 include modules.mk
 
-EBIN = .
-
 HRL_FILES = megaco_test_lib.hrl
 
 ERL_FILES = $(MODULES:%=%.erl)
 
-SOURCE = $(HRL_FILES) $(ERL_FILES) 
-
 TARGET_FILES = $(MODULES:%=%.$(EMULATOR))
+
+COVER_SPEC_FILE = megaco.cover
 
 APP_CASES   = app appup
 
@@ -71,18 +69,6 @@ MISC_CASES  = tid sdp dm conf udp tcp ex timer flex
 OP_CASES    = mess mib mreq pending trans actions load
 
 ALL_CASES   = $(APP_CASES) $(CODEC_CASES) $(MISC_CASES) $(OP_CASES)
-
-
-EMAKEFILE  = Emakefile
-MAKE_EMAKE = $(wildcard $(ERL_TOP)/make/make_emakefile)
-
-ifeq ($(MAKE_EMAKE),)
-BUILDTARGET   = $(TARGET_FILES)
-RELTEST_FILES = $(TEST_SPEC_FILE) $(COVER_SPEC_FILE) $(SOURCE)
-else
-BUILDTARGET   = emakebuild
-RELTEST_FILES = $(EMAKEFILE) $(TEST_SPEC_FILE) $(COVER_SPEC_FILE) $(SOURCE)
-endif
 
 
 # ----------------------------------------------------
@@ -142,152 +128,18 @@ endif
 # Targets
 # ----------------------------------------------------
 
-tests debug opt: $(BUILDTARGET)
-
-targets: $(TARGET_FILES)
-
-.PHONY: emakebuild
-
-emakebuild: $(EMAKEFILE)
-
-$(EMAKEFILE): 
-	$(MAKE_EMAKE) $(ERL_COMPILE_FLAGS) -o$(EBIN) '*_SUITE_make' | grep -v Warning > $(EMAKEFILE)
-	$(MAKE_EMAKE) $(ERL_COMPILE_FLAGS) -o$(EBIN) $(MODULES) | grep -v Warning >> $(EMAKEFILE)
+tests debug opt: $(TARGET_FILES)
 
 clean:
-	rm -f $(EMAKEFILE)
 	rm -f $(TARGET_FILES) 
 	rm -f errs core *~
 
 docs:
 
 info:
-	@echo "MAKE_EMAKE        = $(MAKE_EMAKE)"
-	@echo "EMAKEFILE         = $(EMAKEFILE)"
-	@echo "BUILDTARGET       = $(BUILDTARGET)"
-	@echo ""
 	@echo "ERL_COMPILE_FLAGS = $(ERL_COMPILE_FLAGS)"
 	@echo "ERL  = $(ERL)"
 	@echo "MERL = $(MERL)"
-	@echo ""
-	@echo "ARGS = $(ARGS)"
-	@echo ""
-	@echo "HRL_FILES    = $(HRL_FILES)"
-	@echo "ERL_FILES    = $(ERL_FILES)"
-	@echo "TARGET_FILES = $(TARGET_FILES)"
-	@echo ""
-
-help:
-	@echo ""
-	@echo "This Makefile controls the test of the $(APPLICATION) application. "
-	@echo ""
-	@echo "There are two separate ways to perform the test of $(APPLICATION)."
-	@echo ""
-	@echo "  a) Run the official OTP test-server (which we do not describe here)"
-	@echo ""
-	@echo "  b) Run the test-server provided with this application. "
-	@echo "     There are a number of targets to run the entire or parts"
-	@echo "     of this applications ($(APPLICATION)) test-suite"
-	@echo ""
-	@echo "Targets:"
-	@echo ""
-	@echo "    help"
-	@echo "      Print this info"
-	@echo ""
-	@echo "    info"
-	@echo "      Prints various environment variables. "
-	@echo "      May be useful when debugging the Makefile. "
-	@echo ""
-	@echo "    tests | debug | opt "
-	@echo "      Compile all test-code. "
-	@echo ""
-	@echo "    clean "
-	@echo "      Remove all targets. "
-	@echo ""
-	@echo "    test"
-	@echo "      Run the entire $(APPLICATION) test-suite. "
-	@echo ""
-	@echo "    app"
-	@echo "      Run the $(APPLICATION) application sub-test-suite. "
-	@echo ""
-	@echo "    appup"
-	@echo "      Run the $(APPLICATION) application upgrade (appup) sub-test-suite. "
-	@echo ""
-	@echo "    conf"
-	@echo "      Run the $(APPLICATION) config sub-test-suite. "
-	@echo "      Checks various aspects of the megaco configuration. "
-	@echo ""
-	@echo "    codec"
-	@echo "      Run the $(APPLICATION) codec sub-test-suite(s). "
-	@echo ""
-	@echo "    flex"
-	@echo "      Run the $(APPLICATION) flex-scanner sub-test-suite. "
-	@echo "      This sub-test-suite does not test the function of the scanner itself"
-	@echo "      (that is done by the codec sub-test-suite(s)), instead, this"
-	@echo "      sub-test-suite tests the *handling* of the flex-scanner linked-in driver."
-	@echo ""
-	@echo "    dm"
-	@echo "      Run the $(APPLICATION) digit-map sub-test-suite. "
-	@echo ""
-	@echo "    tid"
-	@echo "      Run the $(APPLICATION) binary term-id sub-test-suite. "
-	@echo ""
-	@echo "    sdp"
-	@echo "      Run the $(APPLICATION) SDP sub-test-suite. "
-	@echo ""
-	@echo "    action"
-	@echo "      Run the $(APPLICATION) actions sub-test-suite. "
-	@echo "      Actions are building blocks of a $(APPLICATION) message. "
-	@echo "      This sub-test-suite attempts to perform tests related to this, "
-	@echo "      using all the supported codecs. "
-	@echo ""
-	@echo "    mess"
-	@echo "      Run the $(APPLICATION) message sub-test-suite"
-	@echo "      This is basic message processing test-cases"
-	@echo ""
-	@echo "    trans"
-	@echo "      Run the $(APPLICATION) transaction sender sub-test-suite"
-	@echo "      This is basic message processing for a megaco application "
-	@echo "      configured to be using the transaction sender. "
-	@echo ""
-	@echo "    mib"
-	@echo "      Run the $(APPLICATION) $(APPLICATION)-mib sub-test-suite"
-	@echo "      Tests related to the basic support for the $(APPLICATION) mib"
-	@echo "      primarily counters"
-	@echo ""
-	@echo "    mreq"
-	@echo "      Run the $(APPLICATION) mreq sub-test-suite"
-	@echo "      This is yet another sub-test-suite with message processing "
-	@echo "      test-cases. "
-	@echo ""
-	@echo "    pending"
-	@echo "      Run the $(APPLICATION) pending-limit sub-test-suite"
-	@echo ""
-	@echo "    udp"
-	@echo "      Run the $(APPLICATION) UDP transport component sub-test-suite"
-	@echo ""
-	@echo "    tcp"
-	@echo "      Run the $(APPLICATION) TCP transport component sub-test-suite"
-	@echo ""
-	@echo "    load"
-	@echo "      Run the $(APPLICATION) load sub-test-suite"
-	@echo "      This sub-test-suite performs load test test-cases using "
-	@echo "      \"high\" message traffic. "
-	@echo ""
-	@echo "    segment"
-	@echo "      Run the $(APPLICATION) message segmentation sub-test-suite"
-	@echo "      If using the UDP transport protocol, it is possible to send "
-	@echo "      and receive segmented megaco replies (in version 3 of the protocol) "
-	@echo "      This sub-test-suite tests this feature. "
-	@echo ""
-	@echo "    timer"
-	@echo "      Run the $(APPLICATION) timer sub-test-suite"
-	@echo "      Basic test-suite for the megaco-timers"
-	@echo ""
-	@echo "    ex"
-	@echo "      Run the $(APPLICATION) example sub-test-suite"
-	@echo "      The $(APPLICATION) application contains one example,"
-	@echo "      this is a sub-test-suite based on the code,"
 	@echo ""
 
 
@@ -342,6 +194,8 @@ all: make
         done
 
 make: targets
+
+targets: $(TARGET_FILES)
 
 test: make
 	$(MERL) $(ARGS) -sname megaco_test $(ERL_PATH) \
@@ -749,10 +603,9 @@ release_docs_spec:
 
 release_tests_spec: tests
 	$(INSTALL_DIR)  $(RELSYSDIR)
-	$(INSTALL_DATA) $(RELTEST_FILES) $(RELSYSDIR)
-#	$(INSTALL_DATA) $(TEST_SPEC_FILE) $(COVER_SPEC_FILE) \
-#                        $(HRL_FILES) $(ERL_FILES) \
-#                        $(RELSYSDIR)
-#
+	$(INSTALL_DATA) $(TEST_SPEC_FILE) $(COVER_SPEC_FILE) \
+                        $(HRL_FILES) $(ERL_FILES) \
+                        $(RELSYSDIR)
+	$(INSTALL_DATA) $(TARGET_FILES) $(RELSYSDIR)
 	chmod -f -R u+w $(RELSYSDIR)
 

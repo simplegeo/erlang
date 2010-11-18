@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 
@@ -74,8 +74,6 @@
 -export([collect_chars/3, collect_chars/4,
 	 collect_line/2, collect_line/3, collect_line/4,
 	 get_until/3, get_until/4]).
-
--export_type([chars/0]).
 
 %%----------------------------------------------------------------------
 
@@ -141,9 +139,9 @@ format_prompt({format,Format,Args}) ->
     format_prompt(Format,Args);
 format_prompt(Prompt)
   when is_list(Prompt); is_atom(Prompt); is_binary(Prompt) ->
-    format_prompt("~ts", [Prompt]);
+    format_prompt("~s", [Prompt]);
 format_prompt(Prompt) ->
-    format_prompt("~tp", [Prompt]).
+    format_prompt("~p", [Prompt]).
 
 format_prompt(Format, Args) ->
     case catch io_lib:format(Format, Args) of

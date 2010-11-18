@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1999-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1999-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 %% Purpose : Transform Core Erlang to Kernel Erlang
@@ -80,8 +80,7 @@
 
 -export([module/2,format_error/1]).
 
--import(lists, [map/2,foldl/3,foldr/3,mapfoldl/3,splitwith/2,member/2,
-		keymember/3,keyfind/3]).
+-import(lists, [map/2,foldl/3,foldr/3,mapfoldl/3,splitwith/2,member/2,keymember/3]).
 -import(ordsets, [add_element/2,del_element/2,union/2,union/1,subtract/2]).
 
 -compile({nowarn_deprecated_function, {erlang,hash,2}}).
@@ -127,27 +126,18 @@ copy_anno(Kdst, Ksrc) ->
 -spec module(cerl:c_module(), [compile:option()]) ->
 	{'ok', #k_mdef{}, [warning()]}.
 
-module(#c_module{anno=A,name=M,exports=Es,attrs=As,defs=Fs}, _Options) ->
-    Kas = attributes(As),
-    Kes = map(fun (#c_var{name={_,_}=Fname}) -> Fname end, Es),
-    St0 = #kern{lit=dict:new()},
+module(#c_module{anno=A,name=M,exports=Es,attrs=As,defs=Fs}, Options) ->
+    Lit = case member(no_constant_pool, Options) of
+	      true -> no;
+	      false -> dict:new()
+	  end,
+    St0 = #kern{lit=Lit},
     {Kfs,St} = mapfoldl(fun function/2, St0, Fs),
+    Kes = map(fun (#c_var{name={_,_}=Fname}) -> Fname end, Es),
+    Kas = map(fun ({#c_literal{val=N},V}) ->
+		      {N,core_lib:literal_value(V)} end, As),
     {ok,#k_mdef{anno=A,name=M#c_literal.val,exports=Kes,attributes=Kas,
 		body=Kfs ++ St#kern.funs},lists:sort(St#kern.ws)}.
-
-attributes([{#c_literal{val=Name},Val}|As]) ->
-    case include_attribute(Name) of
-	false ->
-	    attributes(As);
-	true ->
-	    [{Name,core_lib:literal_value(Val)}|attributes(As)]
-    end;
-attributes([]) -> [].
-
-include_attribute(type) -> false;
-include_attribute(spec) -> false;
-include_attribute(opaque) -> false;
-include_attribute(_) -> true.
 
 function({#c_var{name={F,Arity}=FA},Body}, St0) ->
     try
@@ -250,6 +240,11 @@ expr(#c_var{anno=A,name={_Name,Arity}}=Fname, Sub, St) ->
     expr(Fun, Sub, St);
 expr(#c_var{anno=A,name=V}, Sub, St) ->
     {#k_var{anno=A,name=get_vsub(V, Sub)},[],St};
+expr(#c_literal{anno=A,val=Lit}, Sub, #kern{lit=no}=St) ->
+    %% No constant pools for compatibility with a previous version.
+    %% Fully expand the literal.
+    Core = expand_literal(Lit, A),
+    expr(Core, Sub, St);
 expr(#c_literal{}=Lit, Sub, St) ->
     Core = handle_literal(Lit),
     expr(Core, Sub, St);
@@ -269,6 +264,9 @@ expr(#k_int{}=V, _Sub, St) ->
 expr(#k_float{}=V, _Sub, St) ->
     {V,[],St};
 expr(#k_atom{}=V, _Sub, St) ->
+    {V,[],St};
+expr(#k_string{}=V, _Sub, St) ->
+    %% Only for compatibility with a previous version.
     {V,[],St};
 expr(#c_cons{anno=A,hd=Ch,tl=Ct}, Sub, St0) ->
     %% Do cons in two steps, first the expressions left to right, then
@@ -422,7 +420,7 @@ expr(#c_call{anno=A,module=M0,name=F0,args=Cargs}, Sub, St0) ->
 	    {Call,Ap,St}
     end;
 expr(#c_primop{anno=A,name=#c_literal{val=match_fail},args=Cargs0}, Sub, St0) ->
-    Cargs = translate_match_fail(Cargs0, Sub, A, St0),
+    Cargs = translate_match_fail(Cargs0, Sub, St0),
     %% This special case will disappear.
     {Kargs,Ap,St} = atomic_list(Cargs, Sub, St0),
     Ar = length(Cargs),
@@ -449,53 +447,32 @@ expr(#c_catch{anno=A,body=Cb}, Sub, St0) ->
 %% Handle internal expressions.
 expr(#ireceive_accept{anno=A}, _Sub, St) -> {#k_receive_accept{anno=A},[],St}.
 
-%% Translate a function_clause exception to a case_clause exception if
-%% it has been moved into another function. (A function_clause exception
-%% will not work correctly if it is moved into another function, or
-%% even if it is invoked not from the top level in the correct function.)
-translate_match_fail(Args, Sub, Anno, St) ->
-    case Args of
-	[#c_tuple{es=[#c_literal{val=function_clause}|As]}] ->
-	    translate_match_fail_1(Anno, Args, As, Sub, St);
-	[#c_literal{val=Tuple}] when is_tuple(Tuple) ->
-	    %% The inliner may have created a literal out of
-	    %% the original #c_tuple{}.
-	    case tuple_to_list(Tuple) of
-		[function_clause|As0] ->
-		    As = [#c_literal{val=E} || E <- As0],
-		    translate_match_fail_1(Anno, Args, As, Sub, St);
-		_ ->
-		    Args
-	    end;
-	_ ->
-	    %% Not a function_clause exception.
-	    Args
-    end.
-
-translate_match_fail_1(Anno, Args, As, Sub, #kern{ff=FF}) ->
-    AnnoFunc = case keyfind(function_name, 1, Anno) of
-		   false ->
-		       none;			%Force rewrite.
-		   {function_name,{Name,Arity}} ->
-		       {get_fsub(Name, Arity, Sub),Arity}
-	       end,
-    case {AnnoFunc,FF} of
-	{Same,Same} ->
+%% Translate a function_clause to case_clause if it has been moved into
+%% another function.
+translate_match_fail([#c_tuple{es=[#c_literal{anno=A0,
+					      val=function_clause}|As]}]=Args,
+		     Sub,
+		     #kern{ff=FF}) ->
+    A = case A0 of
+	    [{name,{Func0,Arity0}}] ->
+		[{name,{get_fsub(Func0, Arity0, Sub),Arity0}}];
+	    _ ->
+		A0
+	end,
+    case {A,FF} of
+	{[{name,Same}],Same} ->
 	    %% Still in the correct function.
 	    Args;
-	{{F,_},F} ->
+	{[{name,{F,_}}],F} ->
 	    %% Still in the correct function.
 	    Args;
 	_ ->
-	    %% Wrong function or no function_name annotation.
-	    %%
-	    %% The inliner has copied the match_fail(function_clause)
-	    %% primop from another function (or from another instance of
-	    %% the current function). match_fail(function_clause) will
-	    %% only work at the top level of the function it was originally
-	    %% defined in, so we will need to rewrite it to a case_clause.
+	    %% Inlining has probably moved the function_clause into another
+	    %% function (where it will not work correctly).
+	    %% Rewrite to a case_clause.
 	    [#c_tuple{es=[#c_literal{val=case_clause},#c_tuple{es=As}]}]
-    end.
+    end;
+translate_match_fail(Args, _, _) -> Args.
 
 %% call_type(Module, Function, Arity) -> call | bif | apply | error.
 %%  Classify the call.
@@ -1003,6 +980,11 @@ match_var([U|Us], Cs0, Def, St) ->
 %%  according to type, the order is really irrelevant but tries to be
 %%  smart.
 
+match_con(Us, Cs0, Def, #kern{lit=no}=St) ->
+    %% No constant pool (for compatibility with R11B).
+    %% We must expand literals.
+    Cs = [expand_pat_lit_clause(C, true) || C <- Cs0],
+    match_con_1(Us, Cs, Def, St);
 match_con(Us, [C], Def, St) ->
     %% There is only one clause. We can keep literal tuples and
     %% lists, but we must convert []/integer/float/atom literals
@@ -1801,6 +1783,7 @@ lit_vars(#k_int{}) -> [];
 lit_vars(#k_float{}) -> [];
 lit_vars(#k_atom{}) -> [];
 %%lit_vars(#k_char{}) -> [];
+lit_vars(#k_string{}) -> [];
 lit_vars(#k_nil{}) -> [];
 lit_vars(#k_cons{hd=H,tl=T}) ->
     union(lit_vars(H), lit_vars(T));
@@ -1862,19 +1845,47 @@ handle_literal(#c_literal{anno=A,val=V}) ->
     case V of
 	[_|_] ->
 	    #k_literal{anno=A,val=V};
-	[] ->
-	    #k_nil{anno=A};
 	V when is_tuple(V) ->
 	    #k_literal{anno=A,val=V};
 	V when is_bitstring(V) ->
 	    #k_literal{anno=A,val=V};
-	V when is_integer(V) ->
-	    #k_int{anno=A,val=V};
-	V when is_float(V) ->
-	    #k_float{anno=A,val=V};
-	V when is_atom(V) ->
-	    #k_atom{anno=A,val=V}
+	_ ->
+	    expand_literal(V, A)
     end.
+
+%% expand_literal(Literal, Anno) -> CoreTerm | KernelTerm
+%%  Fully expand the literal. Atomic terms such as integers are directly
+%%  translated to the Kernel Erlang format, while complex terms are kept
+%%  in the Core Erlang format (but the content is recursively processed).
+
+expand_literal([H|T]=V, A) when is_integer(H), 0 =< H, H =< 255 ->
+    case is_print_char_list(T) of
+	false ->
+	    #c_cons{anno=A,hd=#k_int{anno=A,val=H},tl=expand_literal(T, A)};
+	true ->
+	    #k_string{anno=A,val=V}
+    end;
+expand_literal([H|T], A) ->
+    #c_cons{anno=A,hd=expand_literal(H, A),tl=expand_literal(T, A)};
+expand_literal([], A) ->
+    #k_nil{anno=A};
+expand_literal(V, A) when is_tuple(V) ->
+    #c_tuple{anno=A,es=expand_literal_list(tuple_to_list(V), A)};
+expand_literal(V, A) when is_integer(V) ->
+    #k_int{anno=A,val=V};
+expand_literal(V, A) when is_float(V) ->
+    #k_float{anno=A,val=V};
+expand_literal(V, A) when is_atom(V) ->
+    #k_atom{anno=A,val=V}.
+
+expand_literal_list([H|T], A) ->
+    [expand_literal(H, A)|expand_literal_list(T, A)];
+expand_literal_list([], _) -> [].
+
+is_print_char_list([H|T]) when is_integer(H), 0 =< H, H =< 255 ->
+    is_print_char_list(T);
+is_print_char_list([]) -> true;
+is_print_char_list(_) -> false.
 
 make_list(Es) ->
     foldr(fun(E, Acc) ->

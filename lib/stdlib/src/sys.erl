@@ -245,17 +245,8 @@ do_cmd(SysState, Other, _Parent, _Mod, Debug, Misc) ->
     {SysState, {error, {unknown_system_msg, Other}}, Debug, Misc}.
 
 get_status(SysState, Parent, Mod, Debug, Misc) ->
-    PDict = get(),
-    FmtMisc =
-        case erlang:function_exported(Mod, format_status, 2) of
-            true ->
-                FmtArgs = [PDict, SysState, Parent, Debug, Misc],
-                Mod:format_status(normal, FmtArgs);
-            _ ->
-                Misc
-        end,
     {status, self(), {module, Mod},
-     [PDict, SysState, Parent, Debug, FmtMisc]}.
+     [get(), SysState, Parent, Debug, Misc]}.
 
 %%-----------------------------------------------------------------
 %% These are the system debug commands.

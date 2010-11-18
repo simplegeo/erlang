@@ -123,10 +123,11 @@ man: $(MAN3_FILES)
 gifs: $(GIF_FILES:%=$(HTMLDIR)/%)
 
 $(XML_REF3_FILES): 
-	escript $(DOCGEN)/priv/bin/xml_from_edoc.escript -def vsn $(EUNIT_VSN) -i $(EUNIT_INC_DIR) $(EUNIT_DIR)/$(@:%.xml=%.erl) 
+	docb_gen -def vsn $(EUNIT_VSN) -includes $(EUNIT_INC_DIR) $(EUNIT_DIR)/$(@:%.xml=%.erl)
 
 $(XML_CHAPTER_FILES):
-	escript $(DOCGEN)/priv/bin/xml_from_edoc.escript -def vsn $(EUNIT_VSN) -chapter ../overview.edoc
+	docb_gen -chapter -def vsn $(EUNIT_VSN) ../overview.edoc
+
 
 info:
 	@echo "XML_PART_FILES: $(XML_PART_FILES)"

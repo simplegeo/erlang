@@ -37,12 +37,8 @@ MAN_FILES= \
 	tags.3
 
 EMACS_FILES= \
-	erlang-skels \
-	erlang-skels-old \
-	erlang_appwiz \
 	erlang-start \
 	erlang-eunit \
-	erlang-flymake \
 	erlang
 
 README_FILES= README

@@ -286,15 +286,15 @@ typedef string<10> myString10;
 typedef wstring<10> myWString10;
       ]]></code>
       <p>If we want to define a char/string or wchar/wstring constant, we can
-        use octal (\OOO - one, two or three octal digits), 
-        hexadecimal (\xHH - one or two hexadecimal digits) and unicode (\uHHHH -
+        use octal (\\OOO - one, two or three octal digits), 
+        hexadecimal (\\xHH - one or two hexadecimal digits) and unicode (\\uHHHH -
         one, two, three or four hexadecimal digits.) representation as well.
         For example:</p>
       <code type="none">
-const string  SwedensBestSoccerTeam = "\101" "\x49" "\u004B";
-const wstring SwedensBestHockeyTeam = L"\101\x49\u004B";
-const char  aChar  = '\u004B';  
-const wchar aWchar = L'\u004C';
+const string  SwedensBestSoccerTeam = "\\101" "\\x49" "\\u004B";
+const wstring SwedensBestHockeyTeam = L"\\101\\x49\\u004B";
+const char  aChar  = '\\u004B';  
+const wchar aWchar = L'\\u004C';
       </code>
       <p>Naturally, we can use <c>"Erlang"</c>, <c>L"Rocks"</c>, <c>'A'</c>
         and <c>L'A'</c> as well.</p>
@@ -697,14 +697,14 @@ module DB {
 module x {
 
     struct y_z {
-    ...
+\011...
     };
 
     interface y {
 
-    struct z {
-        ...
-    };
+\011struct z {
+\011    ...
+\011};
     };
 };
       </code>
@@ -815,7 +815,7 @@ module m {
     const float pi = 3.14;
 
     interface i {
-    const float pi = 3.1415;
+\011const float pi = 3.1415;
     };
 };
     </code>
@@ -1036,19 +1036,19 @@ $> erlc +"{be,erl_template}" DB.idl
 %% Description: 
 %%----------------------------------------------------------------------
 logon(State, ID, PW) ->
-    %% Check if the ID/PW is valid and what 
-    %% type of user it is (Common or Administrator).
-    OE_Reply
+\011%% Check if the ID/PW is valid and what 
+\011%% type of user it is (Common or Administrator).
+\011OE_Reply
             = case check_user(ID, PW) of
-             {ok, administrator} ->
-                'DB_Administrator':oe_create();
-             {ok, common} ->
-                'DB_CommonUser':oe_create();
-             error ->
-                %% Here we should throw an exception              
-                corba:raise(....)
+\011         {ok, administrator} ->
+\011            'DB_Administrator':oe_create();
+\011         {ok, common} ->
+\011            'DB_CommonUser':oe_create();
+\011         error ->
+\011            %% Here we should throw an exception              
+ \011           corba:raise(....)
         end,
-    {reply, OE_Reply, State}.
+\011{reply, OE_Reply, State}.
 
 %%======================================================================
 %% Internal Functions
@@ -1064,7 +1064,7 @@ logon(State, ID, PW) ->
 %% Description: Initiates the server
 %%----------------------------------------------------------------------
 init(_Env) ->
-    {ok, #state{}}.
+\011{ok, #state{}}.
 
 
 %%----------------------------------------------------------------------
@@ -1076,7 +1076,7 @@ init(_Env) ->
 %% Description: Invoked when the object is terminating.
 %%----------------------------------------------------------------------
 terminate(_Reason, _State) ->
-    ok.
+\011ok.
 
 
 %%----------------------------------------------------------------------
@@ -1090,7 +1090,7 @@ terminate(_Reason, _State) ->
 %%              due to code replacement.
 %%----------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+\011{ok, State}.
 
 
 %%----------------------------------------------------------------------
@@ -1104,7 +1104,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% Description: Invoked when, for example, the server traps exits.
 %%----------------------------------------------------------------------
 handle_info(_Info, State) ->
-    {noreply, State}.
+\011{noreply, State}.
     ]]></code>
     <p>Since <c>DB_Administrator</c> inherits from <c>DB_CommonUser</c>,
       we must implement <c>delete</c> in the <c>DB_Administrator_impl.erl</c>
@@ -1421,11 +1421,11 @@ interface i {
       </row>
       <row>
         <cell align="left" valign="middle">{tk_objref, IFRId, Name}</cell>
-        <cell align="left" valign="middle">{tk_objref, "IDL:M1\I1:1.0", "I1"}</cell>
+        <cell align="left" valign="middle">{tk_objref, "IDL:M1\\I1:1.0", "I1"}</cell>
       </row>
       <row>
         <cell align="left" valign="middle">{tk_struct, IFRId, Name, [{ElemName, ElemTC}]}</cell>
-        <cell align="left" valign="middle">{tk_struct, "IDL:M1\S1:1.0", "S1", [{"a", tk_long}, {"b", tk_char}]}</cell>
+        <cell align="left" valign="middle">{tk_struct, "IDL:M1\\S1:1.0", "S1", [{"a", tk_long}, {"b", tk_char}]}</cell>
       </row>
       <row>
         <cell align="left" valign="middle">{tk_union, IFRId, Name, DiscrTC, DefaultNr, [{Label, ElemName, ElemTC}]}         <br></br>

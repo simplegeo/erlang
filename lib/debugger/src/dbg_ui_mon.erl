@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1997-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1997-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 -module(dbg_ui_mon).
@@ -162,7 +162,7 @@ init2(CallingPid, Mode, SFile, GS) ->
     CallingPid ! {initialization_complete, self()},
 
     if
-	SFile =:= default ->
+	SFile==default ->
 	    loop(State3);
 	true ->
 	    loop(load_settings(SFile, State3))
@@ -226,7 +226,7 @@ loop(State) ->
 	    gui_cmd(stopped, State);
 
 	%% From the GUI
-	GuiEvent when is_tuple(GuiEvent), element(1, GuiEvent) =:= gs ->
+	GuiEvent when is_tuple(GuiEvent), element(1, GuiEvent)==gs ->
 	    Cmd = dbg_ui_mon_win:handle_event(GuiEvent,State#state.win),
 	    State2 = gui_cmd(Cmd, State),
 	    loop(State2);
@@ -269,7 +269,7 @@ gui_cmd(ignore, State) ->
     State;
 gui_cmd(stopped, State) ->
     if
-	State#state.starter =:= true -> int:stop();
+	State#state.starter==true -> int:stop();
 	true -> int:auto_attach(false)
     end,
     exit(stop);
@@ -413,9 +413,9 @@ gui_cmd({'Trace Window', TraceWin}, State) ->
     State2;
 gui_cmd({'Auto Attach', When}, State) ->
     if
-	When =:= [] -> int:auto_attach(false);
+	When==[] -> int:auto_attach(false);
 	true ->
-	    Flags = [map(Name) || Name <- When],
+	    Flags = lists:map(fun(Name) -> map(Name) end, When),
 	    int:auto_attach(Flags, trace_function(State))
     end,
     State;
@@ -429,7 +429,8 @@ gui_cmd('Back Trace Size...', State) ->
 
 %% Help Menu
 gui_cmd('Debugger', State) ->
-    HelpFile = filename:join([code:lib_dir(debugger), "doc", "html", "index.html"]),
+    HelpFile = filename:join([code:lib_dir(debugger),
+			      "doc", "html", "part_frame.html"]),
     Window = dbg_ui_mon_win:get_window(State#state.win),
     tool_utils:open_help(Window, HelpFile),
     State;
@@ -676,7 +677,7 @@ load_settings2(Settings, State) ->
 			      Break,
 			  int:break(Mod, Line),
 			  if
-			      Status =:= inactive ->
+			      Status==inactive ->
 				  int:disable_break(Mod, Line);
 			      true -> ignore
 			  end,
@@ -700,8 +701,12 @@ save_settings(SFile, State) ->
 		int:auto_attach(),
 		int:stack_trace(),
 		State#state.backtrace,
-		[int:file(Mod) || Mod <- int:interpreted()],
+		lists:map(fun(Mod) ->
+				  int:file(Mod)
+			  end,
+			  int:interpreted()),
 		int:all_breaks()},
+
     Binary = term_to_binary({debugger_settings, Settings}),
     case file:write_file(SFile, Binary) of
 	ok ->
@@ -716,12 +721,13 @@ save_settings(SFile, State) ->
 %%====================================================================
 
 registered_name(Pid) ->
+
     %% Yield in order to give Pid more time to register its name
     timer:sleep(200),
 
     Node = node(Pid),
     if
-	Node =:= node() ->
+	Node==node() ->
 	    case erlang:process_info(Pid, registered_name) of
 		{registered_name, Name} -> Name;
 		_ -> undefined

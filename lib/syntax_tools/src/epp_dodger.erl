@@ -90,9 +90,6 @@
 %% This is a so-called Erlang I/O ErrorInfo structure; see the {@link
 %% //stdlib/io} module for details.
 
--type errorinfo() :: term(). % {integer(), atom(), term()}.
-
--type option() :: atom() | {atom(), term()}.
 
 %% =====================================================================
 %% @spec parse_file(File) -> {ok, Forms} | {error, errorinfo()}
@@ -100,9 +97,6 @@
 %%       Forms = [erl_syntax:syntaxTree()]
 %% 
 %% @equiv parse_file(File, [])
-
--spec parse_file(file:filename()) ->
-        {'ok', erl_syntax:forms()} | {'error', errorinfo()}.
 
 parse_file(File) ->
     parse_file(File, []).
@@ -115,11 +109,11 @@ parse_file(File) ->
 %% @doc Reads and parses a file. If successful, `{ok, Forms}'
 %% is returned, where `Forms' is a list of abstract syntax
 %% trees representing the "program forms" of the file (cf.
-%% `erl_syntax:is_form/1'). Otherwise, `{error, errorinfo()}' is
-%% returned, typically if the file could not be opened. Note that
-%% parse errors show up as error markers in the returned list of
-%% forms; they do not cause this function to fail or return
-%% `{error, errorinfo()}'.
+%% `erl_syntax:is_form/1'). Otherwise, `{error,
+%% errorinfo()}' is returned, typically if the file could not be
+%% opened. Note that parse errors show up as error markers in the
+%% returned list of forms; they do not cause this function to fail or
+%% return `{error,errorinfo()}'.
 %%
 %% Options:
 %% <dl>
@@ -141,9 +135,6 @@ parse_file(File) ->
 %% @see quick_parse_file/1
 %% @see erl_syntax:is_form/1
 
--spec parse_file(file:filename(), [option()]) ->
-        {'ok', erl_syntax:forms()} | {'error', errorinfo()}.
-
 parse_file(File, Options) ->
     parse_file(File, fun parse/3, Options).
 
@@ -152,9 +143,6 @@ parse_file(File, Options) ->
 %%       Forms = [erl_syntax:syntaxTree()]
 %%
 %% @equiv quick_parse_file(File, [])
-
--spec quick_parse_file(file:filename()) ->
-        {'ok', erl_syntax:forms()} | {'error', errorinfo()}.
 
 quick_parse_file(File) ->
     quick_parse_file(File, []).
@@ -179,9 +167,6 @@ quick_parse_file(File) ->
 %% @see quick_parse/2
 %% @see parse_file/2
 
--spec quick_parse_file(file:filename(), [option()]) ->
-        {'ok', erl_syntax:forms()} | {'error', errorinfo()}.
-
 quick_parse_file(File, Options) ->
     parse_file(File, fun quick_parse/3, Options ++ [no_fail]).
 
@@ -200,8 +185,6 @@ parse_file(File, Parser, Options) ->
 %% @spec parse(IODevice) -> {ok, Forms} | {error, errorinfo()}
 %% @equiv parse(IODevice, 1)
 
--spec parse(file:io_device()) -> {'ok', erl_syntax:forms()}.
-
 parse(Dev) ->
     parse(Dev, 1).
 
@@ -212,8 +195,6 @@ parse(Dev) ->
 %%
 %% @equiv parse(IODevice, StartLine, [])
 %% @see parse/1
-
--spec parse(file:io_device(), integer()) -> {'ok', erl_syntax:forms()}.
 
 parse(Dev, L) ->
     parse(Dev, L, []).
@@ -235,17 +216,11 @@ parse(Dev, L) ->
 %% @see parse_form/2
 %% @see quick_parse/3
 
--spec parse(file:io_device(), integer(), [option()]) ->
-        {'ok', erl_syntax:forms()}.
-
 parse(Dev, L0, Options) ->
     parse(Dev, L0, fun parse_form/3, Options).
 
 %% @spec quick_parse(IODevice) -> {ok, Forms} | {error, errorinfo()}
 %% @equiv quick_parse(IODevice, 1)
-
--spec quick_parse(file:io_device()) ->
-        {'ok', erl_syntax:forms()}.
 
 quick_parse(Dev) ->
     quick_parse(Dev, 1).
@@ -258,9 +233,6 @@ quick_parse(Dev) ->
 %%
 %% @equiv quick_parse(IODevice, StartLine, [])
 %% @see quick_parse/1
-
--spec quick_parse(file:io_device(), integer()) ->
-        {'ok', erl_syntax:forms()}.
 
 quick_parse(Dev, L) ->
     quick_parse(Dev, L, []).
@@ -279,9 +251,6 @@ quick_parse(Dev, L) ->
 %% @see quick_parse_file/2
 %% @see quick_parse_form/2
 %% @see parse/3
-
--spec quick_parse(file:io_device(), integer(), [option()]) ->
-        {'ok', erl_syntax:forms()}.
 
 quick_parse(Dev, L0, Options) ->
     parse(Dev, L0, fun quick_parse_form/3, Options).
@@ -315,10 +284,6 @@ parse(Dev, L0, Fs, Parser, Options) ->
 %%
 %% @see quick_parse_form/2
 
--spec parse_form(file:io_device(), integer()) ->
-        {'ok', erl_syntax:forms(), integer()}
-      | {'eof', integer()} | {'error', errorinfo(), integer()}.
-
 parse_form(Dev, L0) ->
     parse_form(Dev, L0, []).
 
@@ -345,10 +310,6 @@ parse_form(Dev, L0) ->
 %% @see parse_form/2
 %% @see quick_parse_form/3
 
--spec parse_form(file:io_device(), integer(), [option()]) ->
-        {'ok', erl_syntax:forms(), integer()}
-      | {'eof', integer()} | {'error', errorinfo(), integer()}.
-
 parse_form(Dev, L0, Options) ->
     parse_form(Dev, L0, fun normal_parser/2, Options).
 
@@ -364,10 +325,6 @@ parse_form(Dev, L0, Options) ->
 %% @equiv quick_parse_form(IODevice, StartLine, [])
 %%
 %% @see parse_form/2
-
--spec quick_parse_form(file:io_device(), integer()) ->
-        {'ok', erl_syntax:forms(), integer()}
-      | {'eof', integer()} | {'error', errorinfo(), integer()}.
 
 quick_parse_form(Dev, L0) ->
     quick_parse_form(Dev, L0, []).
@@ -389,10 +346,6 @@ quick_parse_form(Dev, L0) ->
 %% @see parse/3
 %% @see quick_parse_form/2
 %% @see parse_form/3
-
--spec quick_parse_form(file:io_device(), integer(), [option()]) ->
-        {'ok', erl_syntax:forms(), integer()}
-      | {'eof', integer()} | {'error', errorinfo(), integer()}.
 
 quick_parse_form(Dev, L0, Options) ->
     parse_form(Dev, L0, fun quick_parser/2, Options).
@@ -798,12 +751,10 @@ fix_define([{atom, L, ?pp_form}, {'(', _}, {')', _}, {'->', _},
 fix_define(_Ts) ->
     error.
 
-%% @spec tokens_to_string(Tokens::[term()]) -> string()
+%% @spec (Tokens::[term()]) -> string()
 %% 
 %% @doc Generates a string corresponding to the given token sequence.
 %% The string can be re-tokenized to yield the same token list again.
-
--spec tokens_to_string([term()]) -> string().
 
 tokens_to_string([{atom,_,A} | Ts]) ->
     io_lib:write_atom(A) ++ " " ++ tokens_to_string(Ts);
@@ -813,22 +764,20 @@ tokens_to_string([{float, _, F} | Ts]) ->
     float_to_list(F) ++ " " ++ tokens_to_string(Ts);
 tokens_to_string([{integer, _, N} | Ts]) ->
     integer_to_list(N) ++ " " ++ tokens_to_string(Ts);
-tokens_to_string([{var, _, A} | Ts]) ->
+tokens_to_string([{var,_,A} | Ts]) ->
     atom_to_list(A) ++ " " ++ tokens_to_string(Ts);
-tokens_to_string([{dot, _} | Ts]) ->
+tokens_to_string([{dot,_} | Ts]) ->
     ".\n" ++ tokens_to_string(Ts);
-tokens_to_string([{A, _} | Ts]) ->
+tokens_to_string([{A,_} | Ts]) ->
     atom_to_list(A) ++ " " ++ tokens_to_string(Ts);
 tokens_to_string([]) ->
     "".
 
 
-%% @spec format_error(Descriptor::term()) -> string()
+%% @spec (Descriptor::term()) -> string()
 %% @hidden
 %% @doc Callback function for formatting error descriptors. Not for
 %% normal use.
-
--spec format_error(term()) -> string().
 
 format_error(macro_args) ->
     errormsg("macro call missing end parenthesis");

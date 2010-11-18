@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2008-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2008-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 %% Api wrapper generator
@@ -73,7 +73,8 @@ gen_xml() ->
 -record(hs,{alias,skip,fs,fopt,ev,acc,info}).
 
 init_defs(List0) ->
-    [mangle_info(L) || L <- to_lists(List0)].
+    List1 = to_lists(List0),
+    lists:map(fun mangle_info/1, List1).
 
 mangle_info(E={enum,Type0,SkipStr}) ->
     Type = case is_atom(Type0) of true -> atom_to_list(Type0); false -> Type0 end,
@@ -137,9 +138,9 @@ parse_defs([{class,Name,Parent,Info}|Rest], Acc0) ->
     Defs0 = load_members(FileName, Name, gb_trees:empty(), Tab, Type, Info),
         
     put(current_class, Name),
-    Class0 = #class{name=name(Name,Info), parent=Parent,
+    Class0 = #class{name=name(Name,Info),parent=Parent,
 		    doc=get_value(doc,Info#hs.info,undefined),
-		    file=FileName, options=Info#hs.info, id=next_id(class_id)},
+		    file=FileName,options=Info#hs.info, id=next_id(class_id)},
     ParseClass = fun(Member,{Class,Dfs}) -> 
 			 parse_class(Member,Tab,Dfs,Class,Info)
 		 end,
@@ -160,11 +161,12 @@ parse_defs([], Acc) -> reverse(Acc).
 
 meta_info(C=#class{name=CName,methods=Ms0}) ->
     Ms = lists:append(Ms0),
-    HaveConstructor = lists:keymember(constructor, #method.method_type, Ms),
+    HaveConstructor = 
+	lists:keysearch(constructor, #method.method_type, Ms) =/= false,
     case lists:keysearch(destructor, #method.method_type, Ms) of
 	false when HaveConstructor -> 
-	    Dest = #method{name = "destroy", id = next_id(func_id),
-			   method_type = destructor, params = [this(CName)]},
+	    Dest = #method{name="destroy",id=next_id(func_id),
+			   method_type=destructor, params=[this(CName)]},
 	    C#class{methods = [[Dest]|Ms0]};
 	false ->
 	    C#class{abstract = true};
@@ -255,24 +257,19 @@ parse_attr(Defs, Class, Ev, Info = #hs{acc=AccList0}) ->
 parse_attr1([{{attr,_}, #xmlElement{content=C, attributes=Attrs}}|R], AttrList0, Opts, Res) ->    
     Parse  = fun(Con, Ac) -> parse_param(Con, Opts, Ac) end,
     Param0 = foldl(Parse, #param{}, drop_empty(C)),
-    case Param0 of
-	#param{where=nowhere} ->
-	    parse_attr1(R,AttrList0,Opts,Res);
-	_ ->
-	    case keysearch(prot, #xmlAttribute.name, Attrs) of
-		{value, #xmlAttribute{value = "public"}} ->
-		    {Acc,AttrList} = attr_acc(Param0, AttrList0),
-		    parse_attr1(R,AttrList,Opts,
-				[Param0#param{in=false,prot=public,acc=Acc}|Res]);
-		{value, #xmlAttribute{value = "protected"}} ->
-		    {Acc,AttrList} = attr_acc(Param0, AttrList0),
-		    parse_attr1(R,AttrList,Opts,
-				[Param0#param{in=false,prot=protected,acc=Acc}|Res]);
-		{value, #xmlAttribute{value = "private"}} ->
-		    {Acc,AttrList} = attr_acc(Param0, AttrList0),
-		    parse_attr1(R,AttrList,Opts,
-				[Param0#param{in=false,prot=private,acc=Acc}|Res])
-	    end
+    case keysearch(prot, #xmlAttribute.name, Attrs) of
+	{value, #xmlAttribute{value = "public"}} ->
+	    {Acc,AttrList} = attr_acc(Param0, AttrList0),	    
+	    parse_attr1(R,AttrList,Opts,
+			[Param0#param{in=false,prot=public,acc=Acc}|Res]);
+	{value, #xmlAttribute{value = "protected"}} ->
+	    {Acc,AttrList} = attr_acc(Param0, AttrList0),	    
+	    parse_attr1(R,AttrList,Opts,
+			[Param0#param{in=false,prot=protected,acc=Acc}|Res]);
+	{value, #xmlAttribute{value = "private"}} ->
+	    {Acc,AttrList} = attr_acc(Param0, AttrList0),
+	    parse_attr1(R,AttrList,Opts, 
+			[Param0#param{in=false,prot=private,acc=Acc}|Res])
     end;
 parse_attr1([{_Id,_}|R],AttrList,Info, Res) ->
     parse_attr1(R,AttrList,Info, Res);
@@ -454,9 +451,9 @@ find_erl_alias_name(MName,Ps,Fopts) ->
 		_ -> 
 		    Find = fun({all,AliasName},Acc) -> [AliasName|Acc];
 			      ({Var,AliasName},Acc) -> 
-				   case lists:keymember(Var, #param.name, Ps) of
-				       true -> [AliasName|Acc];
-				       false -> Acc
+				   case lists:keysearch(Var, #param.name, Ps) of
+				       {value, _} -> [AliasName|Acc];
+				       _  -> Acc
 				   end				   
 			   end, 
 		    case lists:foldl(Find, [], Aliases) of
@@ -596,17 +593,17 @@ parse_param(#xmlElement{name=array,content=C},_Opts, T = #param{type=Type0}) ->
 	    [#xmlText{value=RealVar}] = C,
 	    [Name] = string:tokens(RealVar, "() "),
 	    T#param{name=Name};
+%% 	#type{mod=[const]} -> 
+%% 	    T#param{type=Type0#type{single=array, by_val=true}};
+%% 	_ -> 
+%% 	    T#param{type=Type0#type{single=array, by_val=false}}
 	_ -> 
 	    T#param{type=Type0#type{single=array, by_val=true}}
     end;
 parse_param(#xmlElement{name=name,content=[C]}, _, T) ->
     %% Attributes have this
-    case C of
-	#xmlText{value=Name="ms_classInfo"} ->
-	    T#param{name=Name, where=nowhere};
-	#xmlText{value=Name} ->
-	    T#param{name=Name}
-    end;
+    #xmlText{value=Name} = C,
+    T#param{name=Name};
 %% Skipped: Attributes have this
 parse_param(#xmlElement{name=definition}, _, T) ->    T;
 parse_param(#xmlElement{name=argsstring}, _, T) ->    T;
@@ -615,7 +612,6 @@ parse_param(#xmlElement{name=detaileddescription}, _, T) ->    T;
 parse_param(#xmlElement{name=inbodydescription}, _, T) ->    T;
 parse_param(#xmlElement{name=location}, _, T) ->    T;
 parse_param(#xmlElement{name=referencedby}, _, T) ->    T;
-parse_param(#xmlElement{name=reimplements}, _, T) ->    T;
 parse_param(Other=#xmlElement{name=Name}, _, T) ->
     io:format("Unhandled Param ~p ~p ~n in ~p~n", [Name,Other,T]),
     ?error(unhandled_param).
@@ -703,12 +699,10 @@ parse_type2([N="wxArrayInt"|R],Info,Opts,T) ->
     parse_type2(R,Info,Opts,T#type{name=N,base=int,single=array});
 parse_type2([N="wxArrayDouble"|R],Info,Opts,T) -> 
     parse_type2(R,Info,Opts,T#type{name=N,base=double,single=array});
-parse_type2([N="wxTreeItemId"|R],Info,Opts,T) -> %% Use Pointer as Ids
-    parse_type2(R,Info,Opts,T#type{name=N,base=int64});
-parse_type2([N="wxTreeItemIdValue"|R],Info,Opts,T) -> %% Use Pointer as Ids
-    parse_type2(R,Info,Opts,T#type{name=N,base=int64});
+parse_type2([N="wxTreeItemId"|R],Info,Opts,T) -> 
+    parse_type2(R,Info,Opts,T#type{name=N,base={ref,N}});
 parse_type2([N="wxArrayTreeItemIds"|R],Info,Opts,T) -> 
-    parse_type2(R,Info,Opts,T#type{name=N,base=int64,single=array});
+    parse_type2(R,Info,Opts,T#type{name=N,base={ref,"wxTreeItemId"},single=array});
 parse_type2([N="wxTreeItemData"|R],Info,Opts,T) -> 
     parse_type2(R,Info,Opts,T#type{name="wxETreeItemData",base={term,N}});
 parse_type2([N="wxClientData"|R],Info,Opts,T) -> 
@@ -877,14 +871,11 @@ add_method2(M0=#method{name=Name,params=Ps0,type=T0},#class{name=CName,parent=Pa
 	    end,
     M1 = M0#method{defined_in=CName,
 		   min_arity = length(Req),
-		   max_arity = length(Req) + case Opt of
-						 [_ | _] -> 1;
-						 _ -> 0
-					     end,
+		   max_arity = length(Req) + if length(Opt) > 0 -> 1; true -> 0 end,
 		   type = Type,
 		   method_type = IsStatic,
 		   where = Where,
-		   id = next_id(func_id),
+		   id=next_id(func_id),
 		   pre_hook  = get_opt(pre_hook, Name, length(Ps), Opts),
 		   post_hook = get_opt(post_hook, Name, length(Ps), Opts),
 		   doc = get_opt(doc, Name, length(Ps), Opts) 
@@ -1044,10 +1035,10 @@ types_differ([list|R1], [opt_list|R2]) ->
 types_differ([opt_list|R1], [list|R2]) ->
     types_differ(R1,R2);
 types_differ([C1|R1], [C2|R2]) when is_tuple(C1), is_tuple(C2) ->
-    (tuple_size(C1) =/= tuple_size(C2)) orelse types_differ(R1,R2);
+    (size(C1) =/= size(C2)) orelse types_differ(R1,R2);
 types_differ([C1|_R1], [_C2|_R2]) when is_tuple(C1) ->
     true;
-types_differ([_C1|_R1], [C2|_R2]) when is_tuple(C2) ->
+types_differ([_C1|_R1], [C2|_R2]) when is_tuple(C2)-> 
     true;
 types_differ([_C1|R1], [_C2|R2]) -> %% More cases?
     types_differ(R1,R2);
@@ -1091,7 +1082,6 @@ type_foot_print(#type{base=long}) ->      int;
 type_foot_print(#type{base=binary}) ->    binary;
 type_foot_print(#type{base={binary,_}}) ->    binary;
 type_foot_print(#type{base=int}) ->       int;
-type_foot_print(#type{base=int64}) ->       int;
 type_foot_print(#type{base=bool}) ->      bool;
 %%type_foot_print(#type{base=datetime}) ->  datetime;
 type_foot_print(#type{base=float}) ->     float;
@@ -1205,7 +1195,7 @@ name(Name0, #hs{alias=Alias}) ->
 		   Name0;
 	       "esaBrekciP"  ++ _ ->  %% Arrg uses base
 		   Name0;
-	       "esaB" ++ Rest when hd(Name0) =:= $w ->
+ 	       "esaB" ++ Rest when hd(Name0) == $w -> 
 		   %% Arrg Some decl uses base class directly
  		   reverse(Rest);  
 	       _F -> 
@@ -1280,11 +1270,11 @@ extract_enum(#xmlElement{name=memberdef,content=C}, Class, File) ->
 	undefined -> 
 %% 	    io:format("1Enum name ~p~n", [Name]),
 %% 	    [io:format("  ~s ~p~n", [D,V]) || {D,V} <- Vals],
-	    put({enum, Name}, #enum{vals=Vals, from={File,Class,Name0}});
+	    put({enum, Name}, #enum{vals=Vals});
 	E = #enum{vals=undefined} -> 
 %%  	    io:format("2Enum name ~p~n", [Name]),
 %%  	    [io:format("  ~s ~p~n", [D,V]) || {D,V} <- Vals],
-	    put({enum, Name}, E#enum{vals=Vals, from={File,Class,Name0}});
+	    put({enum, Name}, E#enum{vals=Vals});
 	#enum{vals=Vals} -> ok;
 %%	    io:format("Same? ~p ~n", [PVals == Vals])
 	#enum{vals=OldVals} ->	    
@@ -1358,7 +1348,7 @@ extract_defs(Defs, File) ->
 	{Vals,_Skip} ->
 %% 	    io:format("Defs file ~p~n", [File]),
 %% 	    [io:format("  ~s ~p~n", [D,V]) || {D,V} <- Vals, not is_integer(V)]
-	    put({enum, {define,"From " ++ File ++ ".h"}}, #enum{vals=Vals, from={File, undefined, "@define"}})
+	    put({enum, {define,"From " ++ File ++ ".h"}}, #enum{vals=Vals})
     end.
 
 extract_defs2(#xmlElement{name=memberdef,content=C},{Acc,Skip}) ->

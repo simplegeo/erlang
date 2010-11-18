@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2008-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2008-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %% This file is generated DO NOT EDIT
 
@@ -43,7 +43,7 @@ new() ->
 
 %% @spec (X::term()) -> wxRegion()
 %% @doc See <a href="http://www.wxwidgets.org/manuals/stable/wx_wxregion.html#wxregionwxregion">external documentation</a>.
-%% <br /> Alternatives:
+%% <br /> Alternatives: 
 %% <p><c>
 %% new(Bmp::wxBitmap:wxBitmap()) -> wxRegion() </c>
 %% </p>
@@ -82,7 +82,7 @@ clear(#wx_ref{type=ThisT,ref=ThisRef}) ->
 
 %% @spec (This::wxRegion(),X::term()) -> WxRegionContain
 %% @doc See <a href="http://www.wxwidgets.org/manuals/stable/wx_wxregion.html#wxregioncontains">external documentation</a>.
-%% <br /> Alternatives:
+%% <br /> Alternatives: 
 %% <p><c>
 %% contains(This::wxRegion(), Pt::{X::integer(),Y::integer()}) -> WxRegionContain </c>
 %%<br /> WxRegionContain = integer()
@@ -140,7 +140,7 @@ getBox(#wx_ref{type=ThisT,ref=ThisRef}) ->
 
 %% @spec (This::wxRegion(),X::wxRegion()|term()) -> bool()
 %% @doc See <a href="http://www.wxwidgets.org/manuals/stable/wx_wxregion.html#wxregionintersect">external documentation</a>.
-%% <br /> Alternatives:
+%% <br /> Alternatives: 
 %% <p><c>
 %% intersect(This::wxRegion(), Region::wxRegion()) -> bool() </c>
 %% </p>
@@ -175,7 +175,7 @@ isEmpty(#wx_ref{type=ThisT,ref=ThisRef}) ->
 
 %% @spec (This::wxRegion(),X::wxRegion()|term()) -> bool()
 %% @doc See <a href="http://www.wxwidgets.org/manuals/stable/wx_wxregion.html#wxregionsubtract">external documentation</a>.
-%% <br /> Alternatives:
+%% <br /> Alternatives: 
 %% <p><c>
 %% subtract(This::wxRegion(), Region::wxRegion()) -> bool() </c>
 %% </p>
@@ -219,7 +219,7 @@ offset(#wx_ref{type=ThisT,ref=ThisRef},X,Y)
 
 %% @spec (This::wxRegion(),X::term()) -> bool()
 %% @doc See <a href="http://www.wxwidgets.org/manuals/stable/wx_wxregion.html#wxregionunion">external documentation</a>.
-%% <br /> Alternatives:
+%% <br /> Alternatives: 
 %% <p><c>
 %% union(This::wxRegion(), Region::wxRegion() | wxBitmap:wxBitmap()) -> bool() </c>
 %% </p>
@@ -271,7 +271,7 @@ union(#wx_ref{type=ThisT,ref=ThisRef},X,Y,W,H)
 
 %% @spec (This::wxRegion(),X::wxRegion()|term()) -> bool()
 %% @doc See <a href="http://www.wxwidgets.org/manuals/stable/wx_wxregion.html#wxregionxor">external documentation</a>.
-%% <br /> Alternatives:
+%% <br /> Alternatives: 
 %% <p><c>
 %% 'Xor'(This::wxRegion(), Region::wxRegion()) -> bool() </c>
 %% </p>
@@ -299,7 +299,7 @@ union(#wx_ref{type=ThisT,ref=ThisRef},X,Y,W,H)
 
 %% @spec (This::wxRegion()) -> ok
 %% @doc Destroys this object, do not use object again
-destroy(Obj=#wx_ref{type=Type}) ->
+destroy(Obj=#wx_ref{type=Type}) -> 
   ?CLASS(Type,wxRegion),
   wxe_util:destroy(?DESTROY_OBJECT,Obj),
   ok.

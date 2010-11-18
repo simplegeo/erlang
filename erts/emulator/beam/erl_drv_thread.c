@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- *
- * Copyright Ericsson AB 2007-2010. All Rights Reserved.
- *
+ * 
+ * Copyright Ericsson AB 2007-2009. All Rights Reserved.
+ * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- *
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
+ * 
  * %CopyrightEnd%
  */
 
@@ -186,9 +186,10 @@ int
 erl_drv_mutex_trylock(ErlDrvMutex *dmtx)
 {
 #ifdef USE_THREADS
-    if (!dmtx)
-	fatal_error(EINVAL, "erl_drv_mutex_trylock()");
-    return ethr_mutex_trylock(&dmtx->mtx);
+    int res = dmtx ? ethr_mutex_trylock(&dmtx->mtx) : EINVAL;
+    if (res != 0 && res != EBUSY)
+	fatal_error(res, "erl_drv_mutex_trylock()");
+    return res;
 #else
     return 0;
 #endif
@@ -198,9 +199,9 @@ void
 erl_drv_mutex_lock(ErlDrvMutex *dmtx)
 {
 #ifdef USE_THREADS
-    if (!dmtx)
-	fatal_error(EINVAL, "erl_drv_mutex_lock()");
-    ethr_mutex_lock(&dmtx->mtx);
+    int res = dmtx ? ethr_mutex_lock(&dmtx->mtx) : EINVAL;
+    if (res != 0)
+	fatal_error(res, "erl_drv_mutex_lock()");
 #endif
 }
 
@@ -208,9 +209,9 @@ void
 erl_drv_mutex_unlock(ErlDrvMutex *dmtx)
 {
 #ifdef USE_THREADS
-    if (!dmtx)
-	fatal_error(EINVAL, "erl_drv_mutex_unlock()");
-    ethr_mutex_unlock(&dmtx->mtx);
+    int res = dmtx ? ethr_mutex_unlock(&dmtx->mtx) : EINVAL;
+    if (res != 0)
+	fatal_error(res, "erl_drv_mutex_unlock()");
 #endif
 }
 
@@ -255,9 +256,9 @@ void
 erl_drv_cond_signal(ErlDrvCond *dcnd)
 {
 #ifdef USE_THREADS
-    if (!dcnd)
-	fatal_error(EINVAL, "erl_drv_cond_signal()");
-    ethr_cond_signal(&dcnd->cnd);
+    int res = dcnd ? ethr_cond_signal(&dcnd->cnd) : EINVAL;
+    if (res != 0)
+	fatal_error(res, "erl_drv_cond_signal()");
 #endif
 }
 
@@ -265,9 +266,9 @@ void
 erl_drv_cond_broadcast(ErlDrvCond *dcnd)
 {
 #ifdef USE_THREADS
-    if (!dcnd)
-	fatal_error(EINVAL, "erl_drv_cond_broadcast()");
-    ethr_cond_broadcast(&dcnd->cnd);
+    int res = dcnd ? ethr_cond_broadcast(&dcnd->cnd) : EINVAL;
+    if (res != 0)
+	fatal_error(res, "erl_drv_cond_broadcast()");
 #endif
 }
 
@@ -276,13 +277,18 @@ void
 erl_drv_cond_wait(ErlDrvCond *dcnd, ErlDrvMutex *dmtx)
 {
 #ifdef USE_THREADS
+    int res;
     if (!dcnd || !dmtx) {
-	fatal_error(EINVAL, "erl_drv_cond_wait()");
+	res = EINVAL;
+    error:
+	fatal_error(res, "erl_drv_cond_wait()");
     }
     while (1) {
-	int res = ethr_cond_wait(&dcnd->cnd, &dmtx->mtx);
+	res = ethr_cond_wait(&dcnd->cnd, &dmtx->mtx);
 	if (res == 0)
 	    break;
+	if (res != EINTR)
+	    goto error;
     }
 #endif
 }
@@ -327,9 +333,10 @@ int
 erl_drv_rwlock_tryrlock(ErlDrvRWLock *drwlck)
 {
 #ifdef USE_THREADS
-    if (!drwlck)
-	fatal_error(EINVAL, "erl_drv_rwlock_tryrlock()");
-    return ethr_rwmutex_tryrlock(&drwlck->rwmtx);
+    int res = drwlck ? ethr_rwmutex_tryrlock(&drwlck->rwmtx) : EINVAL;
+    if (res != 0 && res != EBUSY)
+	fatal_error(res, "erl_drv_rwlock_tryrlock()");
+    return res;
 #else
     return 0;
 #endif
@@ -339,9 +346,9 @@ void
 erl_drv_rwlock_rlock(ErlDrvRWLock *drwlck)
 {
 #ifdef USE_THREADS
-    if (!drwlck)
-	fatal_error(EINVAL, "erl_drv_rwlock_rlock()");
-    ethr_rwmutex_rlock(&drwlck->rwmtx);
+    int res = drwlck ? ethr_rwmutex_rlock(&drwlck->rwmtx) : EINVAL;
+    if (res != 0)
+	fatal_error(res, "erl_drv_rwlock_rlock()");
 #endif
 }
 
@@ -349,9 +356,9 @@ void
 erl_drv_rwlock_runlock(ErlDrvRWLock *drwlck)
 {
 #ifdef USE_THREADS
-    if (!drwlck)
-	fatal_error(EINVAL, "erl_drv_rwlock_runlock()");
-    ethr_rwmutex_runlock(&drwlck->rwmtx);
+    int res = drwlck ? ethr_rwmutex_runlock(&drwlck->rwmtx) : EINVAL;
+    if (res != 0)
+	fatal_error(res, "erl_drv_rwlock_runlock()");
 #endif
 }
 
@@ -359,9 +366,10 @@ int
 erl_drv_rwlock_tryrwlock(ErlDrvRWLock *drwlck)
 {
 #ifdef USE_THREADS
-    if (!drwlck)
-	fatal_error(EINVAL, "erl_drv_rwlock_tryrwlock()");
-    return ethr_rwmutex_tryrwlock(&drwlck->rwmtx);
+    int res = drwlck ? ethr_rwmutex_tryrwlock(&drwlck->rwmtx) : EINVAL;
+    if (res != 0 && res != EBUSY)
+	fatal_error(res, "erl_drv_rwlock_tryrwlock()");
+    return res;
 #else
     return 0;
 #endif
@@ -371,9 +379,9 @@ void
 erl_drv_rwlock_rwlock(ErlDrvRWLock *drwlck)
 {
 #ifdef USE_THREADS
-    if (!drwlck)
-	fatal_error(EINVAL, "erl_drv_rwlock_rwlock()");
-    ethr_rwmutex_rwlock(&drwlck->rwmtx);
+    int res = drwlck ? ethr_rwmutex_rwlock(&drwlck->rwmtx) : EINVAL;
+    if (res != 0)
+	fatal_error(res, "erl_drv_rwlock_rwlock()");
 #endif
 }
 
@@ -381,9 +389,9 @@ void
 erl_drv_rwlock_rwunlock(ErlDrvRWLock *drwlck)
 {
 #ifdef USE_THREADS
-    if (!drwlck)
-	fatal_error(EINVAL, "erl_drv_rwlock_rwunlock()");
-    ethr_rwmutex_rwunlock(&drwlck->rwmtx);
+    int res = drwlck ? ethr_rwmutex_rwunlock(&drwlck->rwmtx) : EINVAL;
+    if (res != 0)
+	fatal_error(res, "erl_drv_rwlock_rwunlock()");
 #endif
 }
 
@@ -595,7 +603,11 @@ erl_drv_thread_create(char *name,
 	dtid->name = ((char *) dtid) + sizeof(struct ErlDrvTid_);
 	sys_strcpy(dtid->name, name);
     }
+#ifdef ERTS_ENABLE_LOCK_COUNT
+    res = erts_lcnt_thr_create(&dtid->tid, erl_drv_thread_wrapper, dtid, use_opts);
+#else
     res = ethr_thr_create(&dtid->tid, erl_drv_thread_wrapper, dtid, use_opts);
+#endif
 
     if (res != 0) {
 	erts_free(ERTS_ALC_T_DRV_TID, dtid);

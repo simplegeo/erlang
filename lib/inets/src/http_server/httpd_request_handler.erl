@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1997-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1997-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 %%
@@ -101,13 +101,11 @@ init([Manager, ConfigDB, AcceptTimeout]) ->
 
     Then = erlang:now(),
     
-    ?hdrd("negotiate", []),
     case http_transport:negotiate(SocketType, Socket, TimeOut) of
 	{error, Error} ->
-	    ?hdrd("negotiation failed", [{error, Error}]),
 	    exit(Error); %% Can be 'normal'.
 	ok ->
-	    ?hdrt("negotiation successfull", []),
+	    ?hdrt("negotiated", []),
 	    NewTimeout = TimeOut - timer:now_diff(now(),Then) div 1000,
 	    continue_init(Manager, ConfigDB, SocketType, Socket, NewTimeout)
     end.
@@ -123,9 +121,12 @@ continue_init(Manager, ConfigDB, SocketType, Socket, TimeOut) ->
                socket = Socket,
                init_data = InitData},
     
-    MaxHeaderSize = max_header_size(ConfigDB), 
-    MaxURISize    = max_uri_size(ConfigDB), 
-    NrOfRequest   = max_keep_alive_request(ConfigDB), 
+    MaxHeaderSize = httpd_util:lookup(ConfigDB, max_header_size,
+				      ?HTTP_MAX_HEADER_SIZE),
+    MaxURISize = httpd_util:lookup(ConfigDB, max_uri_size,
+				   ?HTTP_MAX_URI_SIZE),
+    NrOfRequest = httpd_util:lookup(ConfigDB,
+				    max_keep_alive_request, infinity),
     
     {_, Status} = httpd_manager:new_connection(Manager),
     
@@ -141,10 +142,9 @@ continue_init(Manager, ConfigDB, SocketType, Socket, TimeOut) ->
     ?hdrt("activate request timeout", []),
     NewState = activate_request_timeout(State),
     
-    ?hdrt("set socket options (binary, packet & active)", []),
-    http_transport:setopts(SocketType, Socket, 
-			   [binary, {packet, 0}, {active, once}]),
-
+    ?hdrt("update socket options", []),
+    http_transport:setopts(SocketType, Socket, [binary,{packet, 0},
+						{active, once}]),
     ?hdrt("init done", []),
     gen_server:enter_loop(?MODULE, [], NewState).
 
@@ -180,29 +180,21 @@ handle_cast(Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({Proto, Socket, Data}, 
+handle_info({Proto, Socket, Data}, State = 
 	    #state{mfa = {Module, Function, Args} = MFA,
 		   mod = #mod{socket_type = SockType, 
 			      socket = Socket} = ModData} = State) 
   when (((Proto =:= tcp) orelse 
 	 (Proto =:= ssl) orelse 
 	 (Proto =:= dummy)) andalso is_binary(Data)) ->
-
     ?hdrd("received data", 
 	  [{data, Data}, {proto, Proto}, 
 	   {socket, Socket}, {socket_type, SockType}, {mfa, MFA}]),
-
-%%     case (catch Module:Function([Data | Args])) of
-    PROCESSED = (catch Module:Function([Data | Args])),
-    
-    ?hdrt("data processed", [{processing_result, PROCESSED}]),
-
-    case PROCESSED of
+    case Module:Function([Data | Args]) of
         {ok, Result} ->
 	    ?hdrd("data processed", [{result, Result}]),
 	    NewState = cancel_request_timeout(State),
             handle_http_msg(Result, NewState); 
-
 	{error, {uri_too_long, MaxSize}, Version} ->
 	    ?hdrv("uri too long", [{max_size, MaxSize}, {version, Version}]),
 	    NewModData =  ModData#mod{http_version = Version},
@@ -213,8 +205,7 @@ handle_info({Proto, Socket, Data},
 	    {stop, normal, State#state{response_sent = true, 
 				       mod = NewModData}};
 	{error, {header_too_long, MaxSize}, Version} ->
-	    ?hdrv("header too long", 
-		  [{max_size, MaxSize}, {version, Version}]),
+	    ?hdrv("header too long", [{max_size, MaxSize}, {version, Version}]),
 	    NewModData =  ModData#mod{http_version = Version},
 	    httpd_response:send_status(NewModData, 413, "Header too long"),
 	    Reason = io_lib:format("Header too long, max size is ~p~n", 
@@ -272,15 +263,13 @@ terminate(Reason, #state{response_sent = false, mod = ModData} = State) ->
     httpd_response:send_status(ModData, 500, none),
     error_log(httpd_util:reason_phrase(500), ModData),
     terminate(Reason, State#state{response_sent = true, mod = ModData});
-terminate(_Reason, State) ->
+terminate(_, State) ->
     do_terminate(State).
 
 do_terminate(#state{mod = ModData, manager = Manager} = State) ->
     catch httpd_manager:done_connection(Manager),
     cancel_request_timeout(State),
-    %% receive after 5000 -> ok end, 
     httpd_socket:close(ModData#mod.socket_type, ModData#mod.socket).
-
 
 %%--------------------------------------------------------------------
 %% code_change(OldVsn, State, Extra) -> {ok, NewState}
@@ -289,7 +278,6 @@ do_terminate(#state{mod = ModData, manager = Manager} = State) ->
 %%--------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
-
 
 %%--------------------------------------------------------------------
 %%% Internal functions
@@ -395,8 +383,9 @@ is_host_specified_if_required(_, _, _) ->
 
 handle_body(#state{mod = #mod{config_db = ConfigDB}} = State) ->
     ?hdrt("handle body", []),    
-    MaxHeaderSize = max_header_size(ConfigDB), 
-    MaxBodySize   = max_body_size(ConfigDB), 
+    MaxHeaderSize =
+	httpd_util:lookup(ConfigDB, max_header_size, ?HTTP_MAX_HEADER_SIZE),
+    MaxBodySize = httpd_util:lookup(ConfigDB, max_body_size, nolimit),
    
     case handle_expect(State, MaxBodySize) of 
 	ok ->
@@ -549,23 +538,24 @@ handle_response(#state{body    = Body,
     {stop, normal, State#state{response_sent = true}}.
 
 handle_next_request(#state{mod = #mod{connection = true} = ModData,
-			   max_keep_alive_request = Max} = State, Data) ->
+			  max_keep_alive_request = Max} = State, Data) ->
     ?hdrt("handle next request", [{max, Max}]),    
-
     NewModData = #mod{socket_type = ModData#mod.socket_type, 
- 		      socket      = ModData#mod.socket, 
- 		      config_db   = ModData#mod.config_db, 
- 		      init_data   = ModData#mod.init_data},
-    MaxHeaderSize = max_header_size(ModData#mod.config_db), 
-    MaxURISize    = max_uri_size(ModData#mod.config_db), 
-
-    MFA = {httpd_request, parse, [{MaxURISize, MaxHeaderSize}]}, 
-    TmpState = State#state{mod                    = NewModData,
-			   mfa                    = MFA,
+ 		      socket = ModData#mod.socket, 
+ 		      config_db = ModData#mod.config_db, 
+ 		      init_data = ModData#mod.init_data},
+    MaxHeaderSize =
+	httpd_util:lookup(ModData#mod.config_db, 
+			  max_header_size, ?HTTP_MAX_HEADER_SIZE),
+    MaxURISize = httpd_util:lookup(ModData#mod.config_db, max_uri_size, 
+				   ?HTTP_MAX_URI_SIZE),
+    TmpState = State#state{mod = NewModData,
+			   mfa = {httpd_request, parse, [{MaxURISize, 
+							  MaxHeaderSize}]},
 			   max_keep_alive_request = decrease(Max),
-			   headers                = undefined, 
-			   body                   = undefined,
-			   response_sent          = false},
+			   headers = undefined, 
+			   body = undefined,
+			   response_sent = false},
     
     NewState = activate_request_timeout(TmpState),
 
@@ -606,7 +596,7 @@ decrease(N) ->
 
 error_log(ReasonString, Info) ->
     Error = lists:flatten(
-	      io_lib:format("Error reading request: ~s", [ReasonString])),
+	      io_lib:format("Error reading request:~s",[ReasonString])),
     error_log(mod_log, Info, Error),
     error_log(mod_disk_log, Info, Error).
 
@@ -619,21 +609,3 @@ error_log(Mod, #mod{config_db = ConfigDB} = Info, String) ->
 	_ ->
 	    ok
     end.
-
-
-%%--------------------------------------------------------------------
-%% Config access wrapper functions
-%%--------------------------------------------------------------------
-
-max_header_size(ConfigDB) ->
-    httpd_util:lookup(ConfigDB, max_header_size, ?HTTP_MAX_HEADER_SIZE).
-
-max_uri_size(ConfigDB) ->
-    httpd_util:lookup(ConfigDB, max_uri_size, ?HTTP_MAX_URI_SIZE).
-
-max_body_size(ConfigDB) ->
-    httpd_util:lookup(ConfigDB, max_body_size, nolimit).
-
-max_keep_alive_request(ConfigDB) ->
-    httpd_util:lookup(ConfigDB, max_keep_alive_request, infinity).
-

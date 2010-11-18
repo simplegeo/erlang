@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- *
- * Copyright Ericsson AB 1997-2010. All Rights Reserved.
- *
+ * 
+ * Copyright Ericsson AB 1997-2009. All Rights Reserved.
+ * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- *
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
+ * 
  * %CopyrightEnd%
  */
 
@@ -78,17 +78,15 @@ static erts_tid_t main_thread;
 
 erts_cpu_info_t *erts_cpuinfo;
 
-int erts_reader_groups;
 int erts_use_sender_punish;
 
 /*
  * Configurable parameters.
  */
 
-Uint display_items;	    	/* no of items to display in traces etc */
+Uint display_items;	    /* no of items to display in traces etc */
 Uint display_loads;		/* print info about loaded modules */
 int H_MIN_SIZE;			/* The minimum heap grain */
-int BIN_VH_MIN_SIZE;		/* The minimum binary virtual*/
 
 Uint32 erts_debug_flags;	/* Debug flags. */
 #ifdef ERTS_OPCODE_COUNTER_SUPPORT
@@ -111,7 +109,6 @@ int erts_compat_rel;
 static int use_multi_run_queue;
 static int no_schedulers;
 static int no_schedulers_online;
-static int max_reader_groups;
 
 #ifdef DEBUG
 Uint32 verbose;             /* See erl_debug.h for information about verbose */
@@ -120,8 +117,6 @@ Uint32 verbose;             /* See erl_debug.h for information about verbose */
 int erts_disable_tolerant_timeofday; /* Time correction can be disabled it is
 				      * not and/or it is too slow.
 				      */
-
-int erts_atom_table_size = ATOM_LIMIT;	/* Maximum number of atoms */
 
 int erts_modified_timing_level;
 
@@ -257,8 +252,7 @@ erl_init(void)
 			 no_schedulers,
 			 no_schedulers_online);
 
-    H_MIN_SIZE      = erts_next_heap_size(H_MIN_SIZE, 0);
-    BIN_VH_MIN_SIZE = erts_next_heap_size(BIN_VH_MIN_SIZE, 0);
+    H_MIN_SIZE = erts_next_heap_size(H_MIN_SIZE, 0);
 
     erts_init_trace();
     erts_init_binary();
@@ -283,7 +277,6 @@ erl_init(void)
     init_load();
     erts_init_bif();
     erts_init_bif_chksum();
-    erts_init_bif_binary();
     erts_init_bif_re();
     erts_init_unicode(); /* after RE to get access to PCRE unicode */
     erts_delay_trap = erts_export_put(am_erlang, am_delay_trap, 2);
@@ -295,8 +288,10 @@ erl_init(void)
 #ifdef HIPE
     hipe_mode_switch_init(); /* Must be after init_load/beam_catches/init */
 #endif
+#ifdef _OSE_
+    erl_sys_init_final();
+#endif
     packet_parser_init();
-    erl_nif_init();
 }
 
 static void
@@ -337,6 +332,59 @@ init_shared_memory(int argc, char **argv)
     erts_init_incgc();
 #endif
 }
+
+
+/*
+ * Create the very first process.
+ */
+
+void
+erts_first_process(Eterm modname, void* code, unsigned size, int argc, char** argv)
+{
+    int i;
+    Eterm args;
+    Eterm pid;
+    Eterm* hp;
+    Process parent;
+    Process* p;
+    ErlSpawnOpts so;
+    
+    if (erts_find_function(modname, am_start, 1) == NULL) {
+	char sbuf[256];
+	Atom* ap;
+
+	ap = atom_tab(atom_val(modname));
+	memcpy(sbuf, ap->name, ap->len);
+	sbuf[ap->len] = '\0';
+	erl_exit(5, "No function %s:start/1\n", sbuf);
+    }
+
+    /*
+     * We need a dummy parent process to be able to call erl_create_process().
+     */
+    erts_init_empty_process(&parent);
+    hp = HAlloc(&parent, argc*2 + 4);
+    args = NIL;
+    for (i = argc-1; i >= 0; i--) {
+	int len = sys_strlen(argv[i]);
+	args = CONS(hp, new_binary(&parent, (byte*)argv[i], len), args);
+	hp += 2;
+    }
+    args = CONS(hp, new_binary(&parent, code, size), args);
+    hp += 2;
+    args = CONS(hp, args, NIL);
+
+    so.flags = 0;
+    pid = erl_create_process(&parent, modname, am_start, args, &so);
+    p = process_tab[internal_pid_index(pid)];
+    p->group_leader = pid;
+
+    erts_cleanup_empty_process(&parent);
+}
+
+/*
+ * XXX Old way of starting. Hopefully soon obsolete.
+ */
 
 static void
 erl_first_process_otp(char* modname, void* code, unsigned size, int argc, char** argv)
@@ -465,76 +513,67 @@ void erts_usage(void)
 
     /*    erts_fprintf(stderr, "-# number  set the number of items to be used in traces etc\n"); */
 
-    erts_fprintf(stderr, "-a size     suggested stack size in kilo words for threads\n");
-    erts_fprintf(stderr, "            in the async-thread pool, valid range is [%d-%d]\n",
+    erts_fprintf(stderr, "-a size    suggested stack size in kilo words for threads\n");
+    erts_fprintf(stderr, "           in the async-thread pool, valid range is [%d-%d]\n",
 		 ERTS_ASYNC_THREAD_MIN_STACK_SIZE,
 		 ERTS_ASYNC_THREAD_MAX_STACK_SIZE);
-    erts_fprintf(stderr, "-A number   set number of threads in async thread pool,\n");
-    erts_fprintf(stderr, "            valid range is [0-%d]\n",
+    erts_fprintf(stderr, "-A number  set number of threads in async thread pool,\n");
+    erts_fprintf(stderr, "           valid range is [0-%d]\n",
 		 ERTS_MAX_NO_OF_ASYNC_THREADS);
 
-    erts_fprintf(stderr, "-B[c|d|i]   c to have Ctrl-c interrupt the Erlang shell,\n");
-    erts_fprintf(stderr, "            d (or no extra option) to disable the break\n");
-    erts_fprintf(stderr, "            handler, i to ignore break signals\n");
+    erts_fprintf(stderr, "-B[c|d|i]  c to have Ctrl-c interrupt the Erlang shell,\n");
+    erts_fprintf(stderr, "           d (or no extra option) to disable the break\n");
+    erts_fprintf(stderr, "           handler, i to ignore break signals\n");
 
     /*    erts_fprintf(stderr, "-b func    set the boot function (default boot)\n"); */
 
-    erts_fprintf(stderr, "-c          disable continuous date/time correction with\n");
-    erts_fprintf(stderr, "            respect to uptime\n");
+    erts_fprintf(stderr, "-c         disable continuous date/time correction with\n");
+    erts_fprintf(stderr, "           respect to uptime\n");
 
-    erts_fprintf(stderr, "-d          don't write a crash dump for internally detected errors\n");
-    erts_fprintf(stderr, "            (halt(String) will still produce a crash dump)\n");
+    erts_fprintf(stderr, "-d         don't write a crash dump for internally detected errors\n");
+    erts_fprintf(stderr, "           (halt(String) will still produce a crash dump)\n");
 
-    erts_fprintf(stderr, "-hms size   set minimum heap size in words (default %d)\n",
+    erts_fprintf(stderr, "-h number  set minimum heap size in words (default %d)\n",
 	       H_DEFAULT_SIZE);
-    erts_fprintf(stderr, "-hmbs size  set minimum binary virtual heap size in words (default %d)\n",
-	       VH_DEFAULT_SIZE);
 
     /*    erts_fprintf(stderr, "-i module  set the boot module (default init)\n"); */
 
-    erts_fprintf(stderr, "-K boolean  enable or disable kernel poll\n");
+    erts_fprintf(stderr, "-K boolean enable or disable kernel poll\n");
 
-    erts_fprintf(stderr, "-l          turn on auto load tracing\n");
+    erts_fprintf(stderr, "-l         turn on auto load tracing\n");
 
-    erts_fprintf(stderr, "-M<X> <Y>   memory allocator switches,\n");
-    erts_fprintf(stderr, "            see the erts_alloc(3) documentation for more info.\n");
+    erts_fprintf(stderr, "-M<X> <Y>  memory allocator switches,\n");
+    erts_fprintf(stderr, "           see the erts_alloc(3) documentation for more info.\n");
 
-    erts_fprintf(stderr, "-P number   set maximum number of processes on this node,\n");
-    erts_fprintf(stderr, "            valid range is [%d-%d]\n",
+    erts_fprintf(stderr, "-P number  set maximum number of processes on this node,\n");
+    erts_fprintf(stderr, "           valid range is [%d-%d]\n",
 	       ERTS_MIN_PROCESSES, ERTS_MAX_PROCESSES);
-    erts_fprintf(stderr, "-R number   set compatibility release number,\n");
-    erts_fprintf(stderr, "            valid range [%d-%d]\n",
+    erts_fprintf(stderr, "-R number  set compatibility release number,\n");
+    erts_fprintf(stderr, "           valid range [%d-%d]\n",
 	       ERTS_MIN_COMPAT_REL, this_rel_num());
 
-    erts_fprintf(stderr, "-r          force ets memory block to be moved on realloc\n");
-    erts_fprintf(stderr, "-rg amount  set reader groups limit\n");
-    erts_fprintf(stderr, "-sbt type   set scheduler bind type, valid types are:\n");
-    erts_fprintf(stderr, "            u|ns|ts|ps|s|nnts|nnps|tnnps|db\n");
-    erts_fprintf(stderr, "-sct cput   set cpu topology,\n");
-    erts_fprintf(stderr, "            see the erl(1) documentation for more info.\n");
-    erts_fprintf(stderr, "-swt val    set scheduler wakeup threshold, valid values are:\n");
-    erts_fprintf(stderr, "            very_low|low|medium|high|very_high.\n");
-    erts_fprintf(stderr, "-sss size   suggested stack size in kilo words for scheduler threads,\n");
-    erts_fprintf(stderr, "            valid range is [%d-%d]\n",
+    erts_fprintf(stderr, "-r         force ets memory block to be moved on realloc\n");
+    erts_fprintf(stderr, "-sbt type  set scheduler bind type, valid types are:\n");
+    erts_fprintf(stderr, "           u|ns|ts|ps|s|nnts|nnps|tnnps|db\n");
+    erts_fprintf(stderr, "-sct cput  set cpu topology,\n");
+    erts_fprintf(stderr, "           see the erl(1) documentation for more info.\n");
+    erts_fprintf(stderr, "-sss size  suggested stack size in kilo words for scheduler threads,\n");
+    erts_fprintf(stderr, "           valid range is [%d-%d]\n",
 		 ERTS_SCHED_THREAD_MIN_STACK_SIZE,
 		 ERTS_SCHED_THREAD_MAX_STACK_SIZE);
-    erts_fprintf(stderr, "-S n1:n2    set number of schedulers (n1), and number of\n");
-    erts_fprintf(stderr, "            schedulers online (n2), valid range for both\n");
-    erts_fprintf(stderr, "            numbers are [1-%d]\n",
+    erts_fprintf(stderr, "-S n1:n2   set number of schedulers (n1), and number of\n");
+    erts_fprintf(stderr, "           schedulers online (n2), valid range for both\n");
+    erts_fprintf(stderr, "           numbers are [1-%d]\n",
 		 ERTS_MAX_NO_OF_SCHEDULERS);
-    erts_fprintf(stderr, "-t size     set the maximum number of atoms the "
-			 "emulator can handle\n");
-    erts_fprintf(stderr, "            valid range is [%d-%d]\n",
-		 MIN_ATOM_TABLE_SIZE, MAX_ATOM_TABLE_SIZE);
-    erts_fprintf(stderr, "-T number   set modified timing level,\n");
-    erts_fprintf(stderr, "            valid range is [0-%d]\n",
+    erts_fprintf(stderr, "-T number  set modified timing level,\n");
+    erts_fprintf(stderr, "           valid range is [0-%d]\n",
 		 ERTS_MODIFIED_TIMING_LEVELS-1);
-    erts_fprintf(stderr, "-V          print Erlang version\n");
+    erts_fprintf(stderr, "-V         print Erlang version\n");
 
-    erts_fprintf(stderr, "-v          turn on chatty mode (GCs will be reported etc)\n");
+    erts_fprintf(stderr, "-v         turn on chatty mode (GCs will be reported etc)\n");
 
-    erts_fprintf(stderr, "-W<i|w>     set error logger warnings mapping,\n");
-    erts_fprintf(stderr, "            see error_logger documentation for details\n");
+    erts_fprintf(stderr, "-W<i|w>    set error logger warnings mapping,\n");
+    erts_fprintf(stderr, "           see error_logger documentation for details\n");
 
     erts_fprintf(stderr, "\n");
     erts_fprintf(stderr, "Note that if the emulator is started with erlexec (typically\n");
@@ -542,50 +581,6 @@ void erts_usage(void)
     erts_fprintf(stderr, "\n\n");
     erl_exit(-1, "");
 }
-
-#ifdef USE_THREADS
-/*
- * allocators for thread lib
- */
-
-static void *ethr_std_alloc(size_t size)
-{
-    return erts_alloc_fnf(ERTS_ALC_T_ETHR_STD, (Uint) size);
-}
-static void *ethr_std_realloc(void *ptr, size_t size)
-{
-    return erts_realloc_fnf(ERTS_ALC_T_ETHR_STD, ptr, (Uint) size);
-}
-static void ethr_std_free(void *ptr)
-{
-    erts_free(ERTS_ALC_T_ETHR_STD, ptr);
-}
-static void *ethr_sl_alloc(size_t size)
-{
-    return erts_alloc_fnf(ERTS_ALC_T_ETHR_SL, (Uint) size);
-}
-static void *ethr_sl_realloc(void *ptr, size_t size)
-{
-    return erts_realloc_fnf(ERTS_ALC_T_ETHR_SL, ptr, (Uint) size);
-}
-static void ethr_sl_free(void *ptr)
-{
-    erts_free(ERTS_ALC_T_ETHR_SL, ptr);
-}
-static void *ethr_ll_alloc(size_t size)
-{
-    return erts_alloc_fnf(ERTS_ALC_T_ETHR_LL, (Uint) size);
-}
-static void *ethr_ll_realloc(void *ptr, size_t size)
-{
-    return erts_realloc_fnf(ERTS_ALC_T_ETHR_LL, ptr, (Uint) size);
-}
-static void ethr_ll_free(void *ptr)
-{
-    erts_free(ERTS_ALC_T_ETHR_LL, ptr);
-}
-
-#endif
 
 static void
 early_init(int *argc, char **argv) /*
@@ -609,7 +604,6 @@ early_init(int *argc, char **argv) /*
     erts_async_max_threads = 0;
     erts_async_thread_suggested_stack_size = ERTS_ASYNC_THREAD_MIN_STACK_SIZE;
     H_MIN_SIZE = H_DEFAULT_SIZE;
-    BIN_VH_MIN_SIZE = VH_DEFAULT_SIZE;
 
     erts_initialized = 0;
 
@@ -664,14 +658,8 @@ early_init(int *argc, char **argv) /*
 			    ? ncpuavail
 			    : (ncpuonln > 0 ? ncpuonln : no_schedulers));
 
-#ifdef ERTS_SMP
-    erts_max_main_threads = no_schedulers_online;
-#endif
-
     schdlrs = no_schedulers;
     schdlrs_onln = no_schedulers_online;
-
-    max_reader_groups = ERTS_MAX_READER_GROUPS;
 
     if (argc && argv) {
 	int i = 1;
@@ -682,24 +670,6 @@ early_init(int *argc, char **argv) /*
 	    }
 	    if (argv[i][0] == '-') {
 		switch (argv[i][1]) {
-		case 'r': {
-		    char *sub_param = argv[i]+2;
-		    if (has_prefix("g", sub_param)) {
-			char *arg = get_arg(sub_param+1, argv[i+1], &i);
-			if (sscanf(arg, "%d", &max_reader_groups) != 1) {
-			    erts_fprintf(stderr,
-					 "bad reader groups limit: %s\n", arg);
-			    erts_usage();
-			}
-			if (max_reader_groups < 0) {
-			    erts_fprintf(stderr,
-					 "bad reader groups limit: %d\n",
-					 max_reader_groups);
-			    erts_usage();
-			}
-		    }
-		    break;
-		}
 		case 'S' : {
 		    int tot, onln;
 		    char *arg = get_arg(argv[i]+2, argv[i+1], &i);
@@ -772,42 +742,8 @@ early_init(int *argc, char **argv) /*
     erts_early_init_scheduling(); /* Require allocators */
     erts_init_utils(); /* Require allocators */
 
-#ifdef USE_THREADS
-    {
-	erts_thr_late_init_data_t elid = ERTS_THR_LATE_INIT_DATA_DEF_INITER;
-	elid.mem.std.alloc = ethr_std_alloc;
-	elid.mem.std.realloc = ethr_std_realloc;
-	elid.mem.std.free = ethr_std_free;
-	elid.mem.sl.alloc = ethr_sl_alloc;
-	elid.mem.sl.realloc = ethr_sl_realloc;
-	elid.mem.sl.free = ethr_sl_free;
-	elid.mem.ll.alloc = ethr_ll_alloc;
-	elid.mem.ll.realloc = ethr_ll_realloc;
-	elid.mem.ll.free = ethr_ll_free;
-
-#ifdef ERTS_SMP
-	elid.main_threads = erts_max_main_threads;
-#else
-	elid.main_threads = 1;
-#endif
-	elid.reader_groups = (elid.main_threads > 1
-			      ? elid.main_threads
-			      : 0);
-	if (max_reader_groups <= 1)
-	    elid.reader_groups = 0;
-	if (elid.reader_groups > max_reader_groups)
-	    elid.reader_groups = max_reader_groups;
-	erts_reader_groups = elid.reader_groups;
-
-	erts_thr_late_init(&elid);
-    }
-#endif
 #ifdef ERTS_ENABLE_LOCK_CHECK
     erts_lc_late_init();
-#endif
-    
-#ifdef ERTS_ENABLE_LOCK_COUNT
-    erts_lcnt_late_init();
 #endif
 
 #if defined(HIPE)
@@ -871,13 +807,7 @@ erl_start(int argc, char **argv)
     if (erts_sys_getenv("ERL_THREAD_POOL_SIZE", envbuf, &envbufsz) == 0) {
 	async_max_threads = atoi(envbuf);
     }
-
-#if (defined(__APPLE__) && defined(__MACH__)) || defined(__DARWIN__)
-    /*
-     * The default stack size on MacOS X is too small for pcre.
-     */
-    erts_sched_thread_suggested_stack_size = 256;
-#endif
+    
 
 #ifdef DEBUG
     verbose = DEBUG_DEFAULT;
@@ -992,40 +922,17 @@ erl_start(int argc, char **argv)
 	    fprintf(stderr, "The undocumented +H option has been removed (R10B-6).\n\n");
 	    break;
 
-	case 'h': {
-	    char *sub_param = argv[i]+2;
-	    /* set default heap size
-	     *
-	     * h|ms  - min_heap_size
-	     * h|mbs - min_bin_vheap_size
-	     *
-	     */
-	    if (has_prefix("mbs", sub_param)) {
-		arg = get_arg(sub_param+3, argv[i+1], &i);
-		if ((BIN_VH_MIN_SIZE = atoi(arg)) <= 0) {
-		    erts_fprintf(stderr, "bad heap size %s\n", arg);
-		    erts_usage();
-		}
-		VERBOSE(DEBUG_SYSTEM, ("using minimum binary virtual heap size %d\n", BIN_VH_MIN_SIZE));
-
-	    } else if (has_prefix("ms", sub_param)) {
-		arg = get_arg(sub_param+2, argv[i+1], &i);
-		if ((H_MIN_SIZE = atoi(arg)) <= 0) {
-		    erts_fprintf(stderr, "bad heap size %s\n", arg);
-		    erts_usage();
-		}
-		VERBOSE(DEBUG_SYSTEM, ("using minimum heap size %d\n", H_MIN_SIZE));
-	    } else {
-	        /* backward compatibility */
-		arg = get_arg(argv[i]+2, argv[i+1], &i);
-		if ((H_MIN_SIZE = atoi(arg)) <= 0) {
-		    erts_fprintf(stderr, "bad heap size %s\n", arg);
-		    erts_usage();
-		}
-		VERBOSE(DEBUG_SYSTEM, ("using minimum heap size %d\n", H_MIN_SIZE));
+	case 'h':
+	    /* set default heap size */
+	    arg = get_arg(argv[i]+2, argv[i+1], &i);
+	    if ((H_MIN_SIZE = atoi(arg)) <= 0) {
+		erts_fprintf(stderr, "bad heap size %s\n", arg);
+		erts_usage();
 	    }
+	    VERBOSE(DEBUG_SYSTEM,
+                    ("using minimum heap size %d\n",H_MIN_SIZE));
 	    break;
-	}
+
 	case 'd':
 	    /*
 	     * Never produce crash dumps for internally detected
@@ -1178,20 +1085,10 @@ erl_start(int argc, char **argv)
 	    }
 	    else if (sys_strcmp("mrq", sub_param) == 0)
 		use_multi_run_queue = 1;
-	    else if (sys_strcmp("nsp", sub_param) == 0)
-		erts_use_sender_punish = 0;
 	    else if (sys_strcmp("srq", sub_param) == 0)
 		use_multi_run_queue = 0;
-	    else if (sys_strcmp("wt", sub_param) == 0) {
-		arg = get_arg(sub_param+2, argv[i+1], &i);
-		if (erts_sched_set_wakeup_limit(arg) != 0) {
-		    erts_fprintf(stderr, "scheduler wakeup threshold: %s\n",
-				 arg);
-		    erts_usage();
-		}
-		VERBOSE(DEBUG_SYSTEM,
-			("scheduler wakup threshold: %s\n", arg));
-	    }
+	    else if (sys_strcmp("nsp", sub_param) == 0)
+		erts_use_sender_punish = 0;
 	    else if (has_prefix("ss", sub_param)) {
 		/* suggested stack size (Kilo Words) for scheduler threads */
 		arg = get_arg(sub_param+2, argv[i+1], &i);
@@ -1215,22 +1112,6 @@ erl_start(int argc, char **argv)
 	    }
 	    break;
 	}
-	case 't':
-	    /* set atom table size */
-	    arg = get_arg(argv[i]+2, argv[i+1], &i);
-	    errno = 0;
-	    erts_atom_table_size = strtol(arg, NULL, 10);
-	    if (errno != 0 ||
-		erts_atom_table_size < MIN_ATOM_TABLE_SIZE ||
-		erts_atom_table_size > MAX_ATOM_TABLE_SIZE) {
-		erts_fprintf(stderr, "bad atom table size %s\n", arg);
-		erts_usage();
-	    }
-	    VERBOSE(DEBUG_SYSTEM,
-                    ("setting maximum number of atoms to %d\n",
-		     erts_atom_table_size));
-	    break;
-
 	case 'T' :
 	    arg = get_arg(argv[i]+2, argv[i+1], &i);
 	    errno = 0;
@@ -1306,17 +1187,9 @@ erl_start(int argc, char **argv)
 		     erts_async_thread_suggested_stack_size));
 	    break;
 
-	case 'r': {
-	    char *sub_param = argv[i]+2;
-	    if (has_prefix("g", sub_param)) {
-		get_arg(sub_param+1, argv[i+1], &i);
-		/* already handled */
-	    }
-	    else {
-		erts_ets_realloc_always_moves = 1;
-	    }
+ 	case 'r':
+	    erts_ets_realloc_always_moves = 1;
 	    break;
-	}
 	case 'n':   /* XXX obsolete */
 	    break;
 	case 'c':
@@ -1401,7 +1274,6 @@ erl_start(int argc, char **argv)
 
     erts_sys_main_thread(); /* May or may not return! */
 #else
-    erts_thr_set_main_status(1, 1);
     set_main_stack_size();
     process_main();
 #endif
@@ -1475,7 +1347,7 @@ system_cleanup(int exit_code)
     erts_cleanup_incgc();
 #endif
 
-#if defined(USE_THREADS)
+#if defined(USE_THREADS) && !defined(ERTS_SMP)
     exit_async();
 #endif
 #if HAVE_ERTS_MSEG
@@ -1524,7 +1396,13 @@ __decl_noreturn void erl_exit0(char *file, int line, int n, char *fmt,...)
     if (fmt != NULL && *fmt != '\0')
 	  erl_error(fmt, args);	/* Print error message. */
     va_end(args);
-    sys_tty_reset(n);
+#ifdef __WIN32__
+    if(n > 0) ConWaitForExit();
+    else ConNormalExit();
+#endif
+#if !defined(__WIN32__) && !defined(VXWORKS) && !defined(_OSE_)
+    sys_tty_reset();
+#endif
 
     if (n == ERTS_INTR_EXIT)
 	exit(0);
@@ -1564,7 +1442,13 @@ __decl_noreturn void erl_exit(int n, char *fmt,...)
     if (fmt != NULL && *fmt != '\0')
 	  erl_error(fmt, args);	/* Print error message. */
     va_end(args);
-    sys_tty_reset(n);
+#ifdef __WIN32__
+    if(n > 0) ConWaitForExit();
+    else ConNormalExit();
+#endif
+#if !defined(__WIN32__) && !defined(VXWORKS) && !defined(_OSE_)
+    sys_tty_reset();
+#endif
 
     if (n == ERTS_INTR_EXIT)
 	exit(0);

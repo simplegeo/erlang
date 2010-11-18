@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1999-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1999-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 %% Purpose : Code generator for Beam.
@@ -209,6 +209,7 @@ need_heap_1(#l{ke={set,_,Val}}, H) ->
     {[],H + case Val of
 		{cons,_} -> 2;
 		{tuple,Es} -> 1 + length(Es);
+		{string,S} -> 2 * length(S);
 		_Other -> 0
 	    end};
 need_heap_1(#l{ke={bif,dsetelement,_As,_Rs},i=I}, H) ->
@@ -1190,12 +1191,7 @@ trap_bif(_, _, _) -> false.
 
 bif_cg(bs_context_to_binary=Instr, [Src0], [], Le, Vdb, Bef, St0) ->
     [Src] = cg_reg_args([Src0], Bef),
-    case is_register(Src) of
-	false ->
-	    {[],clear_dead(Bef, Le#l.i, Vdb), St0};
-	true ->
-	    {[{Instr,Src}],clear_dead(Bef, Le#l.i, Vdb), St0}
-    end;
+    {[{Instr,Src}],clear_dead(Bef, Le#l.i, Vdb), St0};
 bif_cg(dsetelement, [Index0,Tuple0,New0], _Rs, Le, Vdb, Bef, St0) ->
     [New,Tuple,{integer,Index1}] = cg_reg_args([New0,Tuple0,Index0], Bef),
     Index = Index1-1,
@@ -1428,6 +1424,8 @@ set_cg([{var,R}], Con, Le, Vdb, Bef, St) ->
 		  [{put_tuple,length(Es),Ret}] ++ cg_build_args(Es, Bef);
 	      {var,V} ->	  % Normally removed by kernel optimizer.
 		  [{move,fetch_var(V, Int),Ret}];
+	      {string,Str} = String ->
+		  [{put_string,length(Str),String,Ret}];
 	      Other ->
 		  [{move,Other,Ret}]
 	  end,
@@ -2023,10 +2021,6 @@ fetch_stack(V, [_|Stk], I) -> fetch_stack(V, Stk, I+1).
 % find_stack(V, [], I) -> error.
 
 on_stack(V, Stk) -> keymember(V, 1, Stk).
-
-is_register({x,_}) -> true;
-is_register({yy,_}) -> true;
-is_register(_) -> false.
 
 %% put_catch(CatchTag, Stack) -> Stack'
 %% drop_catch(CatchTag, Stack) -> Stack'

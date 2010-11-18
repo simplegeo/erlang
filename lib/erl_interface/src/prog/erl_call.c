@@ -123,10 +123,6 @@ static int do_connect(ei_cnode *ec, char *nodename, struct call_flags *flags);
 static int read_stdin(char **buf);
 static void split_apply_string(char *str, char **mod, 
 			       char **fun, char **args);
-static void* ei_chk_malloc(size_t size);
-static void* ei_chk_calloc(size_t nmemb, size_t size);
-static void* ei_chk_realloc(void *old, size_t size);
-static char* ei_chk_strdup(char *s);
 
 
 /***************************************************************************
@@ -136,6 +132,7 @@ static char* ei_chk_strdup(char *s);
  ***************************************************************************/
 
 /* FIXME isn't VxWorks to handle arguments differently? */
+/* FIXME check errors from malloc */
 
 #if !defined(VXWORKS)
 int main(int argc, char *argv[])
@@ -168,7 +165,8 @@ int erl_call(int argc, char **argv)
 		usage_arg(progname, "-sname ");
 	    }
 
-	    flags.node = ei_chk_strdup(argv[i+1]);
+	    flags.node = (char *) malloc(strlen(argv[i+1]) + 1);
+	    strcpy(flags.node, argv[i+1]);
 	    i++;
 	    flags.use_long_name = 0;
 	} else if (strcmp(argv[i], "-name") == 0) {  /* -name NAME */
@@ -176,7 +174,8 @@ int erl_call(int argc, char **argv)
 		usage_arg(progname, "-name ");
 	    }
 
-	    flags.node = ei_chk_strdup(argv[i+1]);
+	    flags.node = (char *) malloc(strlen(argv[i+1]) + 1);
+	    strcpy(flags.node, argv[i+1]);
 	    i++;
 	    flags.use_long_name = 1;
 	} else {
@@ -211,14 +210,16 @@ int erl_call(int argc, char **argv)
 		    usage_arg(progname, "-c ");
 		}
 		flags.cookiep = 1;
-		flags.cookie = ei_chk_strdup(argv[i+1]);
+		flags.cookie = (char *) malloc(strlen(argv[i+1]) + 1);
+		strcpy(flags.cookie, argv[i+1]);
 		i++;
 		break;
 	    case 'n':
 		if (i+1 >= argc) {
 		    usage_arg(progname, "-n ");
 		}
-		flags.node = ei_chk_strdup(argv[i+1]);
+		flags.node = (char *) malloc(strlen(argv[i+1]) + 1);
+		strcpy(flags.node, argv[i+1]);
 		flags.use_long_name = 1;
 		i++;
 		break;
@@ -226,21 +227,24 @@ int erl_call(int argc, char **argv)
 		if (i+1 >= argc) {
 		    usage_arg(progname, "-h ");
 		}
-		flags.hidden = ei_chk_strdup(argv[i+1]);
+		flags.hidden = (char *) malloc(strlen(argv[i+1]) + 1);
+		strcpy(flags.hidden, argv[i+1]);
 		i++;
 		break;
 	    case 'x':
 		if (i+1 >= argc) {
 		    usage_arg(progname, "-x ");
 		}
-		flags.script = ei_chk_strdup(argv[i+1]);
+		flags.script = (char *) malloc(strlen(argv[i+1]) + 1);
+		strcpy(flags.script, argv[i+1]);
 		i++;
 		break;
 	    case 'a':
 		if (i+1 >= argc) {
 		    usage_arg(progname, "-a ");
 		}
-		flags.apply = ei_chk_strdup(argv[i+1]);
+		flags.apply = (char *) malloc(strlen(argv[i+1]) + 1);
+		strcpy(flags.apply, argv[i+1]);
 		i++;
 		break;
 	    case '?':
@@ -300,7 +304,8 @@ int erl_call(int argc, char **argv)
     if (flags.hidden == NULL) {
       /* As default we are c17@gethostname */
       i = flags.randomp ? (time(NULL) % 997) : 17;
-      flags.hidden = (char *) ei_chk_malloc(10 + 2 ); /* c17 or cXYZ */
+      /* FIXME allocates to small !!! */
+      flags.hidden = (char *) malloc(3 + 2 ); /* c17 or cXYZ */
 #if defined(VXWORKS)
       sprintf(flags.hidden, "c%d",
 	  i < 0 ?  (int) taskIdSelf() : i);
@@ -325,25 +330,17 @@ int erl_call(int argc, char **argv)
       initWinSock();
 #endif
 
-      if (gethostname(h_hostname, EI_MAXHOSTNAMELEN) < 0) {
-	  fprintf(stderr,"erl_call: failed to get host name: %d\n", errno);
-	  exit(1);
-      }
+      gethostname(h_hostname, EI_MAXHOSTNAMELEN);
       if ((hp = ei_gethostbyname(h_hostname)) == 0) {
 	  fprintf(stderr,"erl_call: can't resolve hostname %s\n", h_hostname);
 	  exit(1);
       }
-      /* If shortnames, cut off the name at first '.' */
+      /* If shortnames cut of the name at first '.' */
       if (flags.use_long_name == 0 && (ct = strchr(hp->h_name, '.')) != NULL) {
 	  *ct = '\0';
       }
-      strncpy(h_hostname, hp->h_name, EI_MAXHOSTNAMELEN);
-      h_hostname[EI_MAXHOSTNAMELEN] = '\0';
+      strcpy(h_hostname, hp->h_name);
       memcpy(&h_ipadr.s_addr, *hp->h_addr_list, sizeof(struct in_addr));
-      if (strlen(h_alivename) + strlen(h_hostname) + 2 > sizeof(h_nodename)) {
-	  fprintf(stderr,"erl_call: hostname too long: %s\n", h_hostname);
-	  exit(1);
-      }
       sprintf(h_nodename, "%s@%s", h_alivename, h_hostname);
       
       if (ei_connect_xinit(&ec, h_hostname, h_alivename, h_nodename,
@@ -371,16 +368,11 @@ int erl_call(int argc, char **argv)
 	fprintf(stderr,"erl_call: can't get_hostent(%s)\n", host);
 	exit(1);
     }
-    /* If shortnames, cut off the name at first '.' */
+    /* If shortnames cut of the name at first '.' */
     if (flags.use_long_name == 0 && (ct = strchr(hp->h_name, '.')) != NULL) {
 	*ct = '\0';
     }
-    strncpy(host_name, hp->h_name, EI_MAXHOSTNAMELEN);
-    host_name[EI_MAXHOSTNAMELEN] = '\0';
-    if (strlen(flags.node) + strlen(host_name) + 2 > sizeof(nodename)) {
-	fprintf(stderr,"erl_call: nodename too long: %s\n", flags.node);
-	exit(1);
-    }
+    strcpy(host_name, hp->h_name);
     sprintf(nodename, "%s@%s", flags.node, host_name);
 
     /* 
@@ -409,7 +401,7 @@ int erl_call(int argc, char **argv)
 
 	ei_encode_empty_list(NULL, &i);
 
-	p = (char *)ei_chk_malloc(i);
+	p = (char *)malloc(i);
 	i = 0;		/* Reset */
 	  
 	ei_encode_empty_list(p, &i);
@@ -434,10 +426,6 @@ int erl_call(int argc, char **argv)
     if (flags.modp && (modname != NULL)) {
       char fname[256];
 
-      if (strlen(modname) + 4 + 1 > sizeof(fname)) {
-      fprintf(stderr,"erl_call: module name too long: %s\n", modname);
-      exit(1);
-      }
       strcpy(fname, modname);
       strcat(fname, ".erl");
 
@@ -455,7 +443,7 @@ int erl_call(int argc, char **argv)
 	  ei_encode_binary(NULL, &i, module, modsize);
 	  ei_encode_empty_list(NULL, &i);
 
-	  p = (char *)ei_chk_malloc(i);
+	  p = (char *)malloc(i);
 	  i = 0;		/* Reset */
 	  
 	  ei_encode_list_header(p, &i, 2);
@@ -488,7 +476,7 @@ int erl_call(int argc, char **argv)
 	  ei_encode_empty_list(NULL, &i);
 	  ei_encode_empty_list(NULL, &i);
 
-	  p = (char *)ei_chk_malloc(i);
+	  p = (char *)malloc(i);
 	  i = 0;		/* Reset */
 	  
 	  ei_encode_list_header(p, &i, 2);
@@ -533,7 +521,7 @@ int erl_call(int argc, char **argv)
 	  ei_encode_binary(NULL, &i, evalbuf, len);
 	  ei_encode_empty_list(NULL, &i);
 
-	  p = (char *)ei_chk_malloc(i);
+	  p = (char *)malloc(i);
 	  i = 0;		/* Reset */
 	  
 	  ei_encode_list_header(p, &i, 1);
@@ -731,28 +719,32 @@ static void split_apply_string(char *str,
 
   EAT(str);
   len = str-begin;
-  *mod = (char *) ei_chk_calloc(len + 1, sizeof(char));
+  *mod = (char *) calloc(len + 1, sizeof(char));
   memcpy(*mod, begin, len);
 
   SKIP_SPACE(str);
   if (*str == '\0') {
-    *fun = ei_chk_strdup(start);
-    *args = ei_chk_strdup(empty_list);
+    *fun = (char *) calloc(strlen(start)+1, sizeof(char));
+    strcpy(*fun, start);
+    *args = (char *) calloc(strlen(empty_list)+1, sizeof(char));
+    strcpy(*args, empty_list);
     return;
   }
   begin = str;
   EAT(str);
   len = str-begin;
-  *fun = (char *) ei_chk_calloc(len + 1, sizeof(char));
+  *fun = (char *) calloc(len + 1, sizeof(char));
   memcpy(*fun, begin, len);
 
   SKIP_SPACE(str);
   if (*str == '\0') {
-    *args = ei_chk_strdup(empty_list);
+    *args = (char *) calloc(strlen(empty_list)+1, sizeof(char));
+    strcpy(*args, empty_list);
     return;
   }
 
-  *args = ei_chk_strdup(str);
+  *args = (char *) calloc(strlen(str) + 1, sizeof(char));
+  strcpy(*args, str);
   
   return;
 
@@ -768,7 +760,7 @@ static int read_stdin(char **buf)
     int bsize = BUFSIZ;
     int len = 0;
     int i;
-    char *tmp = (char *) ei_chk_malloc(bsize);
+    char *tmp = (char *) malloc(bsize);
 
     while (1) {
 	if ((i = read(0, &tmp[len], bsize-len)) < 0) {
@@ -780,7 +772,7 @@ static int read_stdin(char **buf)
 	    len += i;
 	    if ((len+50) > bsize) {
 		bsize = len * 2;
-		tmp = (char *) ei_chk_realloc(tmp, bsize);
+		tmp = (char *) realloc(tmp, bsize);
 	    } else {
 		continue;
 	    }
@@ -817,11 +809,10 @@ static int get_module(char **mbuf, char **mname)
       }
     } /* while */
     i = tmp - start;
-    *mname = (char *) ei_chk_calloc(i+1, sizeof(char));
+    *mname = (char *) calloc(i+1, sizeof(char));
     memcpy(*mname, start, i);
   }
-  if (*mbuf)
-      free(*mbuf);			/* Allocated in read_stdin() */
+  free(mbuf);			/* Allocated in read_stdin() */
 
   return len;
 
@@ -913,51 +904,3 @@ static void initWinSock(void)
     }
 }
 #endif
-
-
-/***************************************************************************
- *
- *  Utility functions
- *
- ***************************************************************************/
-
-static void* ei_chk_malloc(size_t size)
-{
-    void *p = malloc(size);
-    if (p == NULL) {
-        fprintf(stderr,"erl_call: insufficient memory\n");
-        exit(1);
-    }
-    return p;
-}
-
-static void* ei_chk_calloc(size_t nmemb, size_t size)
-{
-    void *p = calloc(nmemb, size);
-    if (p == NULL) {
-        fprintf(stderr,"erl_call: insufficient memory\n");
-        exit(1);
-    }
-    return p;
-}
-
-static void* ei_chk_realloc(void *old, size_t size)
-{
-    void *p = realloc(old, size);
-    if (!p) {
-        fprintf(stderr, "erl_call: cannot reallocate %u bytes of memory from %p\n",
-                (unsigned) size, old);
-        exit (1);
-    }
-    return p;
-}
-
-static char* ei_chk_strdup(char *s)
-{
-    char *p = strdup(s);
-    if (p == NULL) {
-        fprintf(stderr,"erl_call: insufficient memory\n");
-        exit(1);
-    }
-    return p;
-}

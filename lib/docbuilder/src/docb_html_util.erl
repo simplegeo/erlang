@@ -136,6 +136,7 @@ copy_pics(Src, Dest, Opts) ->
     Dir = code:lib_dir(docbuilder),
     InFile = filename:join([Dir, "etc", Src]),
     OutFile = docb_util:outfile(Dest, "", Opts),
+
     case filelib:last_modified(OutFile) of
 	0 -> % File doesn't exist
 	    file:copy(InFile, OutFile);
@@ -155,10 +156,10 @@ copy_pics(Src, Dest, Opts) ->
 %%--Resolve header data-------------------------------------------------
 
 extract_header_data(Key, {header, [], List}) ->
-    case lists:keyfind(Key, 1, List) of
-	{Key, [], []} ->
+    case lists:keysearch(Key, 1, List) of
+	{value, {Key, [], []}} ->
 	    "";
-	{Key, [], [{pcdata, [], Value}]} ->
+	{value, {Key, [], [{pcdata, [], Value}]}} ->
 	    pcdata_to_html(Value);
 	false ->
 	    ""
@@ -252,7 +253,7 @@ make_anchor_href(HRef) ->
 	{ok, [HRef]} ->
 	    %% No `#' in HRef, i.e. only path
 	    make_anchor_href(HRef, "");
-	 {ok, [Path, Fragment]} ->
+	 {ok, [Path, Fragment]}->
 	    make_anchor_href(Path, Fragment)
     end.
 
@@ -397,10 +398,10 @@ count_sections([]) ->
 %%--Make a ToC----------------------------------------------------------
 
 format_toc(Toc) ->
-    [format_toc1(T) || T <- Toc].
-
-format_toc1({Number, Title}) ->
-    [Number, " <a href = \"#", Number, "\">", Title, "</a><br/>\n"].
+    lists:map(fun({Number, Title}) ->
+		      [Number, " <a href = \"#", Number,
+		       "\">", Title, "</a><br/>\n"]
+	      end, Toc).
 
 %%--Convert HTML ISO Latin 1 characters to ordinary characters----------
 

@@ -4,7 +4,7 @@
 <erlref>
   <header>
     <copyright>
-      <year>1996</year><year>2010</year>
+      <year>1996</year><year>2009</year>
       <holder>Ericsson AB. All Rights Reserved.</holder>
     </copyright>
     <legalnotice>
@@ -13,12 +13,12 @@
       compliance with the License. You should have received a copy of the
       Erlang Public License along with this software. If not, it can be
       retrieved online at http://www.erlang.org/.
-
+    
       Software distributed under the License is distributed on an "AS IS"
       basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
       the License for the specific language governing rights and limitations
       under the License.
-
+    
     </legalnotice>
 
     <title>erlang</title>
@@ -80,7 +80,7 @@ iolist() = [char() | binary() | iolist()]
       </desc>
     </func>
     <func>
-      <name>erlang:adler32(Data) -> int()</name>
+      <name>adler32(Data) -> int()</name>
       <fsummary>Compute adler32 checksum</fsummary>
       <type>
         <v>Data = iodata()</v>
@@ -90,7 +90,7 @@ iolist() = [char() | binary() | iolist()]
       </desc>
     </func>
     <func>
-      <name>erlang:adler32(OldAdler, Data) -> int()</name>
+      <name>adler32(OldAdler, Data) -> int()</name>
       <fsummary>Compute adler32 checksum</fsummary>
       <type>
         <v>OldAdler = int()</v>
@@ -102,17 +102,17 @@ iolist() = [char() | binary() | iolist()]
 	<c>Data</c>.</p>
 	<p>The following code:</p>
 	<code>
-	X = erlang:adler32(Data1),
-	Y = erlang:adler32(X,Data2).
+	X = adler32(Data1),
+	Y = adler32(X,Data2).
 	</code>
 	<p>- would assign the same value to <c>Y</c> as this would:</p>
 	<code>
-	Y = erlang:adler32([Data1,Data2]).
+	Y = adler32([Data1,Data2]).
 	</code>
       </desc>
     </func>
     <func>
-      <name>erlang:adler32_combine(FirstAdler, SecondAdler, SecondSize) -> int()</name>
+      <name>adler32_combine(FirstAdler, SecondAdler, SecondSize) -> int()</name>
       <fsummary>Combine two adler32 checksums</fsummary>
       <type>
         <v>FirstAdler = SecondAdler = int()</v>
@@ -124,14 +124,14 @@ iolist() = [char() | binary() | iolist()]
 	the second checksum to be known.</p>
 	<p>The following code:</p>
 	<code>
-	Y = erlang:adler32(Data1),
-	Z = erlang:adler32(Y,Data2).
+	Y = adler32(Data1),
+	Z = adler32(Y,Data2).
 	</code>
 	<p>- would assign the same value to <c>Z</c> as this would:</p>
 	<code>
-	X = erlang:adler32(Data1),
-	Y = erlang:adler32(Data2),
-	Z = erlang:adler32_combine(X,Y,iolist_size(Data2)).
+	X = adler32(Data1),
+	Y = adler32(Data2),
+	Z = adler32_combine(X,Y,iolist_size(Data2)).
 	</code>
       </desc>
     </func>
@@ -147,7 +147,7 @@ iolist() = [char() | binary() | iolist()]
           <c>Tuple1</c>, and contains the elements in <c>Tuple1</c>
           followed by <c>Term</c> as the last element. Semantically
           equivalent to
-          <c>list_to_tuple(tuple_to_list(Tuple) ++ [Term])</c>, but much
+          <c>list_to_tuple(tuple_to_list(Tuple ++ [Term])</c>, but much
           faster.</p>
         <pre>
 > <input>erlang:append_element({one, two}, three).</input>
@@ -253,54 +253,6 @@ iolist() = [char() | binary() | iolist()]
       </desc>
     </func>
     <func>
-      <name>binary_part(Subject, PosLen) -> binary()</name>
-      <fsummary>Extracts a part of a binary</fsummary>
-      <type>
-        <v>Subject = binary()</v>
-	<v>PosLen = {Start,Length}</v>
-	<v>Start = int()</v>
-	<v>Length = int()</v>
-      </type>
-      <desc>
-      <p>Extracts the part of the binary described by <c>PosLen</c>.</p>
-
-      <p>Negative length can be used to extract bytes at the end of a binary:</p>
-
-<code>
-1> Bin = &lt;&lt;1,2,3,4,5,6,7,8,9,10&gt;&gt;.
-2> binary_part(Bin,{byte_size(Bin), -5)).
-&lt;&lt;6,7,8,9,10&gt;&gt;
-</code>
-
-      <p>If <c>PosLen</c> in any way references outside the binary, a <c>badarg</c> exception is raised.</p>
-
-      <p><c>Start</c> is zero-based, i.e:</p>
-<code>
-1> Bin = &lt;&lt;1,2,3&gt;&gt;
-2> binary_part(Bin,{0,2}).
-&lt;&lt;1,2&gt;&gt;
-</code>
-
-      <p>See the STDLIB module <c>binary</c> for details about the <c>PosLen</c> semantics.</p>
-
-      <p>Allowed in guard tests.</p>
-      </desc>
-    </func>
-    <func>
-      <name>binary_part(Subject, Start, Length) -> binary()</name>
-      <fsummary>Extracts a part of a binary</fsummary>
-      <type>
-        <v>Subject = binary()</v>
-	<v>Start = int()</v>
-	<v>Length = int()</v>
-      </type>
-      <desc>
-      <p>The same as <c>binary_part(Subject, {Pos, Len})</c>.</p>
-
-      <p>Allowed in guard tests.</p>
-      </desc>
-    </func>
-    <func>
       <name>binary_to_atom(Binary, Encoding) -> atom()</name>
       <fsummary>Convert from text representation to an atom</fsummary>
       <type>
@@ -366,11 +318,6 @@ iolist() = [char() | binary() | iolist()]
           corresponding to the bytes from position <c>Start</c> to
           position <c>Stop</c> in <c>Binary</c>. Positions in the
           binary are numbered starting from 1.</p>
-
-	  <note><p>This function's indexing style of using one-based indices for
-	  binaries is deprecated. New code should use the functions in
-	  the STDLIB module <c>binary</c> instead. They consequently
-	  use the same (zero-based) style of indexing.</p></note>
       </desc>
     </func>
     <func>
@@ -395,50 +342,8 @@ iolist() = [char() | binary() | iolist()]
       <desc>
         <p>Returns an Erlang term which is the result of decoding
           the binary object <c>Binary</c>, which must be encoded
-          according to the Erlang external term format.</p>
-        <warning>
-	  <p>When decoding binaries from untrusted sources, consider using
-	     <c>binary_to_term/2</c> to prevent denial of service attacks.</p>
-        </warning>
-	<p>See also
-	   <seealso marker="#term_to_binary/1">term_to_binary/1</seealso>
-           and
-	   <seealso marker="#binary_to_term/2">binary_to_term/2</seealso>.</p>
-      </desc>
-    </func>
-    <func>
-      <name>binary_to_term(Binary, Opts) -> term()</name>
-      <fsummary>Decode an Erlang external term format binary</fsummary>
-      <type>
-        <v>Opts = [safe]</v>
-        <v>Binary = ext_binary()</v>
-      </type>
-      <desc>
-        <p>As <c>binary_to_term/1</c>, but takes options that affect decoding
-           of the binary.</p>
-        <taglist>
-          <tag><c>safe</c></tag>
-          <item>
-	    <p>Use this option when receiving binaries from an untrusted
-               source.</p>
-	    <p>When enabled, it prevents decoding data that may be used to
-	       attack the Erlang system.  In the event of receiving unsafe
-               data, decoding fails with a badarg error.</p>
-	    <p>Currently, this prevents creation of new atoms directly,
-	       creation of new atoms indirectly (as they are embedded in
-	       certain structures like pids, refs, funs, etc.), and creation of
-	       new external function references.  None of those resources are
-	       currently garbage collected, so unchecked creation of them can
-               exhaust available memory.</p>
-          </item>
-        </taglist>
-	<p>Failure: <c>badarg</c> if <c>safe</c> is specified and unsafe data
-           is decoded.</p>
-        <p>See also
-           <seealso marker="#term_to_binary/1">term_to_binary/1</seealso>,
-           <seealso marker="#binary_to_term/1">binary_to_term/1</seealso>,
-           and <seealso marker="#list_to_existing_atom/1">
-             list_to_existing_atom/1</seealso>.</p>
+          according to the Erlang external term format. See also
+          <seealso marker="#term_to_binary/1">term_to_binary/1</seealso>.</p>
       </desc>
     </func>
     <func>
@@ -499,25 +404,25 @@ iolist() = [char() | binary() | iolist()]
       <name>erlang:cancel_timer(TimerRef) -> Time | false</name>
       <fsummary>Cancel a timer</fsummary>
       <type>
-        <v>TimerRef = reference()</v>
+        <v>TimerRef = ref()</v>
         <v>Time = int()</v>
       </type>
       <desc>
         <p>Cancels a timer, where <c>TimerRef</c> was returned by
           either
-          <seealso marker="#send_after/3">erlang:send_after/3</seealso>
+          <seealso marker="#erlang:send_after/3">erlang:send_after/3</seealso>
           or
-          <seealso marker="#start_timer/3">erlang:start_timer/3</seealso>.
+          <seealso marker="#erlang:start_timer/3">erlang:start_timer/3</seealso>.
           If the timer is there to be removed, the function returns
           the time in milliseconds left until the timer would have expired,
           otherwise <c>false</c> (which means that <c>TimerRef</c> was
           never a timer, that it has already been cancelled, or that it
           has already delivered its message).</p>
         <p>See also 
-          <seealso marker="#send_after/3">erlang:send_after/3</seealso>,
-          <seealso marker="#start_timer/3">erlang:start_timer/3</seealso>,
+          <seealso marker="#erlang:send_after/3">erlang:send_after/3</seealso>,
+          <seealso marker="#erlang:start_timer/3">erlang:start_timer/3</seealso>,
           and
-          <seealso marker="#read_timer/1">erlang:read_timer/1</seealso>.</p>
+          <seealso marker="#erlang:read_timer/1">erlang:read_timer/1</seealso>.</p>
         <p>Note: Cancelling a timer does not guarantee that the message
           has not already been delivered to the message queue.</p>
       </desc>
@@ -553,7 +458,7 @@ false</pre>
       </desc>
     </func>
     <func>
-      <name>erlang:crc32(Data) -> int()</name>
+      <name>crc32(Data) -> int()</name>
       <fsummary>Compute crc32 (IEEE 802.3) checksum</fsummary>
       <type>
         <v>Data = iodata()</v>
@@ -563,7 +468,7 @@ false</pre>
       </desc>
     </func>
     <func>
-      <name>erlang:crc32(OldCrc, Data) -> int()</name>
+      <name>crc32(OldCrc, Data) -> int()</name>
       <fsummary>Compute crc32 (IEEE 802.3) checksum</fsummary>
       <type>
         <v>OldCrc = int()</v>
@@ -575,17 +480,17 @@ false</pre>
 	<c>Data</c>.</p>
 	<p>The following code:</p>
 	<code>
-	X = erlang:crc32(Data1),
-	Y = erlang:crc32(X,Data2).
+	X = crc32(Data1),
+	Y = crc32(X,Data2).
 	</code>
 	<p>- would assign the same value to <c>Y</c> as this would:</p>
 	<code>
-	Y = erlang:crc32([Data1,Data2]).
+	Y = crc32([Data1,Data2]).
 	</code>
       </desc>
     </func>
     <func>
-      <name>erlang:crc32_combine(FirstCrc, SecondCrc, SecondSize) -> int()</name>
+      <name>crc32_combine(FirstCrc, SecondCrc, SecondSize) -> int()</name>
       <fsummary>Combine two crc32 (IEEE 802.3) checksums</fsummary>
       <type>
         <v>FirstCrc = SecondCrc = int()</v>
@@ -597,14 +502,14 @@ false</pre>
 	the second checksum to be known.</p>
 	<p>The following code:</p>
 	<code>
-	Y = erlang:crc32(Data1),
-	Z = erlang:crc32(Y,Data2).
+	Y = crc32(Data1),
+	Z = crc32(Y,Data2).
 	</code>
 	<p>- would assign the same value to <c>Z</c> as this would:</p>
 	<code>
-	X = erlang:crc32(Data1),
-	Y = erlang:crc32(Data2),
-	Z = erlang:crc32_combine(X,Y,iolist_size(Data2)).
+	X = crc32(Data1),
+	Y = crc32(Data2),
+	Z = crc32_combine(X,Y,iolist_size(Data2)).
 	</code>
       </desc>
     </func>
@@ -624,7 +529,7 @@ false</pre>
       </desc>
     </func>
     <func>
-      <name>erlang:decode_packet(Type,Bin,Options) -> {ok,Packet,Rest} | {more,Length} | {error,Reason}</name>
+      <name>decode_packet(Type,Bin,Options) -> {ok,Packet,Rest} | {more,Length} | {error,Reason}</name>
       <fsummary>Extracts a protocol packet from a binary</fsummary>
       <type>
         <v>Bin = binary()</v>
@@ -760,18 +665,18 @@ false</pre>
       </desc>
     </func>
     <func>
-      <name>demonitor(MonitorRef) -> true</name>
+      <name>erlang:demonitor(MonitorRef) -> true</name>
       <fsummary>Stop monitoring</fsummary>
       <type>
-        <v>MonitorRef = reference()</v>
+        <v>MonitorRef = ref()</v>
       </type>
       <desc>
         <p>If <c>MonitorRef</c> is a reference which the calling process
           obtained by calling
-          <seealso marker="#monitor/2">monitor/2</seealso>,
+          <seealso marker="#erlang:monitor/2">erlang:monitor/2</seealso>,
           this monitoring is turned off. If the monitoring is already
           turned off, nothing happens.</p>
-        <p>Once <c>demonitor(MonitorRef)</c> has returned it is
+        <p>Once <c>erlang:demonitor(MonitorRef)</c> has returned it is
           guaranteed that no <c>{'DOWN', MonitorRef, _, _, _}</c> message
           due to the monitor will be placed in the callers message queue
           in the future. A <c>{'DOWN', MonitorRef, _, _, _}</c> message
@@ -779,10 +684,10 @@ false</pre>
           the call, though. Therefore, in most cases, it is advisable
           to remove such a <c>'DOWN'</c> message from the message queue
           after monitoring has been stopped. 
-          <seealso marker="#demonitor/2">demonitor(MonitorRef, [flush])</seealso> can be used instead of
-          <c>demonitor(MonitorRef)</c> if this cleanup is wanted.</p>
+          <seealso marker="#erlang:demonitor/2">erlang:demonitor(MonitorRef, [flush])</seealso> can be used instead of
+          <c>erlang:demonitor(MonitorRef)</c> if this cleanup is wanted.</p>
         <note>
-          <p>Prior to OTP release R11B (erts version 5.5) <c>demonitor/1</c>
+          <p>Prior to OTP release R11B (erts version 5.5) <c>erlang:demonitor/1</c>
             behaved completely asynchronous, i.e., the monitor was active
             until the "demonitor signal" reached the monitored entity. This
             had one undesirable effect, though. You could never know when
@@ -800,10 +705,10 @@ false</pre>
       </desc>
     </func>
     <func>
-      <name>demonitor(MonitorRef, OptionList) -> true|false</name>
+      <name>erlang:demonitor(MonitorRef, OptionList) -> true|false</name>
       <fsummary>Stop monitoring</fsummary>
       <type>
-        <v>MonitorRef = reference()</v>
+        <v>MonitorRef = ref()</v>
         <v>OptionList = [Option]</v>
         <v>Option = flush</v>
         <v>Option = info</v>
@@ -812,8 +717,8 @@ false</pre>
         <p>The returned value is <c>true</c> unless <c>info</c> is part
 	   of <c>OptionList</c>.
 	</p>
-        <p><c>demonitor(MonitorRef, [])</c> is equivalent to
-          <seealso marker="#demonitor/1">demonitor(MonitorRef)</seealso>.</p>
+        <p><c>erlang:demonitor(MonitorRef, [])</c> is equivalent to
+          <seealso marker="#erlang:demonitor/1">erlang:demonitor(MonitorRef)</seealso>.</p>
         <p>Currently the following <c>Option</c>s are valid:</p>
         <taglist>
           <tag><c>flush</c></tag>
@@ -821,16 +726,16 @@ false</pre>
             <p>Remove (one) <c>{_, MonitorRef, _, _, _}</c> message,
               if there is one, from the callers message queue after
               monitoring has been stopped.</p>
-            <p>Calling <c>demonitor(MonitorRef, [flush])</c>
+            <p>Calling <c>erlang:demonitor(MonitorRef, [flush])</c>
               is equivalent to the following, but more efficient:</p>
             <code type="none">
 
-    demonitor(MonitorRef),
+    erlang:demonitor(MonitorRef),
     receive
-        {_, MonitorRef, _, _, _} ->
-            true
+\011{_, MonitorRef, _, _, _} ->
+\011    true
     after 0 ->
-            true
+\011    true
     end</code>
           </item>
           <tag><c>info</c></tag>
@@ -863,7 +768,7 @@ false</pre>
         </note>
         <p>Failure: <c>badarg</c> if <c>OptionList</c> is not a list, or
           if <c>Option</c> is not a valid option, or the same failure as for
-          <seealso marker="#demonitor/1">demonitor/1</seealso></p>
+          <seealso marker="#erlang:demonitor/1">erlang:demonitor/1</seealso></p>
       </desc>
     </func>
     <func>
@@ -944,7 +849,7 @@ b</pre>
       </desc>
     </func>
     <func>
-      <name>error(Reason)</name>
+      <name>erlang:error(Reason)</name>
       <fsummary>Stop execution with a given reason</fsummary>
       <type>
         <v>Reason = term()</v>
@@ -957,7 +862,7 @@ b</pre>
           function first). Since evaluating this function causes
           the process to terminate, it has no return value.</p>
         <pre>
-> <input>catch error(foobar).</input>
+> <input>catch erlang:error(foobar).</input>
 {'EXIT',{foobar,[{erl_eval,do_apply,5},
                  {erl_eval,expr,5},
                  {shell,exprs,6},
@@ -966,7 +871,7 @@ b</pre>
       </desc>
     </func>
     <func>
-      <name>error(Reason, Args)</name>
+      <name>erlang:error(Reason, Args)</name>
       <fsummary>Stop execution with a given reason</fsummary>
       <type>
         <v>Reason = term()</v>
@@ -1182,7 +1087,7 @@ b</pre>
           <c>uniq</c>, and <c>pid</c>. For an external fun, the value
           of any of these items is always the atom <c>undefined</c>.</p>
         <p>See
-          <seealso marker="#fun_info/1">erlang:fun_info/1</seealso>.</p>
+          <seealso marker="#erlang:fun_info/1">erlang:fun_info/1</seealso>.</p>
       </desc>
     </func>
     <func>
@@ -1328,8 +1233,8 @@ b</pre>
           returns, for example:</p>
         <p><c>{'EXIT',{badarg,Stacktrace}} = catch abs(x)</c></p>
         <p>See also
-          <seealso marker="#error/1">erlang:error/1</seealso> and
-          <seealso marker="#error/2">erlang:error/2</seealso>.</p>
+          <seealso marker="#erlang:error/1">erlang:error/1</seealso> and
+          <seealso marker="#erlang:error/2">erlang:error/2</seealso>.</p>
       </desc>
     </func>
     <func>
@@ -1483,7 +1388,7 @@ os_prompt%</pre>
       </desc>
     </func>
     <func>
-      <name>integer_to_list(Integer, Base) -> string()</name>
+      <name>erlang:integer_to_list(Integer, Base) -> string()</name>
       <fsummary>Text representation of an integer</fsummary>
       <type>
         <v>Integer = int()</v>
@@ -1493,7 +1398,7 @@ os_prompt%</pre>
         <p>Returns a string which corresponds to the text
           representation of <c>Integer</c> in base <c>Base</c>.</p>
         <pre>
-> <input>integer_to_list(1023, 16).</input>
+> <input>erlang:integer_to_list(1023, 16).</input>
 "3FF"</pre>
       </desc>
     </func>
@@ -1932,7 +1837,7 @@ os_prompt%</pre>
       </desc>
     </func>
     <func>
-      <name>list_to_integer(String, Base) -> int()</name>
+      <name>erlang:list_to_integer(String, Base) -> int()</name>
       <fsummary>Convert from text representation to an integer</fsummary>
       <type>
         <v>String = string()</v>
@@ -1942,7 +1847,7 @@ os_prompt%</pre>
         <p>Returns an integer whose text representation in base
           <c>Base</c> is <c>String</c>.</p>
         <pre>
-> <input>list_to_integer("3FF", 16).</input>
+> <input>erlang:list_to_integer("3FF", 16).</input>
 1023</pre>
         <p>Failure: <c>badarg</c> if <c>String</c> contains a bad
           representation of an integer.</p>
@@ -2024,7 +1929,7 @@ os_prompt%</pre>
       </desc>
     </func>
     <func>
-      <name>erlang:load_nif(Path, LoadInfo) -> ok | {error, {Reason, Text}}</name>
+      <name>erlang:load_nif(Path, LoadInfo) -> ok | {error, Reason, Text}</name>
       <fsummary>Load NIF library</fsummary>
       <type>
         <v>Path = string()</v>
@@ -2034,18 +1939,15 @@ os_prompt%</pre>
         <v>Text = string()</v>
       </type>
       <desc>
-        <note>
-          <p>In releases older than OTP R14B, NIFs were an
-          experimental feature. Versions of OTP older than R14B might
-          have different and possibly incompatible NIF semantics and
-          interfaces. For example, in R13B03 the return value on
-          failure was
-          <c>{error,Reason,Text}</c>.</p>
-        </note>
+        <warning>
+          <p>This BIF is currently introduced as an experimental
+          feature. The interface may be changed in any way in future
+          releases.</p>
+        </warning>
         <p>Loads and links a dynamic library containing native
         implemented functions (NIFs) for a module. <c>Path</c> is a
         file path to the sharable object/dynamic library file minus
-        the OS-dependent file extension (.so for Unix and .dll for
+        the OS-dependant file extension (.so for Unix and .ddl for
         Windows). See <seealso marker="erl_nif">erl_nif</seealso>
         on how to implement a NIF library.</p> 
         <p><c>LoadInfo</c> can be any term. It will be passed on to
@@ -2055,10 +1957,10 @@ os_prompt%</pre>
         <p>The call to <c>load_nif/2</c> must be made
         <em>directly</em> from the Erlang code of the module that the
         NIF library belongs to.</p>
-        <p>It returns either <c>ok</c>, or <c>{error,{Reason,Text}}</c>
+        <p>It returns either <c>ok</c>, or <c>{error,Reason,Text}</c>
         if loading fails. <c>Reason</c> is one of the atoms below,
         while <c>Text</c> is a human readable string that may give
-        some more information about the failure.</p>
+        some more information about the failure:</p>
         <taglist>
           <tag><c>load_failed</c></tag>
           <item>
@@ -2162,7 +2064,7 @@ os_prompt%</pre>
       </desc>
     </func>
     <func>
-      <name>make_ref() -> reference()</name>
+      <name>make_ref() -> ref()</name>
       <fsummary>Return an almost unique reference</fsummary>
       <desc>
         <p>Returns an almost unique reference.</p>
@@ -2211,7 +2113,7 @@ os_prompt%</pre>
       </desc>
     </func>
     <func>
-      <name>max(Term1, Term2) -> Maximum</name>
+      <name>erlang:max(Term1, Term2) -> Maximum</name>
       <fsummary>Return the largest of two term</fsummary>
       <type>
         <v>Term1 = Term2 = Maximum = term()</v>
@@ -2380,13 +2282,13 @@ os_prompt%</pre>
           other. Values beginning with an uppercase letter is not part
           of the result.</p>
         <code type="none">
-        total = processes + system
-        processes = processes_used + ProcessesNotUsed
-        system = atom + binary + code + ets + OtherSystem
-        atom = atom_used + AtomNotUsed
+\011total = processes + system
+\011processes = processes_used + ProcessesNotUsed
+\011system = atom + binary + code + ets + OtherSystem
+\011atom = atom_used + AtomNotUsed
 
-        RealTotal = processes + RealSystem
-        RealSystem = system + MissedSystem</code>
+\011RealTotal = processes + RealSystem
+\011RealSystem = system + MissedSystem</code>
         <p>More tuples in the returned list may be added in the future.</p>
         <note>
           <p>The <c>total</c> value is supposed to be the total amount
@@ -2442,7 +2344,7 @@ os_prompt%</pre>
           <item>
 	    If <c>Type</c> is not one of the memory types listed in the
 	    documentation of
-	    <seealso marker="#memory/0">erlang:memory/0</seealso>.
+	    <seealso marker="#erlang:memory/0">erlang:memory/0</seealso>.
 	  </item>
           <tag><c>badarg</c></tag>
           <item>
@@ -2456,11 +2358,11 @@ os_prompt%</pre>
 	  </item>
 	</taglist>
         <p>See also
-          <seealso marker="#memory/0">erlang:memory/0</seealso>.</p>
+          <seealso marker="#erlang:memory/0">erlang:memory/0</seealso>.</p>
       </desc>
     </func>
     <func>
-      <name>min(Term1, Term2) -> Minimum</name>
+      <name>erlang:min(Term1, Term2) -> Minimum</name>
       <fsummary>Return the smallest of two term</fsummary>
       <type>
         <v>Term1 = Term2 = Minimum = term()</v>
@@ -2488,7 +2390,7 @@ os_prompt%</pre>
       </desc>
     </func>
     <func>
-      <name>monitor(Type, Item) -> MonitorRef</name>
+      <name>erlang:monitor(Type, Item) -> MonitorRef</name>
       <fsummary>Start monitoring</fsummary>
       <type>
         <v>Type = process</v>
@@ -2524,7 +2426,7 @@ os_prompt%</pre>
         <note>
           <p>When a process is monitored by registered name, the process
             that has the registered name at the time when
-            <c>monitor/2</c> is called will be monitored.
+            <c>erlang:monitor/2</c> is called will be monitored.
             The monitor will not be effected, if the registered name is
             unregistered.</p>
         </note>
@@ -2558,20 +2460,20 @@ os_prompt%</pre>
           </item>
         </taglist>
         <note>
-          <p>If/when <c>monitor/2</c> is extended (e.g. to
+          <p>If/when <c>erlang:monitor/2</c> is extended (e.g. to
             handle other item types than <c>process</c>), other
             possible values for <c>Object</c>, and <c>Info</c> in the
             <c>'DOWN'</c> message will be introduced.</p>
         </note>
         <p>The monitoring is turned off either when the <c>'DOWN'</c>
           message is sent, or when
-          <seealso marker="#demonitor/1">demonitor/1</seealso>
+          <seealso marker="#erlang:demonitor/1">erlang:demonitor/1</seealso>
           is called.</p>
         <p>If an attempt is made to monitor a process on an older node
           (where remote process monitoring is not implemented or one
           where remote process monitoring by registered name is not
           implemented), the call fails with <c>badarg</c>.</p>
-        <p>Making several calls to <c>monitor/2</c> for the same
+        <p>Making several calls to <c>erlang:monitor/2</c> for the same
           <c>Item</c> is not an error; it results in as many, completely
           independent, monitorings.</p>
         <note>
@@ -2646,37 +2548,6 @@ os_prompt%</pre>
       </desc>
     </func>
     <func>
-      <name>erlang:nif_error(Reason)</name>
-      <fsummary>Stop execution with a given reason</fsummary>
-      <type>
-        <v>Reason = term()</v>
-      </type>
-      <desc>
-        <p>Works exactly like
-	 <seealso marker="#error/1">erlang:error/1</seealso>,
-	 but Dialyzer thinks that this BIF will return an arbitrary term.
-	 When used in a stub function for a NIF to generate an
-	 exception when the NIF library is not loaded, Dialyzer
-	 will not generate false warnings.</p>
-      </desc>
-    </func>
-    <func>
-      <name>erlang:nif_error(Reason, Args)</name>
-      <fsummary>Stop execution with a given reason</fsummary>
-      <type>
-        <v>Reason = term()</v>
-        <v>Args = [term()]</v>
-      </type>
-      <desc>
-        <p>Works exactly like
-	 <seealso marker="#error/2">erlang:error/2</seealso>,
-	 but Dialyzer thinks that this BIF will return an arbitrary term.
-	 When used in a stub function for a NIF to generate an
-	 exception when the NIF library is not loaded, Dialyzer
-	 will not generate false warnings.</p>
-      </desc>
-    </func>
-    <func>
       <name>node() -> Node</name>
       <fsummary>Name of the local node</fsummary>
       <type>
@@ -2692,7 +2563,7 @@ os_prompt%</pre>
       <name>node(Arg) -> Node</name>
       <fsummary>At which node is a pid, port or reference located</fsummary>
       <type>
-        <v>Arg = pid() | port() | reference()</v>
+        <v>Arg = pid() | port() | ref()</v>
         <v>Node = node()</v>
       </type>
       <desc>
@@ -2769,10 +2640,8 @@ os_prompt%</pre>
           Otherwise, some other point in time is chosen. It is also
           guaranteed that subsequent calls to this BIF returns
           continuously increasing values. Hence, the return value from
-          <c>now()</c> can be used to generate unique time-stamps,
-          and if it is called in a tight loop on a fast machine
-          the time of the node can become skewed.</p>
-        <p>It can only be used to check the local time of day if
+          <c>now()</c> can be used to generate unique time-stamps. It
+          can only be used to check the local time of day if
           the time-zone info of the underlying operating system is
           properly configured.</p>
       </desc>
@@ -2837,7 +2706,7 @@ os_prompt%</pre>
           <item>
 
 	      <p>Works like <c>{spawn, Command}</c>, but only runs
-	      external executables. The <c>Command</c> in its whole
+	      external executables. The <c>Command</c> in it's whole
 	      is used as the name of the executable, including any
 	      spaces. If arguments are to be passed, the
 	      <c>args</c> and <c>arg0</c> <c>PortSettings</c> can be used.</p>
@@ -3014,7 +2883,7 @@ os_prompt%</pre>
 	    The standard input and standard output handles of the port program
 	    will, if this option is supplied, be opened with the flag
 	    FILE_FLAG_OVERLAPPED, so that the port program can (and has to) do
-	    overlapped I/O on its standard handles. This is not normally
+	    overlapped I/O on it's standard handles. This is not normally
 	    the case for simple port programs, but an option of value for the
 	    experienced Windows programmer. <em>On all other platforms, this 
 	    option is silently discarded</em>.</p> 
@@ -3235,7 +3104,7 @@ os_prompt%</pre>
       </desc>
     </func>
     <func>
-      <name>port_command(Port, Data, OptionList) -> true|false</name>
+      <name>erlang:port_command(Port, Data, OptionList) -> true|false</name>
       <fsummary>Send data to a port</fsummary>
       <type>
         <v>Port = port() | atom()</v>
@@ -3270,6 +3139,10 @@ os_prompt%</pre>
         </taglist>
         <note>
           <p>More options may be added in the future.</p>
+        </note>
+        <note>
+          <p><c>erlang:port_command/3</c> is currently not auto imported, but
+	     it is planned to be auto imported in OTP R14.</p>
         </note>
         <p>Failures:</p>
         <taglist>
@@ -3463,7 +3336,7 @@ os_prompt%</pre>
           registered name, [] is returned.</p>
         <p>For valid values of <c>Item</c>, and corresponding
           values of <c>Info</c>, see
-          <seealso marker="#port_info/1">erlang:port_info/1</seealso>.</p>
+          <seealso marker="#erlang:port_info/1">erlang:port_info/1</seealso>.</p>
         <p>Failure: <c>badarg</c> if <c>Port</c> is not a local port.</p>
       </desc>
     </func>
@@ -3553,13 +3426,9 @@ os_prompt%</pre>
             <p>This changes the minimum heap size for the calling
               process.</p>
           </item>
-          <tag><c>process_flag(min_bin_vheap_size, MinBinVHeapSize)</c></tag>
+          <tag><c>process_flag(priority, Level)</c></tag>
           <item>
-            <p>This changes the minimum binary virtual heap size for the calling
-              process.</p>
-          </item>
-          <tag><marker id="process_flag_priority"><c>process_flag(priority, Level)</c></marker></tag>
-          <item>
+            <marker id="process_flag_priority"></marker>
             <p>This sets the process priority. <c>Level</c> is an atom.
 	      There are currently four priority levels: <c>low</c>,
 	      <c>normal</c>, <c>high</c>, and <c>max</c>. The default
@@ -3888,22 +3757,14 @@ os_prompt%</pre>
             <p><c>MessageQueue</c> is a list of the messages to
               the process, which have not yet been processed.</p>
           </item>
-          <tag><c>{min_heap_size, MinHeapSize}</c></tag>
-          <item>
-            <p><c>MinHeapSize</c> is the minimum heap size for the process.</p>
-          </item>
-          <tag><c>{min_bin_vheap_size, MinBinVHeapSize}</c></tag>
-          <item>
-            <p><c>MinBinVHeapSize</c> is the minimum binary virtual heap size for the process.</p>
-          </item>
           <tag><c>{monitored_by, Pids}</c></tag>
           <item>
             <p>A list of pids that are monitoring the process (with
-              <c>monitor/2</c>).</p>
+              <c>erlang:monitor/2</c>).</p>
           </item>
           <tag><c>{monitors, Monitors}</c></tag>
           <item>
-            <p>A list of monitors (started by <c>monitor/2</c>)
+            <p>A list of monitors (started by <c>erlang:monitor/2</c>)
               that are active for the process. For a local process
               monitor or a remote process monitor by pid, the list item
               is <c>{process, Pid}</c>, and for a remote process
@@ -3951,9 +3812,9 @@ os_prompt%</pre>
 	    ActiveSuspendCount, OutstandingSuspendCount}</c> tuples.
 	    <c>Suspendee</c> is the pid of a process that have been or is to
 	    be suspended by the process identified by <c>Pid</c> via the
-	    <seealso marker="#suspend_process/2">erlang:suspend_process/2</seealso>
+	    <seealso marker="#erlang:suspend_process/2">erlang:suspend_process/2</seealso>
 	    BIF, or the
-	    <seealso marker="#suspend_process/1">erlang:suspend_process/1</seealso>
+	    <seealso marker="#erlang:suspend_process/1">erlang:suspend_process/1</seealso>
 	    BIF. <c>ActiveSuspendCount</c> is the number of times the
 	    <c>Suspendee</c> has been suspended by <c>Pid</c>.
 	    <c>OutstandingSuspendCount</c> is the number of not yet
@@ -4092,7 +3953,7 @@ os_prompt%</pre>
           terminate, it has no return value - unless the arguments are
           invalid, in which case the function <em>returns the error reason</em>, that is <c>badarg</c>. If you want to be
           really sure not to return you can call
-          <c>error(erlang:raise(Class, Reason, Stacktrace))</c>
+          <c>erlang:error(erlang:raise(Class, Reason, Stacktrace))</c>
           and hope to distinguish exceptions later.</p>
       </desc>
     </func>
@@ -4100,30 +3961,30 @@ os_prompt%</pre>
       <name>erlang:read_timer(TimerRef) -> int() | false</name>
       <fsummary>Number of milliseconds remaining for a timer</fsummary>
       <type>
-        <v>TimerRef = reference()</v>
+        <v>TimerRef = ref()</v>
       </type>
       <desc>
         <p><c>TimerRef</c> is a timer reference returned by
-          <seealso marker="#send_after/3">erlang:send_after/3</seealso>
+          <seealso marker="#erlang:send_after/3">erlang:send_after/3</seealso>
           or
-          <seealso marker="#start_timer/3">erlang:start_timer/3</seealso>.
+          <seealso marker="#erlang:start_timer/3">erlang:start_timer/3</seealso>.
           If the timer is active, the function returns the time in
           milliseconds left until the timer will expire, otherwise
           <c>false</c> (which means that <c>TimerRef</c> was never a
           timer, that it has been cancelled, or that it has already
           delivered its message).</p>
         <p>See also 
-          <seealso marker="#send_after/3">erlang:send_after/3</seealso>,
-          <seealso marker="#start_timer/3">erlang:start_timer/3</seealso>,
+          <seealso marker="#erlang:send_after/3">erlang:send_after/3</seealso>,
+          <seealso marker="#erlang:start_timer/3">erlang:start_timer/3</seealso>,
           and
-          <seealso marker="#cancel_timer/1">erlang:cancel_timer/1</seealso>.</p>
+          <seealso marker="#erlang:cancel_timer/1">erlang:cancel_timer/1</seealso>.</p>
       </desc>
     </func>
     <func>
       <name>erlang:ref_to_list(Ref) -> string()</name>
       <fsummary>Text representation of a reference</fsummary>
       <type>
-        <v>Ref = reference()</v>
+        <v>Ref = ref()</v>
       </type>
       <desc>
         <p>Returns a string which corresponds to the text
@@ -4181,9 +4042,9 @@ true</pre>
         <p>Decreases the suspend count on the process identified by
 	<c>Suspendee</c>. <c>Suspendee</c> should previously have been
 	suspended via
-	<seealso marker="#suspend_process/2">erlang:suspend_process/2</seealso>,
+	<seealso marker="#erlang:suspend_process/2">erlang:suspend_process/2</seealso>,
 	or
-	<seealso marker="#suspend_process/1">erlang:suspend_process/1</seealso>
+	<seealso marker="#erlang:suspend_process/1">erlang:suspend_process/1</seealso>
 	by the process calling <c>erlang:resume_process(Suspendee)</c>. When
 	the suspend count on <c>Suspendee</c> reach zero, <c>Suspendee</c>
 	will be resumed, i.e., the state of the <c>Suspendee</c> is changed
@@ -4269,9 +4130,9 @@ true</pre>
         <p>Sends a message and returns <c>ok</c>, or does not send
           the message but returns something else (see below). Otherwise
           the same as
-          <seealso marker="#send/2">erlang:send/2</seealso>. See
+          <seealso marker="#erlang:send/2">erlang:send/2</seealso>. See
           also
-          <seealso marker="#send_nosuspend/2">erlang:send_nosuspend/2,3</seealso>.
+          <seealso marker="#erlang:send_nosuspend/2">erlang:send_nosuspend/2,3</seealso>.
           for more detailed explanation and warnings.</p>
         <p>The possible options are:</p>
         <taglist>
@@ -4302,7 +4163,7 @@ true</pre>
         <v>Dest = pid() | RegName </v>
         <v>&nbsp;LocalPid = pid() (of a process, alive or dead, on the local node)</v>
         <v>Msg = term()</v>
-        <v>TimerRef = reference()</v>
+        <v>TimerRef = ref()</v>
       </type>
       <desc>
         <p>Starts a timer which will send the message <c>Msg</c>
@@ -4317,10 +4178,10 @@ true</pre>
           erts version 5.4.11. Note that timers will not be
           automatically canceled when <c>Dest</c> is an atom.</p>
         <p>See also
-          <seealso marker="#start_timer/3">erlang:start_timer/3</seealso>,
-          <seealso marker="#cancel_timer/1">erlang:cancel_timer/1</seealso>,
+          <seealso marker="#erlang:start_timer/3">erlang:start_timer/3</seealso>,
+          <seealso marker="#erlang:cancel_timer/1">erlang:cancel_timer/1</seealso>,
           and
-          <seealso marker="#read_timer/1">erlang:read_timer/1</seealso>.</p>
+          <seealso marker="#erlang:read_timer/1">erlang:read_timer/1</seealso>.</p>
         <p>Failure: <c>badarg</c> if the arguments does not satisfy
           the requirements specified above.</p>
       </desc>
@@ -4336,7 +4197,7 @@ true</pre>
       </type>
       <desc>
         <p>The same as
-          <seealso marker="#send/3">erlang:send(Dest, Msg, [nosuspend])</seealso>, but returns <c>true</c> if
+          <seealso marker="#erlang:send/3">erlang:send(Dest, Msg, [nosuspend])</seealso>, but returns <c>true</c> if
           the message was sent and <c>false</c> if the message was not
           sent because the sender would have had to be suspended.</p>
         <p>This function is intended for send operations towards an
@@ -4388,10 +4249,10 @@ true</pre>
       </type>
       <desc>
         <p>The same as
-          <seealso marker="#send/3">erlang:send(Dest, Msg, [nosuspend | Options])</seealso>,
+          <seealso marker="#erlang:send/3">erlang:send(Dest, Msg, [nosuspend | Options])</seealso>,
           but with boolean return value.</p>
         <p>This function behaves like
-          <seealso marker="#send_nosuspend/2">erlang:send_nosuspend/2)</seealso>,
+          <seealso marker="#erlang:send_nosuspend/2">erlang:send_nosuspend/2)</seealso>,
           but takes a third parameter, a list of options. The only
           currently implemented option is <c>noconnect</c>. The option
           <c>noconnect</c> makes the function return <c>false</c> if
@@ -4515,7 +4376,7 @@ true</pre>
       </desc>
     </func>
     <func>
-      <name>spawn(Node, Module, Function, Args) -> pid()</name>
+      <name>spawn(Node, Module, Function, ArgumentList) -> pid()</name>
       <fsummary>Create a new process with a function as entry point on a given node</fsummary>
       <type>
         <v>Node = node()</v>
@@ -4545,7 +4406,7 @@ true</pre>
       </desc>
     </func>
     <func>
-      <name>spawn_link(Node, Fun) -> pid()</name>
+      <name>spawn_link(Node, Fun) -></name>
       <fsummary>Create and link to a new process with a fun as entry point on a specified node</fsummary>
       <type>
         <v>Node = node()</v>
@@ -4629,11 +4490,10 @@ true</pre>
       <fsummary>Create a new process with a fun as entry point</fsummary>
       <type>
         <v>Fun = fun()</v>
-        <v>Option = link | monitor | {priority, Level} | {fullsweep_after, Number} | {min_heap_size, Size} | {min_bin_vheap_size, VSize}</v>
+        <v>Option = link | monitor | {priority, Level} | {fullsweep_after, Number} | {min_heap_size, Size}</v>
         <v>&nbsp;Level = low | normal | high</v>
         <v>&nbsp;Number = int()</v>
         <v>&nbsp;Size = int()</v>
-        <v>&nbsp;VSize = int()</v>
       </type>
       <desc>
         <p>Returns the pid of a new process started by the application
@@ -4651,11 +4511,10 @@ true</pre>
       <type>
         <v>Node = node()</v>
         <v>Fun = fun()</v>
-        <v>Option = link | {priority, Level} | {fullsweep_after, Number} | {min_heap_size, Size} | {min_bin_vheap_size, VSize}</v>
+        <v>Option = link | {priority, Level} | {fullsweep_after, Number} | {min_heap_size, Size}</v>
         <v>&nbsp;Level = low | normal | high</v>
         <v>&nbsp;Number = int()</v>
         <v>&nbsp;Size = int()</v>
-        <v>&nbsp;VSize = int()</v>
       </type>
       <desc>
         <p>Returns the pid of a new process started by the application
@@ -4671,11 +4530,10 @@ true</pre>
       <type>
         <v>Module = Function = atom()</v>
         <v>Args = [term()]</v>
-        <v>Option = link | monitor | {priority, Level} | {fullsweep_after, Number} | {min_heap_size, Size} | {min_bin_vheap_size, VSize}</v>
+        <v>Option = link | monitor | {priority, Level}  | {fullsweep_after, Number} | {min_heap_size, Size}</v>
         <v>&nbsp;Level = low | normal | high</v>
         <v>&nbsp;Number = int()</v>
         <v>&nbsp;Size = int()</v>
-        <v>&nbsp;VSize = int()</v>
       </type>
       <desc>
         <p>Works exactly like
@@ -4693,7 +4551,7 @@ true</pre>
           <tag><c>monitor</c></tag>
           <item>
             <p>Monitor the new process (just like
-              <seealso marker="#monitor/2">monitor/2</seealso> does).</p>
+              <seealso marker="#erlang:monitor/2">erlang:monitor/2</seealso> does).</p>
           </item>
           <tag><c>{priority, Level}</c></tag>
           <item>
@@ -4736,7 +4594,7 @@ true</pre>
               and no virtual memory, one might want to preserve memory
               by setting <c>Number</c> to zero. (The value may be set
               globally, see
-              <seealso marker="#system_flag/2">erlang:system_flag/2</seealso>.)</p>
+              <seealso marker="#erlang:system_flag/2">erlang:system_flag/2</seealso>.)</p>
           </item>
           <tag><c>{min_heap_size, Size}</c></tag>
           <item>
@@ -4755,23 +4613,6 @@ true</pre>
               fine-tuning an application and to measure the execution
               time with various <c>Size</c> values.</p>
           </item>
-          <tag><c>{min_bin_vheap_size, VSize}</c></tag>
-          <item>
-            <p>This option is only useful for performance tuning.
-              In general, you should not use this option unless you
-              know that there is problem with execution times and/or
-              memory consumption, and you should measure to make sure
-              that the option improved matters.
-              </p>
-	      <p>Gives a minimum binary virtual heap size in words. Setting this value
-              higher than the system default might speed up some
-              processes because less garbage collection is done.
-              Setting too high value, however, might waste memory.
-              Therefore, it is recommended to use this option only for
-              fine-tuning an application and to measure the execution
-              time with various <c>VSize</c> values.</p>
-          </item>
-
         </taglist>
       </desc>
     </func>
@@ -4782,11 +4623,10 @@ true</pre>
         <v>Node = node()</v>
         <v>Module = Function = atom()</v>
         <v>Args = [term()]</v>
-        <v>Option = link | {priority, Level} | {fullsweep_after, Number} | {min_heap_size, Size} | {min_bin_vheap_size, VSize}</v>
+        <v>Option = link | {priority, Level} | {fullsweep_after, Number} | {min_heap_size, Size}</v>
         <v>&nbsp;Level = low | normal | high</v>
         <v>&nbsp;Number = int()</v>
         <v>&nbsp;Size = int()</v>
-        <v>&nbsp;VSize = int()</v>
       </type>
       <desc>
         <p>Returns the pid of a new process started by the application
@@ -4801,7 +4641,7 @@ true</pre>
       <fsummary>Split a binary into two</fsummary>
       <type>
         <v>Bin = Bin1 = Bin2 = binary()</v>
-        <v>Pos = 0..byte_size(Bin)</v>
+        <v>Pos = 1..byte_size(Bin)</v>
       </type>
       <desc>
         <p>Returns a tuple containing the binaries which are the result
@@ -4831,7 +4671,7 @@ true</pre>
         <v>&nbsp;LocalPid = pid() (of a process, alive or dead, on the local node)</v>
         <v>&nbsp;RegName = atom()</v>
         <v>Msg = term()</v>
-        <v>TimerRef = reference()</v>
+        <v>TimerRef = ref()</v>
       </type>
       <desc>
         <p>Starts a timer which will send the message
@@ -4847,10 +4687,10 @@ true</pre>
           erts version 5.4.11. Note that timers will not be
           automatically canceled when <c>Dest</c> is an atom.</p>
         <p>See also
-          <seealso marker="#send_after/3">erlang:send_after/3</seealso>,
-          <seealso marker="#cancel_timer/1">erlang:cancel_timer/1</seealso>,
+          <seealso marker="#erlang:send_after/3">erlang:send_after/3</seealso>,
+          <seealso marker="#erlang:cancel_timer/1">erlang:cancel_timer/1</seealso>,
           and
-          <seealso marker="#read_timer/1">erlang:read_timer/1</seealso>.</p>
+          <seealso marker="#erlang:read_timer/1">erlang:read_timer/1</seealso>.</p>
         <p>Failure: <c>badarg</c> if the arguments does not satisfy
           the requirements specified above.</p>
       </desc>
@@ -4871,8 +4711,9 @@ true</pre>
               <c>ContextSwitches</c> is the total number of context
               switches since the system started.</p>
           </item>
-          <tag><marker id="statistics_exact_reductions"><c>exact_reductions</c></marker></tag>
+          <tag><c>exact_reductions</c></tag>
           <item>
+            <marker id="statistics_exact_reductions"></marker>
             <p>Returns
               <c>{Total_Exact_Reductions, Exact_Reductions_Since_Last_Call}</c>.</p>
             <p><em>NOTE:</em><c>statistics(exact_reductions)</c> is
@@ -4892,8 +4733,9 @@ true</pre>
               through ports, and <c>Output</c> is the total number of
               bytes output to ports.</p>
           </item>
-          <tag><marker id="statistics_reductions"><c>reductions</c></marker></tag>
+          <tag><c>reductions</c></tag>
           <item>
+            <marker id="statistics_reductions"></marker>
             <p>Returns
               <c>{Total_Reductions, Reductions_Since_Last_Call}</c>.</p>
             <p><em>NOTE:</em> From erts version 5.5 (OTP release R11B)
@@ -4953,7 +4795,7 @@ true</pre>
 	process will not leave the suspended state until its suspend 
 	count reach zero. The suspend count of <c>Suspendee</c>	is
 	decreased when
-	<seealso marker="#resume_process/1">erlang:resume_process(Suspendee)</seealso>
+	<seealso marker="#erlang:resume_process/1">erlang:resume_process(Suspendee)</seealso>
 	is called by the same process that called
 	<c>erlang:suspend_process(Suspendee)</c>. All increased suspend
 	counts on other processes acquired by a process will automatically be
@@ -5042,7 +4884,7 @@ true</pre>
       <desc>
         <p>Suspends the process identified by <c>Suspendee</c>. The
 	same as calling
-	<seealso marker="#suspend_process/2">erlang:suspend_process(Suspendee, [])</seealso>. For more information see the documentation of <seealso marker="#suspend_process/2">erlang:suspend_process/2</seealso>.
+	<seealso marker="#erlang:suspend_process/2">erlang:suspend_process(Suspendee, [])</seealso>. For more information see the documentation of <seealso marker="#erlang:suspend_process/2">erlang:suspend_process/2</seealso>.
 	</p>
         <warning>
           <p>This BIF is intended for debugging only.</p>
@@ -5064,8 +4906,9 @@ true</pre>
             <p>Sets the maximum depth of call stack back-traces in the
               exit reason element of <c>'EXIT'</c> tuples.</p>
           </item>
-          <tag><marker id="system_flag_cpu_topology"><c>erlang:system_flag(cpu_topology, CpuTopology)</c></marker></tag>
+          <tag><c>erlang:system_flag(cpu_topology, CpuTopology)</c></tag>
           <item>
+            <marker id="system_flag_cpu_topology"></marker>
             <p>Sets the user defined <c>CpuTopology</c>. The user defined
 	       CPU topology will override any automatically detected
 	       CPU topology. By passing <c>undefined</c> as <c>CpuTopology</c>
@@ -5116,19 +4959,9 @@ true</pre>
               <seealso marker="#spawn_opt/4">spawn_opt/N</seealso> or
               <seealso marker="#process_flag/2">process_flag/2</seealso>. </p>
           </item>
-          <tag><c>erlang:system_flag(min_bin_vheap_size, MinBinVHeapSize)</c></tag>
+          <tag><c>erlang:system_flag(multi_scheduling, BlockState)</c></tag>
           <item>
-            <p>Sets the default minimum binary virtual heap size for processes. The
-              size is given in words. The new <c>min_bin_vhheap_size</c> only
-              effects processes spawned after the change of
-              <c>min_bin_vhheap_size</c> has been made.
-              The <c>min_bin_vheap_size</c> can be set for individual
-              processes by use of
-              <seealso marker="#spawn_opt/4">spawn_opt/N</seealso> or
-              <seealso marker="#process_flag/2">process_flag/2</seealso>. </p>
-          </item>
-          <tag><marker id="system_flag_multi_scheduling"><c>erlang:system_flag(multi_scheduling, BlockState)</c></marker></tag>
-          <item>
+            <marker id="system_flag_multi_scheduling"></marker>
             <p><c>BlockState = block | unblock</c></p>
             <p>If multi-scheduling is enabled, more than one scheduler
               thread is used by the emulator. Multi-scheduling can be
@@ -5162,8 +4995,9 @@ true</pre>
               <seealso marker="#system_info_multi_scheduling_blockers">erlang:system_info(multi_scheduling_blockers)</seealso>, and
               <seealso marker="#system_info_schedulers">erlang:system_info(schedulers)</seealso>.</p>
           </item>
-          <tag><marker id="system_flag_scheduler_bind_type"><c>erlang:system_flag(scheduler_bind_type, How)</c></marker></tag>
+          <tag><c>erlang:system_flag(scheduler_bind_type, How)</c></tag>
           <item>
+            <marker id="system_flag_scheduler_bind_type"></marker>
 	    <p>Controls if and how schedulers are bound to logical
 	       processors.</p>
 	    <p>When <c>erlang:system_flag(scheduler_bind_type, How)</c> is
@@ -5177,9 +5011,9 @@ true</pre>
 	       schedulers actually have bound as requested, call
 	       <seealso marker="#system_info_scheduler_bindings">erlang:system_info(scheduler_bindings)</seealso>.
 	    </p>
-            <p>Schedulers can currently only be bound on newer Linux,
-	       Solaris, and Windows systems, but more systems will be
-	       supported in the future.
+            <p>Schedulers can currently only be bound on newer Linux
+	       and Solaris systems, but more systems will be supported
+	       in the future.
 	    </p>
             <p>In order for the runtime system to be able to bind schedulers,
 	       the CPU topology needs to be known. If the runtime system fails
@@ -5187,21 +5021,10 @@ true</pre>
 	       For more information on how to define the CPU topology, see 
 	       <seealso marker="#system_flag_cpu_topology">erlang:system_flag(cpu_topology, CpuTopology)</seealso>.
 	    </p>
-            <p>The runtime system will by default bind schedulers to logical
-	       processors using the <c>default_bind</c> bind type if the amount
-	       of schedulers are at least equal to the amount of logical
-	       processors configured, binding of schedulers is supported,
-	       and a CPU topology is available at startup.
-	    </p>
-	    <p><em>NOTE:</em> If the Erlang runtime system is the only
-	       operating system process that binds threads to logical processors,
-	       this improves the performance of the runtime system. However,
-	       if other operating system processes (as for example another Erlang
-	       runtime system) also bind threads to logical processors, there
-	       might be a performance penalty instead. If this is the case you,
-	       are are advised to unbind the schedulers using the
-	       <seealso marker="erl#+sbt">+sbtu</seealso> command line argument,
-	       or <c>erlang:system_flag(scheduler_bind_type, unbound)</c>.</p>
+	    <p><em>NOTE:</em> If other programs on the system have bound
+	       to processors, e.g. another Erlang runtime system, you
+	       may loose performance when binding schedulers. Therefore,
+	       schedulers are by default not bound.</p>
 	    <p>Schedulers can be bound in different ways. The <c>How</c>
 	       argument determines how schedulers are bound. <c>How</c> can
 	       currently be one of:</p>
@@ -5301,8 +5124,9 @@ true</pre>
 	       <seealso marker="#system_flag_cpu_topology">erlang:system_flag(cpu_topology, CpuTopology)</seealso>.
 	    </p>
           </item>
-          <tag><marker id="system_flag_schedulers_online"><c>erlang:system_flag(schedulers_online, SchedulersOnline)</c></marker></tag>
+          <tag><c>erlang:system_flag(schedulers_online, SchedulersOnline)</c></tag>
           <item>
+            <marker id="system_flag_schedulers_online"></marker>
             <p>Sets the amount of schedulers online. Valid range is
 	    <![CDATA[1 <= SchedulerId <= erlang:system_info(schedulers)]]>.
 	    </p>
@@ -5340,8 +5164,9 @@ true</pre>
         <p>Returns various information about the current system
           (emulator) as specified by <c>Type</c>:</p>
         <taglist>
-          <tag><marker id="system_info_allocated_areas"><c>allocated_areas</c></marker></tag>
+          <tag><c>allocated_areas</c></tag>
           <item>
+            <marker id="system_info_allocated_areas"></marker>
             <p>Returns a list of tuples with information about
               miscellaneous allocated memory areas.</p>
             <p>Each tuple contains an atom describing type of memory as
@@ -5359,14 +5184,15 @@ true</pre>
               Some values are part of other values, and some memory
               areas are not part of the result. If you are interested
               in the total amount of memory allocated by the emulator
-              see <seealso marker="#memory/0">erlang:memory/0,1</seealso>.</p>
+              see <seealso marker="#erlang:memory/0">erlang:memory/0,1</seealso>.</p>
           </item>
-          <tag><marker id="system_info_allocator"><c>allocator</c></marker></tag>
+          <tag><c>allocator</c></tag>
           <item>
+            <marker id="system_info_allocator"></marker>
             <p>Returns <c>{Allocator, Version, Features, Settings}.</c></p>
             <p>Types:</p>
             <list type="bulleted">
-              <item><c>Allocator = undefined | glibc</c></item>
+              <item><c>Allocator = undefined | elib_malloc | glibc</c></item>
               <item><c>Version = [int()]</c></item>
               <item><c>Features = [atom()]</c></item>
               <item><c>Settings = [{Subsystem, [{Parameter, Value}]}]</c></item>
@@ -5381,7 +5207,7 @@ true</pre>
                   implementation used. If <c>Allocator</c> equals
                   <c>undefined</c>, the <c>malloc()</c> implementation
                   used could not be identified. Currently
-                  <c>glibc</c> can be identified.</p>
+                  <c>elib_malloc</c> and <c>glibc</c> can be identified.</p>
               </item>
               <item>
                 <p><c>Version</c> is a list of integers (but not a
@@ -5403,8 +5229,9 @@ true</pre>
             <p>See also "System Flags Effecting erts_alloc" in
               <seealso marker="erts:erts_alloc#flags">erts_alloc(3)</seealso>.</p>
           </item>
-          <tag><marker id="system_info_alloc_util_allocators"><c>alloc_util_allocators</c></marker></tag>
+          <tag><c>alloc_util_allocators</c></tag>
           <item>
+            <marker id="system_info_alloc_util_allocators"></marker>
 	     <p>Returns a list of the names of all allocators
 	        using the ERTS internal <c>alloc_util</c> framework
 		as atoms. For more information see the
@@ -5413,8 +5240,9 @@ true</pre>
 		erts_alloc(3)</seealso> documentation.
 	     </p>
           </item>
-          <tag><marker id="system_info_allocator_tuple"><c>{allocator, Alloc}</c></marker></tag>
+          <tag><c>{allocator, Alloc}</c></tag>
           <item>
+            <marker id="system_info_allocator_tuple"></marker>
             <p>Returns information about the specified allocator.
 	       As of erts version 5.6.1 the return value is a list
 	       of <c>{instance, InstanceNo, InstanceInfo}</c> tuples
@@ -5450,23 +5278,14 @@ true</pre>
               values. The first value is memory pool size and
               the second value used memory size.</p>
           </item>
-          <tag><marker id="system_info_allocator_sizes"><c>{allocator_sizes, Alloc}</c></marker></tag>
+          <tag><c>{allocator_sizes, Alloc}</c></tag>
           <item>
+            <marker id="system_info_allocator_sizes"></marker>
 	    <p>Returns various size information for the specified
 	    allocator. The information returned is a subset of the
 	    information returned by
 	    <seealso marker="#system_info_allocator_tuple">erlang:system_info({allocator, Alloc})</seealso>.
 	    </p>
-          </item>
-          <tag><c>build_type</c></tag>
-          <item>
-            <p>Returns an atom describing the build type of the runtime
-	       system. This is normally the atom <c>opt</c> for optimized.
-               Other possible return values are <c>debug</c>, <c>purify</c>,
-	       <c>quantify</c>, <c>purecov</c>, <c>gcov</c>, <c>valgrind</c>,
-	       <c>gprof</c>, and <c>lcnt</c>. Possible return values
-	       may be added and/or removed at any time without prior notice.
-	     </p>
           </item>
           <tag><c>c_compiler_used</c></tag>
           <item>
@@ -5495,8 +5314,9 @@ true</pre>
               line flag <c>+R</c>, see
               <seealso marker="erts:erl#compat_rel">erl(1)</seealso>.</p>
           </item>
-          <tag><marker id="system_info_cpu_topology"><c>cpu_topology</c></marker></tag>
+          <tag><c>cpu_topology</c></tag>
           <item>
+          <marker id="system_info_cpu_topology"></marker>
 	    <p>Returns the <c>CpuTopology</c> which currently is used by the
 	       emulator. The CPU topology is used when binding schedulers
 	       to logical processors. The CPU topology used is the user defined
@@ -5545,7 +5365,7 @@ true</pre>
 	       <c>CpuTopology</c> type to change.
 	    </p>
           </item>
-          <tag><marker id="system_info_cpu_topology_defined"><c>{cpu_topology, defined}</c></marker></tag>
+          <tag><c>{cpu_topology, defined}</c></tag>
           <item>
             <p>Returns the user defined <c>CpuTopology</c>. For more
 	       information see the documentation of
@@ -5555,14 +5375,12 @@ true</pre>
 	       argument.
 	    </p>
           </item>
-          <tag><marker id="system_info_cpu_topology_detected"><c>{cpu_topology, detected}</c></marker></tag>
+          <tag><c>{cpu_topology, detected}</c></tag>
           <item>
             <p>Returns the automatically detected <c>CpuTopology</c>. The
 	       emulator currently only detects the CPU topology on some newer
-	       Linux, Solaris, and Windows systems. On Windows system with
-	       more than 32 logical processors the CPU topology is not detected.
-	    </p>
-            <p>For more information see the documentation of the
+	       linux and solaris systems. For more information see the 
+               documentation of the
 	       <seealso marker="#system_info_cpu_topology">cpu_topology</seealso>
 	       argument.
 	    </p>
@@ -5620,9 +5438,52 @@ true</pre>
           </item>
           <tag><c>elib_malloc</c></tag>
           <item>
-            <p>This option will be removed in a future release.
-	      The return value will always be <c>false</c> since
-	      the elib_malloc allocator has been removed.</p>
+            <p>If the emulator uses the <c>elib_malloc</c> memory
+              allocator, a list of two-element tuples containing status
+              information is returned; otherwise, <c>false</c> is
+              returned. The list currently contains the following
+              two-element tuples (all sizes are presented in bytes):</p>
+            <taglist>
+              <tag><c>{heap_size, Size}</c></tag>
+              <item>
+                <p>Where <c>Size</c> is the current heap size.</p>
+              </item>
+              <tag><c>{max_alloced_size, Size}</c></tag>
+              <item>
+                <p>Where <c>Size</c> is the maximum amount of memory
+                  allocated on the heap since the emulator started.</p>
+              </item>
+              <tag><c>{alloced_size, Size}</c></tag>
+              <item>
+                <p>Where <c>Size</c> is the current amount of memory
+                  allocated on the heap.</p>
+              </item>
+              <tag><c>{free_size, Size}</c></tag>
+              <item>
+                <p>Where <c>Size</c> is the current amount of free
+                  memory on the heap.</p>
+              </item>
+              <tag><c>{no_alloced_blocks, No}</c></tag>
+              <item>
+                <p>Where <c>No</c> is the current number of allocated
+                  blocks on the heap.</p>
+              </item>
+              <tag><c>{no_free_blocks, No}</c></tag>
+              <item>
+                <p>Where <c>No</c> is the current number of free blocks
+                  on the heap.</p>
+              </item>
+              <tag><c>{smallest_alloced_block, Size}</c></tag>
+              <item>
+                <p>Where <c>Size</c> is the size of the smallest
+                  allocated block on the heap.</p>
+              </item>
+              <tag><c>{largest_free_block, Size}</c></tag>
+              <item>
+                <p>Where <c>Size</c> is the size of the largest free
+                  block on the heap.</p>
+              </item>
+            </taglist>
           </item>
           <tag><c>fullsweep_after</c></tag>
           <item>
@@ -5638,7 +5499,7 @@ true</pre>
               <c>spawn</c> or <c>spawn_link</c> will use these
               garbage collection settings. The default settings can be
               changed by use of
-              <seealso marker="#system_flag/2">system_flag/2</seealso>.
+              <seealso marker="#erlang:system_flag/2">system_flag/2</seealso>.
               <seealso marker="#spawn_opt/4">spawn_opt/4</seealso>
               can spawn a process that does not use the default
               settings.</p>
@@ -5698,49 +5559,16 @@ true</pre>
               information see the <seealso marker="erts:crash_dump">"How to interpret the Erlang crash dumps"</seealso> chapter
               in the ERTS User's Guide.</p>
           </item>
-	  <tag><marker id="logical_processors"><c>logical_processors</c></marker></tag>
+	  <tag><c>logical_processors</c></tag>
           <item>
-            <p>Returns the detected number of logical processors configured
-	       on the system. The return value is either an integer, or
-	       the atom <c>unknown</c> if the emulator wasn't able to
-	       detect logical processors configured.
-	    </p>
-          </item>
-	  <tag><marker id="logical_processors_available"><c>logical_processors_available</c></marker></tag>
-          <item>
-            <p>Returns the detected number of logical processors available to
-	       the Erlang runtime system. The return value is either an
-	       integer, or the atom <c>unknown</c> if the emulator wasn't
-	       able to detect logical processors available. The number
-	       of logical processors available is less than or equal to
-	       the number of <seealso marker="#logical_processors_online">logical
-	       processors online</seealso>.
-	    </p>
-          </item>
-	  <tag><marker id="logical_processors_online"><c>logical_processors_online</c></marker></tag>
-          <item>
-            <p>Returns the detected number of logical processors online on
-	       the system. The return value is either an integer,
-	       or the atom <c>unknown</c> if the emulator wasn't able to
-	       detect logical processors online. The number of logical
-	       processors online is less than or equal to the number of
-	       <seealso marker="#logical_processors">logical processors
-	       configured</seealso>.
+            <p>Returns the number of logical processors detected on the
+	       system as an integer or the atom <c>unknown</c> if the
+	       emulator wasn't able to detect any.
 	    </p>
           </item>
           <tag><c>machine</c></tag>
           <item>
             <p>Returns a string containing the Erlang machine name.</p>
-          </item>
-	  <tag><c>min_heap_size</c></tag>
-          <item>
-	      <p>Returns <c>{min_heap_size, MinHeapSize}</c> where <c>MinHeapSize</c> is the current system wide
-	      minimum heap size for spawned processes.</p>
-          </item>
-	  <tag><c>min_bin_vheap_size</c></tag>
-          <item>
-	      <p>Returns <c>{min_bin_vheap_size, MinBinVHeapSize}</c> where <c>MinBinVHeapSize</c> is the current system wide
-	      minimum binary virtual heap size for spawned processes.</p>
           </item>
           <tag><c>modified_timing_level</c></tag>
           <item>
@@ -5751,8 +5579,9 @@ true</pre>
               <seealso marker="erts:erl#+T">erl(1)</seealso>
               command for more information on modified timing.</p>
           </item>
-          <tag><marker id="system_info_multi_scheduling"><c>multi_scheduling</c></marker></tag>
+          <tag><c>multi_scheduling</c></tag>
           <item>
+            <marker id="system_info_multi_scheduling"></marker>
             <p>Returns <c>disabled</c>, <c>blocked</c>, or <c>enabled</c>.
               A description of the return values:</p>
             <taglist>
@@ -5781,8 +5610,9 @@ true</pre>
               <seealso marker="#system_info_multi_scheduling_blockers">erlang:system_info(multi_scheduling_blockers)</seealso>, and
               <seealso marker="#system_info_schedulers">erlang:system_info(schedulers)</seealso>.</p>
           </item>
-          <tag><marker id="system_info_multi_scheduling_blockers"><c>multi_scheduling_blockers</c></marker></tag>
+          <tag><c>multi_scheduling_blockers</c></tag>
           <item>
+            <marker id="system_info_multi_scheduling_blockers"></marker>
             <p>Returns a list of <c>PID</c>s when multi-scheduling
               is blocked; otherwise, the empty list. The <c>PID</c>s
               in the list is <c>PID</c>s of the processes currently
@@ -5793,8 +5623,9 @@ true</pre>
               <seealso marker="#system_info_multi_scheduling">erlang:system_info(multi_scheduling)</seealso>, and
               <seealso marker="#system_info_schedulers">erlang:system_info(schedulers)</seealso>.</p>
           </item>
-          <tag><marker id="system_info_otp_release"><c>otp_release</c></marker></tag>
+          <tag><c>otp_release</c></tag>
           <item>
+            <marker id="system_info_otp_release"></marker>
             <p>Returns a string containing the OTP release number.</p>
           </item>
           <tag><c>process_count</c></tag>
@@ -5818,8 +5649,9 @@ true</pre>
               information see the <seealso marker="erts:crash_dump">"How to interpret the Erlang crash dumps"</seealso> chapter
               in the ERTS User's Guide.</p>
           </item>
-          <tag><marker id="system_info_scheduler_bind_type"><c>scheduler_bind_type</c></marker></tag>
+          <tag><c>scheduler_bind_type</c></tag>
           <item>
+            <marker id="system_info_scheduler_bind_type"></marker>
 	    <p>Returns information on how user has requested
 	       schedulers to be bound or not bound.</p>
 	    <p><em>NOTE:</em> Even though user has requested
@@ -5834,8 +5666,9 @@ true</pre>
 	       <seealso marker="#system_info_scheduler_bindings">erlang:system_info(scheduler_bindings)</seealso>.
 	    </p>
           </item>
-          <tag><marker id="system_info_scheduler_bindings"><c>scheduler_bindings</c></marker></tag>
+          <tag><c>scheduler_bindings</c></tag>
           <item>
+            <marker id="system_info_scheduler_bindings"></marker>
 	    <p>Returns information on currently used scheduler
 	       bindings.</p>
 	    <p>A tuple of a size equal to
@@ -5857,16 +5690,18 @@ true</pre>
 	       <seealso marker="#system_info_schedulers_online">erlang:system_info(schedulers_online)</seealso>.
 	    </p>
           </item>
-          <tag><marker id="system_info_scheduler_id"><c>scheduler_id</c></marker></tag>
+          <tag><c>scheduler_id</c></tag>
           <item>
+            <marker id="system_info_scheduler_id"></marker>
             <p>Returns the scheduler id (<c>SchedulerId</c>) of the
               scheduler thread that the calling process is executing
               on. <c>SchedulerId</c> is a positive integer; where
               <c><![CDATA[1 <= SchedulerId <= erlang:system_info(schedulers)]]></c>. See also
               <seealso marker="#system_info_schedulers">erlang:system_info(schedulers)</seealso>.</p>
           </item>
-          <tag><marker id="system_info_schedulers"><c>schedulers</c></marker></tag>
+          <tag><c>schedulers</c></tag>
           <item>
+            <marker id="system_info_schedulers"></marker>
             <p>Returns the number of scheduler threads used by
               the emulator. Scheduler threads online schedules Erlang
               processes and Erlang ports, and execute Erlang code
@@ -5882,8 +5717,9 @@ true</pre>
               <seealso marker="#system_info_multi_scheduling">erlang:system_info(multi_scheduling)</seealso>, and
               and <seealso marker="#system_info_multi_scheduling_blockers">erlang:system_info(multi_scheduling_blockers)</seealso>.</p>
           </item>
-          <tag><marker id="system_info_schedulers_online"><c>schedulers_online</c></marker></tag>
+          <tag><c>schedulers_online</c></tag>
           <item>
+            <marker id="system_info_schedulers_online"></marker>
             <p>Returns the amount of schedulers online. The scheduler
 	    identifiers of schedulers online satisfy the following
 	    relationship:
@@ -5916,8 +5752,9 @@ true</pre>
               with thread support; otherwise, <c>false</c> is
               returned.</p>
           </item>
-          <tag><marker id="system_info_thread_pool_size"><c>thread_pool_size</c></marker></tag>
+          <tag><c>thread_pool_size</c></tag>
           <item>
+            <marker id="system_info_thread_pool_size"></marker>
             <p>Returns the number of async threads in the async thread
               pool used for asynchronous driver calls
               (<seealso marker="erts:erl_driver#driver_async">driver_async()</seealso>)
@@ -5930,50 +5767,17 @@ true</pre>
               <c>get_tcw</c> in "Match Specifications in Erlang",
               <seealso marker="erts:match_spec#get_tcw">ERTS User's Guide</seealso>.</p>
           </item>
-          <tag><marker id="update_cpu_info"><c>update_cpu_info</c></marker></tag>
+          <tag><c>version</c></tag>
           <item>
-            <p>The runtime system rereads the CPU information available and
-	       updates its internally stored information about the
-	       <seealso marker="#system_info_cpu_topology_detected">detected CPU
-	       topology</seealso> and the amount of logical processors
-	       <seealso marker="#logical_processors">configured</seealso>,
-	       <seealso marker="#logical_processors_online">online</seealso>, and
-	       <seealso marker="#logical_processors_available">available</seealso>.
-	       If the CPU information has changed since the last time it was read,
-	       the atom <c>changed</c> is returned; otherwise, the atom
-	       <c>unchanged</c> is returned. If the CPU information has changed
-	       you probably want to
-	       <seealso marker="#system_flag_schedulers_online">adjust the amount
-	       of schedulers online</seealso>. You typically want to have as
-	       many schedulers online as
-	       <seealso marker="#logical_processors_available">logical processors
-	       available</seealso>.
-	    </p>
-          </item>
-          <tag><marker id="system_info_version"><c>version</c></marker></tag>
-          <item>
+            <marker id="system_info_version"></marker>
             <p>Returns a string containing the version number of the
               emulator.</p>
           </item>
           <tag><c>wordsize</c></tag>
           <item>
-            <p>Same as <c>{wordsize, internal}</c></p>
-          </item>
-          <tag><c>{wordsize, internal}</c></tag>
-          <item>
-            <p>Returns the size of Erlang term words in bytes as an
-              integer, i.e. on a 32-bit architecture 4 is returned,
-              and on a pure 64-bit architecture 8 is returned. On a
-              halfword 64-bit emulator, 4 is returned, as the Erlang
-              terms are stored using a virtual wordsize of half the
-              systems wordsize.</p>
-          </item>
-          <tag><c>{wordsize, external}</c></tag>
-          <item>
-	    <p>Returns the true wordsize of the emulator, i.e. the size
-	       of a pointer, in bytes as an integer. On a pure 32-bit
-	       architecture 4 is returned, on both a halfword and pure
-	       64-bit architecture, 8 is returned.</p>
+            <p>Returns the word size in bytes as an integer, i.e. on a
+              32-bit architecture 4 is returned, and on a 64-bit
+              architecture 8 is returned.</p>
           </item>
         </taglist>
         <note>
@@ -5998,7 +5802,7 @@ true</pre>
       </type>
       <desc>
         <p>Returns the current system monitoring settings set by
-          <seealso marker="#system_monitor/2">erlang:system_monitor/2</seealso>
+          <seealso marker="#erlang:system_monitor/2">erlang:system_monitor/2</seealso>
           as <c>{MonitorPid, Options}</c>, or <c>undefined</c> if there
           are no settings. The order of the options may be different
           from the one that was set.</p>
@@ -6016,9 +5820,9 @@ true</pre>
           system performance monitoring settings are cleared.</p>
         <p>Calling the function with <c>{MonitorPid, Options}</c> as
           argument, is the same as calling
-          <seealso marker="#system_monitor/2">erlang:system_monitor(MonitorPid, Options)</seealso>.</p>
+          <seealso marker="#erlang:system_monitor/2">erlang:system_monitor(MonitorPid, Options)</seealso>.</p>
         <p>Returns the previous system monitor settings just like
-          <seealso marker="#system_monitor/0">erlang:system_monitor/0</seealso>.</p>
+          <seealso marker="#erlang:system_monitor/0">erlang:system_monitor/0</seealso>.</p>
       </desc>
     </func>
 
@@ -6054,7 +5858,7 @@ true</pre>
 	      explained in the documentation of the
 	      <seealso marker="#gc_start">gc_start</seealso>
 	      trace message (see
-	      <seealso marker="#trace/3">erlang:trace/3</seealso>).
+	      <seealso marker="#erlang:trace/3">erlang:trace/3</seealso>).
 	      New tuples may be added, and the order of the tuples in
 	      the <c>Info</c> list may be changed at any time without prior
 	      notice.
@@ -6096,7 +5900,7 @@ true</pre>
           </item>
         </taglist>
         <p>Returns the previous system monitor settings just like
-          <seealso marker="#system_monitor/0">erlang:system_monitor/0</seealso>.</p>
+          <seealso marker="#erlang:system_monitor/0">erlang:system_monitor/0</seealso>.</p>
         <note>
           <p>If a monitoring process gets so large that it itself
             starts to cause system monitor messages when garbage
@@ -6120,7 +5924,7 @@ true</pre>
       </type>
       <desc>
         <p>Returns the current system profiling settings set by
-          <seealso marker="#system_profile/2">erlang:system_profile/2</seealso>
+          <seealso marker="#erlang:system_profile/2">erlang:system_profile/2</seealso>
           as <c>{ProfilerPid, Options}</c>, or <c>undefined</c> if there
           are no settings. The order of the options may be different
           from the one that was set.</p>
@@ -6348,7 +6152,7 @@ true</pre>
           <item>
             <p>Trace certain function calls. Specify which function
               calls to trace by calling
-              <seealso marker="#trace_pattern/3">erlang:trace_pattern/3</seealso>.</p>
+              <seealso marker="#erlang:trace_pattern/3">erlang:trace_pattern/3</seealso>.</p>
             <p>Message tags: <c>call</c>, <c>return_from</c>.</p>
           </item>
           <tag><c>silent</c></tag>
@@ -6377,7 +6181,7 @@ true</pre>
               Trace the actual return from a traced function back to
               its caller. Only works for functions traced with
               the <c>local</c> option to
-              <seealso marker="#trace_pattern/3">erlang:trace_pattern/3</seealso>.</p>
+              <seealso marker="#erlang:trace_pattern/3">erlang:trace_pattern/3</seealso>.</p>
             <p>The semantics is that a trace message is sent when a
               call traced function actually returns, that is, when a
               chain of tail recursive calls is ended. There will be
@@ -6575,8 +6379,9 @@ true</pre>
               the current function cannot be determined, then the last
               element <c>Arity</c> is 0.</p>
           </item>
-          <tag><marker id="gc_start"><c>{trace, Pid, gc_start, Info}</c></marker></tag>
+          <tag><c>{trace, Pid, gc_start, Info}</c></tag>
           <item>
+	    <marker id="gc_start"></marker>
             <p>Sent when garbage collection is about to be started.
               <c>Info</c> is a list of two-element tuples, where
               the first element is a key, and the second is the value.
@@ -6601,19 +6406,6 @@ true</pre>
               <tag><c>mbuf_size</c></tag>
               <item>The combined size of message buffers associated with
                the process.</item>
-
-              <tag><c>bin_vheap_size</c></tag>
-              <item>The total size  of unique off-heap binaries referenced from the process heap.</item>
-              <tag><c>bin_vheap_block_size</c></tag>
-	      <item>The total size of binaries, in words, allowed in the virtual
-	       heap in the process before doing a garbage collection. </item>
-              <tag><c>bin_old_vheap_size</c></tag>
-              <item>The total size of unique off-heap binaries referenced from the process old heap.</item>
-              <tag><c>bin_vheap_block_size</c></tag>
-	      <item>The total size of binaries, in words, allowed in the virtual
-	       old heap in the process before doing a garbage collection. </item>
-
-
             </taglist>
             <p>All sizes are in words.</p>
           </item>
@@ -6764,19 +6556,8 @@ true</pre>
               <c>true</c> for the pseudo function <c>on_load</c> if call
               count tracing is active. Return <c>false</c> otherwise.
               See also
-              <seealso marker="#trace_pattern/3">erlang:trace_pattern/3</seealso>.</p>
+              <seealso marker="#erlang:trace_pattern/3">erlang:trace_pattern/3</seealso>.</p>
           </item>
-          <tag><c>call_time</c></tag>
-          <item>
-	      <p>Return the call time values for this function or
-              <c>true</c> for the pseudo function <c>on_load</c> if call
-	      time tracing is active. Returns <c>false</c> otherwise.
-	      The call time values returned, <c>[{Pid, Count, S, Us}]</c>,
-	      is a list of each process that has executed the function and its specific counters.
-              See also
-              <seealso marker="#trace_pattern/3">erlang:trace_pattern/3</seealso>.</p>
-          </item>
-
           <tag><c>all</c></tag>
           <item>
             <p>Return a list containing the <c>{Item, Value}</c> tuples
@@ -6798,7 +6579,7 @@ true</pre>
       <fsummary>Set trace patterns for global call tracing</fsummary>
       <desc>
         <p>The same as
-          <seealso marker="#trace_pattern/3">erlang:trace_pattern(MFA, MatchSpec, [])</seealso>,
+          <seealso marker="#erlang:trace_pattern/3">erlang:trace_pattern(MFA, MatchSpec, [])</seealso>,
           retained for backward compatibility.</p>
       </desc>
     </func>
@@ -6811,7 +6592,7 @@ true</pre>
       <desc>
         <p>This BIF is used to enable or disable call tracing for
           exported functions. It must be combined with
-          <seealso marker="#trace/3">erlang:trace/3</seealso>
+          <seealso marker="#erlang:trace/3">erlang:trace/3</seealso>
           to set the <c>call</c> trace flag for one or more processes.</p>
         <p>Conceptually, call tracing works like this: Inside
           the Erlang virtual machine there is a set of processes to be
@@ -6821,7 +6602,7 @@ true</pre>
           in the traced function set, the trace action will be taken.
           Otherwise, nothing will happen.</p>
         <p>Use
-          <seealso marker="#trace/3">erlang:trace/3</seealso> to
+          <seealso marker="#erlang:trace/3">erlang:trace/3</seealso> to
           add or remove one or more processes to the set of traced
           processes. Use <c>erlang:trace_pattern/2</c> to add or remove
           exported functions to the set of traced functions.</p>
@@ -6879,13 +6660,13 @@ true</pre>
           </item>
           <tag><c>restart</c></tag>
           <item>
-	      <p>For the <c>FlagList</c> option <c>call_count</c> and <c>call_time</c>:
+            <p>For the <c>FlagList</c> option <c>call_count</c>:
               restart the existing counters. The behaviour is undefined
               for other <c>FlagList</c> options.</p>
           </item>
           <tag><c>pause</c></tag>
           <item>
-	      <p>For the <c>FlagList</c> option <c>call_count</c> and <c>call_time</c>: pause
+            <p>For the <c>FlagList</c> option <c>call_count</c>: pause
               the existing counters. The behaviour is undefined for
               other <c>FlagList</c> options.</p>
           </item>
@@ -6938,25 +6719,8 @@ true</pre>
               counters can be restarted from zero with
               <c>MatchSpec == restart</c>.</p>
             <p>The counter value can be read with
-              <seealso marker="#trace_info/2">erlang:trace_info/2</seealso>.</p>
+              <seealso marker="#erlang:trace_info/2">erlang:trace_info/2</seealso>.</p>
           </item>
-          <tag><c>call_time</c></tag>
-          <item>
-            <p>Starts (<c>MatchSpec == true</c>) or stops
-              (<c>MatchSpec == false</c>) call time tracing for all
-              types of function calls. For every function a counter is
-	      incremented when the function is called. Time spent in the function
-	      is accumulated in two other counters, seconds and micro-seconds.
-	      The counters are stored for each call traced process.</p>
-            <p>If call time tracing is started while already running,
-              the count and time is restarted from zero. Running counters can be
-              paused with <c>MatchSpec == pause</c>. Paused and running
-              counters can be restarted from zero with
-              <c>MatchSpec == restart</c>.</p>
-            <p>The counter value can be read with
-              <seealso marker="#trace_info/2">erlang:trace_info/2</seealso>.</p>
-          </item>
-
         </taglist>
         <p>The <c>global</c> and <c>local</c> options are mutually
           exclusive and <c>global</c> is the default (if no options are
@@ -6964,7 +6728,7 @@ true</pre>
           perform a kind of local tracing, and can also not be combined
           with <c>global</c>. A function can be either globally or
           locally traced. If global tracing is specified for a
-          specified set of functions; local, meta, call time and call count
+          specified set of functions; local, meta and call count
           tracing for the matching set of local functions will be
           disabled, and vice versa.</p>
         <p>When disabling trace, the option must match the type of trace
@@ -6975,7 +6739,7 @@ true</pre>
           specification list. If a function has a match specification,
           you can replace it with a completely new one. If you need to
           change an existing match specification, use the
-          <seealso marker="#trace_info/2">erlang:trace_info/2</seealso>
+          <seealso marker="#erlang:trace_info/2">erlang:trace_info/2</seealso>
           BIF to retrieve the existing match specification.</p>
         <p>Returns the number of exported functions that matched
           the <c>MFA</c> argument. This will be zero if none matched at
@@ -7090,10 +6854,10 @@ true</pre>
 
     unlink(Id),
     receive
-        {'EXIT', Id, _} ->
-            true
+\011{'EXIT', Id, _} ->
+\011    true
     after 0 ->
-            true
+\011    true
     end</code>
         <note>
           <p>Prior to OTP release R11B (erts version 5.5) <c>unlink/1</c>

@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 
 -module(epp).
@@ -109,30 +109,20 @@ format_error(cannot_parse) ->
     io_lib:format("cannot parse file, giving up", []);
 format_error({bad,W}) ->
     io_lib:format("badly formed '~s'", [W]);
-format_error(missing_parenthesis) ->
-    io_lib:format("badly formed define: missing closing right parenthesis",[]);
-format_error(premature_end) ->
-    "premature end";
 format_error({call,What}) ->
     io_lib:format("illegal macro call '~s'",[What]);
-format_error({undefined,M,none}) ->
-    io_lib:format("undefined macro '~s'", [M]);
-format_error({undefined,M,A}) ->
-    io_lib:format("undefined macro '~s/~p'", [M,A]);
+format_error({undefined,M}) ->
+    io_lib:format("undefined macro '~w'", [M]);
 format_error({depth,What}) ->
     io_lib:format("~s too deep",[What]);
 format_error({mismatch,M}) ->
-    io_lib:format("argument mismatch for macro '~s'", [M]);
+    io_lib:format("argument mismatch for macro '~w'", [M]);
 format_error({arg_error,M}) ->
-    io_lib:format("badly formed argument for macro '~s'", [M]);
+    io_lib:format("badly formed argument for macro '~w'", [M]);
 format_error({redefine,M}) ->
-    io_lib:format("redefining macro '~s'", [M]);
-format_error({redefine_predef,M}) ->
-    io_lib:format("redefining predefined macro '~s'", [M]);
-format_error({circular,M,none}) ->
-    io_lib:format("circular macro '~s'", [M]);
-format_error({circular,M,A}) ->
-    io_lib:format("circular macro '~s/~p'", [M,A]);
+    io_lib:format("redefining macro '~w'", [M]);
+format_error({circular,M}) ->
+    io_lib:format("circular macro '~w'", [M]);
 format_error({include,W,F}) ->
     io_lib:format("can't find include ~s \"~s\"", [W,F]);
 format_error({illegal,How,What}) ->
@@ -165,7 +155,7 @@ parse_file(Epp) ->
 		    case normalize_typed_record_fields(Fields) of
 			{typed, NewFields} ->
 			    [{attribute, La, record, {Record, NewFields}},
-			     {attribute, La, type,
+			     {attribute, La, type, 
 			      {{record, Record}, Fields, []}}
 			     |parse_file(Epp)];
 			not_typed ->
@@ -180,8 +170,6 @@ parse_file(Epp) ->
 	    [{eof,Location}]
     end.
 
-normalize_typed_record_fields([]) ->
-    {typed, []};
 normalize_typed_record_fields(Fields) ->
     normalize_typed_record_fields(Fields, [], false).
 
@@ -190,7 +178,7 @@ normalize_typed_record_fields([], NewFields, Typed) ->
 	true -> {typed, lists:reverse(NewFields)};
 	false -> not_typed
     end;
-normalize_typed_record_fields([{typed_record_field,Field,_}|Rest],
+normalize_typed_record_fields([{typed_record_field,Field,_}|Rest], 
 			      NewFields, _Typed) ->
     normalize_typed_record_fields(Rest, [Field|NewFields], true);
 normalize_typed_record_fields([Field|Rest], NewFields, Typed) ->
@@ -270,23 +258,18 @@ user_predef([{M,Val,redefine}|Pdm], Ms) when is_atom(M) ->
     user_predef(Pdm, dict:store({atom,M}, {none,Exp}, Ms));
 user_predef([{M,Val}|Pdm], Ms) when is_atom(M) ->
     case dict:find({atom,M}, Ms) of
-	{ok,_Defs} when is_list(_Defs) -> %% User defined macros
+	{ok,_Def} ->
 	    {error,{redefine,M}};
-	{ok,_Def} -> %% Predefined macros
-	    {error,{redefine_predef,M}};
 	error ->
 	    Exp = erl_parse:tokens(erl_parse:abstract(Val)),
-	    user_predef(Pdm, dict:store({atom,M}, [{none, {none,Exp}}], Ms))
+	    user_predef(Pdm, dict:store({atom,M}, {none,Exp}, Ms))
     end;
 user_predef([M|Pdm], Ms) when is_atom(M) ->
     case dict:find({atom,M}, Ms) of
-	{ok,_Defs} when is_list(_Defs) -> %% User defined macros
+	{ok,_Def} ->
 	    {error,{redefine,M}};
-	{ok,_Def} -> %% Predefined macros
-	    {error,{redefine_predef,M}};
 	error ->
-	    user_predef(Pdm,
-	                dict:store({atom,M}, [{none, {none,[{atom,1,true}]}}], Ms))
+	    user_predef(Pdm, dict:store({atom,M}, {none,[{atom,1,true}]}, Ms))
     end;
 user_predef([Md|_Pdm], _Ms) -> {error,{bad,Md}};
 user_predef([], Ms) -> {ok,Ms}.
@@ -326,7 +309,7 @@ wait_req_scan(St) ->
 wait_req_skip(St, Sis) ->
     From = wait_request(St),
     skip_toks(From, St, Sis).
-
+	
 %% enter_file(Path, FileName, IncludeToken, From, EppState)
 %% leave_file(From, EppState)
 %%  Handle entering and leaving included files. Notify caller when the
@@ -382,16 +365,16 @@ file_name(N) when is_atom(N) ->
 
 leave_file(From, St) ->
     case St#epp.istk of
-	[I|Cis] ->
+	[I|Cis] -> 
 	    epp_reply(From,
-		      {error,{St#epp.location,epp,
+		      {error,{St#epp.location,epp, 
                               {illegal,"unterminated",I}}}),
 	    leave_file(wait_request(St),St#epp{istk=Cis});
 	[] ->
 	    case St#epp.sstk of
 		[OldSt|Sts] ->
 		    close_file(St),
-		    enter_file_reply(From, OldSt#epp.name,
+		    enter_file_reply(From, OldSt#epp.name, 
                                      OldSt#epp.location, OldSt#epp.location),
 		    Ms = dict:store({atom,'FILE'},
 				    {none,
@@ -419,7 +402,7 @@ scan_toks(From, St) ->
 	    leave_file(From, St#epp{location=Cl});
 	{error,_E} ->
             epp_reply(From, {error,{St#epp.location,epp,cannot_parse}}),
-	    leave_file(wait_request(St), St)	%This serious, just exit!
+	    leave_file(From, St)		%This serious, just exit!
     end.
 
 scan_toks([{'-',_Lh},{atom,_Ld,define}=Define|Toks], From, St) ->
@@ -493,65 +476,57 @@ scan_extends(_Ts, _As, Ms) -> Ms.
 
 %% scan_define(Tokens, DefineToken, From, EppState)
 
-scan_define([{'(',_Lp},{Type,_Lm,M}=Mac,{',',Lc}|Toks], _Def, From, St)
-  when Type =:= atom; Type =:= var ->
-    case catch macro_expansion(Toks, Lc) of
-        Expansion when is_list(Expansion) ->
-            case dict:find({atom,M}, St#epp.macs) of
-                {ok, Defs} when is_list(Defs) ->
-                    %% User defined macros: can be overloaded
-                    case proplists:is_defined(none, Defs) of
-                        true ->
-                            epp_reply(From, {error,{loc(Mac),epp,{redefine,M}}}),
-                            wait_req_scan(St);
-                        false ->
-                            scan_define_cont(From, St,
-                                             {atom, M},
-                                             {none, {none,Expansion}})
-                    end;
-                {ok, _PreDef} ->
-                    %% Predefined macros: cannot be overloaded
-                    epp_reply(From, {error,{loc(Mac),epp,{redefine_predef,M}}}),
-                    wait_req_scan(St);
-                error ->
-                    scan_define_cont(From, St,
-                                     {atom, M},
-                                     {none, {none,Expansion}})
-            end;
-        {error,ErrL,What} ->
-            epp_reply(From, {error,{ErrL,epp,What}}),
-            wait_req_scan(St)
+scan_define([{'(',_Lp},{atom,_Lm,M}=Mac,{',',_Lc}|Toks], _Def, From, St) ->
+    case dict:find({atom,M}, St#epp.macs) of
+	{ok,_OldDef} ->
+	    epp_reply(From, {error,{loc(Mac),epp,{redefine,M}}}),
+	    wait_req_scan(St);
+	error ->
+	    scan_define_cont(From, St,
+			     {atom, M},
+			     {none,macro_expansion(Toks)})
     end;
-scan_define([{'(',_Lp},{Type,_Lm,M}=Mac,{'(',_Lc}|Toks], Def, From, St)
-  when Type =:= atom; Type =:= var ->
-    case catch macro_pars(Toks, []) of
-        {ok, {As,Me}} ->
-            Len = length(As),
-            case dict:find({atom,M}, St#epp.macs) of
-                {ok, Defs} when is_list(Defs) ->
-                    %% User defined macros: can be overloaded
-                    case proplists:is_defined(Len, Defs) of
-                        true ->
-                            epp_reply(From,{error,{loc(Mac),epp,{redefine,M}}}),
-                            wait_req_scan(St);
-                        false ->
-                            scan_define_cont(From, St, {atom, M},
-                                             {Len, {As, Me}})
-                    end;
-                {ok, _PreDef} ->
-                    %% Predefined macros: cannot be overloaded
-                    %% (There are currently no predefined F(...) macros.)
-                    epp_reply(From, {error,{loc(Mac),epp,{redefine_predef,M}}}),
-                    wait_req_scan(St);
-                error ->
-                    scan_define_cont(From, St, {atom, M}, {Len, {As, Me}})
-            end;
-	{error,ErrL,What} ->
-            epp_reply(From, {error,{ErrL,epp,What}}),
-            wait_req_scan(St);
-        _ ->
-            epp_reply(From, {error,{loc(Def),epp,{bad,define}}}),
-            wait_req_scan(St)
+scan_define([{'(',_Lp},{atom,_Lm,M}=Mac,{'(',_Lc}|Toks], Def, From, St) ->
+    case dict:find({atom,M}, St#epp.macs) of
+	{ok,_Def} ->
+	    epp_reply(From, {error,{loc(Mac),epp,{redefine,M}}}),
+	    wait_req_scan(St);
+	error ->
+	    case catch macro_pars(Toks, []) of
+		{ok, {As, Me}} ->
+		    scan_define_cont(From, St,
+				    {atom, M},
+				    {As, Me});
+		_ ->
+		    epp_reply(From, {error,{loc(Def),epp,{bad,define}}}),
+		    wait_req_scan(St)
+	    end
+    end;
+scan_define([{'(',_Lp},{var,_Lm,M}=Mac,{',',_Lc}|Toks], _Def, From, St) ->
+    case dict:find({atom,M}, St#epp.macs) of
+	{ok,_OldDef} ->
+	    epp_reply(From, {error,{loc(Mac),epp,{redefine,M}}}),
+	    wait_req_scan(St);
+	error ->
+	    scan_define_cont(From, St,
+			     {atom, M},
+			     {none,macro_expansion(Toks)})
+    end;
+scan_define([{'(',_Lp},{var,_Lm,M}=Mac,{'(',_Lc}|Toks], Def, From, St) ->
+    case dict:find({atom,M}, St#epp.macs) of
+	{ok,_Def} ->
+	    epp_reply(From, {error,{loc(Mac),epp,{redefine,M}}}),
+	    wait_req_scan(St);
+	error ->
+	    case catch macro_pars(Toks, []) of
+		{ok, {As, Me}} ->
+		    scan_define_cont(From, St,
+				     {atom, M},
+				     {As, Me});
+		_ ->
+		    epp_reply(From, {error,{loc(Def),epp,{bad,define}}}),
+		    wait_req_scan(St)
+	    end
     end;
 scan_define(_Toks, Def, From, St) ->
     epp_reply(From, {error,{loc(Def),epp,{bad,define}}}),
@@ -566,17 +541,13 @@ scan_define(_Toks, Def, From, St) ->
 %%% the information from St#epp.uses is traversed, and if a circularity
 %%% is detected, an error message is thrown.
 
-scan_define_cont(F, St, M, {Arity, Def}) ->
-    Ms = dict:append_list(M, [{Arity, Def}], St#epp.macs),
-    try dict:append_list(M, [{Arity, macro_uses(Def)}], St#epp.uses) of
-        U ->
-            scan_toks(F, St#epp{uses=U, macs=Ms})
-    catch
-        {error, Line, Reason} ->
-            epp_reply(F, {error,{Line,epp,Reason}}),
-            wait_req_scan(St)
-    end.
+scan_define_cont(F, St, M, Def) ->
+    Ms = dict:store(M, Def, St#epp.macs),
+    U = dict:store(M, macro_uses(Def), St#epp.uses),
+    scan_toks(F, St#epp{uses=U, macs=Ms}).
 
+macro_uses(undefined) ->
+    undefined;
 macro_uses({_Args, Tokens}) ->
     Uses0 = macro_ref(Tokens),
     lists:usort(Uses0).
@@ -585,32 +556,38 @@ macro_ref([]) ->
     [];
 macro_ref([{'?', _}, {'?', _} | Rest]) ->
     macro_ref(Rest);
-macro_ref([{'?', _}, {atom, Lm, A} | Rest]) ->
-    Arity = count_args(Rest, Lm, A),
-    [{{atom, A}, Arity} | macro_ref(Rest)];
-macro_ref([{'?', _}, {var, Lm, A} | Rest]) ->
-    Arity = count_args(Rest, Lm, A),
-    [{{atom, A}, Arity} | macro_ref(Rest)];
+macro_ref([{'?', _}, {atom, _, A} | Rest]) ->
+    [{atom, A} | macro_ref(Rest)];
+macro_ref([{'?', _}, {var, _, A} | Rest]) ->
+    [{atom, A} | macro_ref(Rest)];
 macro_ref([_Token | Rest]) ->
     macro_ref(Rest).
+
+all_macro_uses(D0) ->
+    L = dict:to_list(D0),
+    D = dict:new(),
+    add_macro_uses(L, D).
+
+add_macro_uses([], D) ->
+    D;
+add_macro_uses([{Key, Def} | Rest], D0) ->
+    add_macro_uses(Rest, dict:store(Key, macro_uses(Def), D0)).
 
 %% scan_undef(Tokens, UndefToken, From, EppState)
 
 scan_undef([{'(',_Llp},{atom,_Lm,M},{')',_Lrp},{dot,_Ld}], _Undef, From, St) ->
-    Macs = dict:erase({atom,M}, St#epp.macs),
-    Uses = dict:erase({atom,M}, St#epp.uses),
-    scan_toks(From, St#epp{macs=Macs, uses=Uses});
+    scan_toks(From, St#epp{macs=dict:erase({atom,M}, St#epp.macs),
+			   uses=all_macro_uses(St#epp.macs)});
 scan_undef([{'(',_Llp},{var,_Lm,M},{')',_Lrp},{dot,_Ld}], _Undef, From,St) ->
-    Macs = dict:erase({atom,M}, St#epp.macs),
-    Uses = dict:erase({atom,M}, St#epp.uses),
-    scan_toks(From, St#epp{macs=Macs, uses=Uses});
+    scan_toks(From, St#epp{macs=dict:erase({atom,M}, St#epp.macs),
+			   uses=all_macro_uses(St#epp.macs)});
 scan_undef(_Toks, Undef, From, St) ->
     epp_reply(From, {error,{loc(Undef),epp,{bad,undef}}}),
     wait_req_scan(St).
 
 %% scan_include(Tokens, IncludeToken, From, St)
 
-scan_include([{'(',_Llp},{string,_Lf,NewName0},{')',_Lrp},{dot,_Ld}], Inc,
+scan_include([{'(',_Llp},{string,_Lf,NewName0},{')',_Lrp},{dot,_Ld}], Inc, 
 	     From, St) ->
     NewName = expand_var(NewName0),
     enter_file(St#epp.path, NewName, Inc, From, St);
@@ -646,7 +623,7 @@ scan_include_lib([{'(',_Llp},{string,_Lf,NewName0},{')',_Lrp},{dot,_Ld}],
 		    case file:open(LibName, [read]) of
 			{ok,NewF} ->
 			    ExtraPath = [filename:dirname(LibName)],
-			    wait_req_scan(enter_file2(NewF, LibName, From,
+			    wait_req_scan(enter_file2(NewF, LibName, From, 
                                                       St, Loc, ExtraPath));
 			{error,_E2} ->
 			    epp_reply(From,
@@ -768,14 +745,14 @@ scan_file([{'(',_Llp},{string,_Ls,Name},{',',_Lc},{integer,_Li,Ln},{')',_Lrp},
     Ms = dict:store({atom,'FILE'}, {none,[{string,1,Name}]}, St#epp.macs),
     Locf = loc(Tf),
     NewLoc = new_location(Ln, St#epp.location, Locf),
-    wait_req_scan(St#epp{name=Name,location=NewLoc,macs=Ms});
+    scan_toks(From, St#epp{name=Name,location=NewLoc,macs=Ms});
 scan_file(_Toks, Tf, From, St) ->
     epp_reply(From, {error,{loc(Tf),epp,{bad,file}}}),
     wait_req_scan(St).
 
 new_location(Ln, Le, Lf) when is_integer(Lf) ->
     Ln+(Le-Lf);
-new_location(Ln, {Le,_}, {Lf,_}) ->
+new_location(Ln, {Le,_}, {Lf,_}) -> 
     {Ln+(Le-Lf),1}.
 
 %% skip_toks(From, EppState, SkipIstack)
@@ -802,7 +779,7 @@ skip_toks(From, St, [I|Sis]) ->
 	    leave_file(From, St#epp{location=Cl,istk=[I|Sis]});
 	{error,_E} ->
             epp_reply(From, {error,{St#epp.location,epp,cannot_parse}}),
-	    leave_file(wait_request(St), St)	%This serious, just exit!
+	    leave_file(From, St)		%This serious, just exit!
     end;
 skip_toks(From, St, []) ->
     scan_toks(From, St).
@@ -816,23 +793,22 @@ skip_else(_Else, From, St, Sis) ->
     skip_toks(From, St, Sis).
 
 %% macro_pars(Tokens, ArgStack)
-%% macro_expansion(Tokens, Line)
+%% macro_expansion(Tokens)
 %%  Extract the macro parameters and the expansion from a macro definition.
 
-macro_pars([{')',_Lp}, {',',Ld}|Ex], Args) ->
-    {ok, {lists:reverse(Args), macro_expansion(Ex, Ld)}};
-macro_pars([{var,_,Name}, {')',_Lp}, {',',Ld}|Ex], Args) ->
+macro_pars([{')',_Lp}, {',',_Ld}|Ex], Args) ->
+    {ok, {lists:reverse(Args), macro_expansion(Ex)}};
+macro_pars([{var,_,Name}, {')',_Lp}, {',',_Ld}|Ex], Args) ->
     false = lists:member(Name, Args),		%Prolog is nice
-    {ok, {lists:reverse([Name|Args]), macro_expansion(Ex, Ld)}};
+    {ok, {lists:reverse([Name|Args]), macro_expansion(Ex)}};
 macro_pars([{var,_L,Name}, {',',_}|Ts], Args) ->
-    false = lists:member(Name, Args),
+    false = lists:member(Name, Args),           
     macro_pars(Ts, [Name|Args]).
 
-macro_expansion([{')',_Lp},{dot,_Ld}], _L0) -> [];
-macro_expansion([{dot,Ld}], _L0) -> throw({error,Ld,missing_parenthesis});
-macro_expansion([T|Ts], _L0) ->
-    [T|macro_expansion(Ts, element(2, T))];
-macro_expansion([], L0) -> throw({error,L0,premature_end}).
+macro_expansion([{')',_Lp},{dot,_Ld}]) -> [];
+macro_expansion([{dot,_Ld}]) -> [];		%Be nice, allow no right paren!
+macro_expansion([T|Ts]) ->
+    [T|macro_expansion(Ts)].
 
 %% expand_macros(Tokens, Macros)
 %% expand_macro(Tokens, MacroToken, RestTokens)
@@ -843,57 +819,42 @@ expand_macros(Type, MacT, M, Toks, Ms0) ->
     %% (Type will always be 'atom')
     {Ms, U} = Ms0,
     Lm = loc(MacT),
+    check_uses([{Type,M}], [], U, Lm),
     Tinfo = element(2, MacT),
-    case expand_macro1(Type, Lm, M, Toks, Ms) of
-	{ok,{none,Exp}} ->
-	    check_uses([{{Type,M}, none}], [], U, Lm),
-	    Toks1 = expand_macros(expand_macro(Exp, Tinfo, [], dict:new()), Ms0),
-	    expand_macros(Toks1++Toks, Ms0);
-	{ok,{As,Exp}} ->
-	    check_uses([{{Type,M}, length(As)}], [], U, Lm),
-	    {Bs,Toks1} = bind_args(Toks, Lm, M, As, dict:new()),
-	    expand_macros(expand_macro(Exp, Tinfo, Toks1, Bs), Ms0)
-    end.
-
-expand_macro1(Type, Lm, M, Toks, Ms) ->
-    Arity = count_args(Toks, Lm, M),
     case dict:find({Type,M}, Ms) of
-        error -> %% macro not found
-            throw({error,Lm,{undefined,M,Arity}});
-        {ok, undefined} -> %% Predefined macro without definition
-            throw({error,Lm,{undefined,M,Arity}});
-        {ok, [{none, Def}]} ->
-            {ok, Def};
-        {ok, Defs} when is_list(Defs) ->
-            case proplists:get_value(Arity, Defs) of
-                undefined ->
-                    throw({error,Lm,{mismatch,M}});
-                Def ->
-                    {ok, Def}
-            end;
-        {ok, PreDef} -> %% Predefined macro
-            {ok, PreDef}
+	{ok,{none,Exp}} ->
+	    expand_macros(expand_macro(Exp, Tinfo, Toks, dict:new()), Ms0);
+	{ok,{As,Exp}} ->
+	    {Bs,Toks1} = bind_args(Toks, Lm, M, As, dict:new()),
+	    %%io:format("Bound arguments to macro ~w (~w)~n", [M,Bs]),
+	    expand_macros(expand_macro(Exp, Tinfo, Toks1, Bs), Ms0);
+	{ok,undefined} ->
+	    throw({error,Lm,{undefined,M}});
+	error ->
+	    throw({error,Lm,{undefined,M}})
     end.
 
+check_uses(undefined, _Anc, _U, _Lm) ->
+    ok;
 check_uses([], _Anc, _U, _Lm) ->
     ok;
 check_uses([M|Rest], Anc, U, Lm) ->
     case lists:member(M, Anc) of
 	true ->
-	    {{_, Name},Arity} = M,
-	    throw({error,Lm,{circular,Name,Arity}});
+	    {_, Name} = M,
+	    throw({error,Lm,{circular,Name}});
 	false ->
 	    L = get_macro_uses(M, U),
 	    check_uses(L, [M|Anc], U, Lm),
 	    check_uses(Rest, Anc, U, Lm)
     end.
-
-get_macro_uses({M,Arity}, U) ->
+    
+get_macro_uses(M, U) ->
     case dict:find(M, U) of
 	error ->
 	    [];
 	{ok, L} ->
-	    proplists:get_value(Arity, L, proplists:get_value(none, L, []))
+	    L
     end.
 
 %% Macro expansion
@@ -921,7 +882,7 @@ expand_macros([T|Ts], Ms) ->
 expand_macros([], _Ms) -> [].
 
 %% bind_args(Tokens, MacroLocation, MacroName, ArgumentVars, Bindings)
-%%  Collect the arguments to a macro call.
+%%  Collect the arguments to a macro call and check for correct number.
 
 bind_args([{'(',_Llp},{')',_Lrp}|Toks], _Lm, _M, [], Bs) ->
     {Bs,Toks};
@@ -929,7 +890,7 @@ bind_args([{'(',_Llp}|Toks0], Lm, M, [A|As], Bs) ->
     {Arg,Toks1} = macro_arg(Toks0, [], []),
     macro_args(Toks1, Lm, M, As, store_arg(Lm, M, A, Arg, Bs));
 bind_args(_Toks, Lm, M, _As, _Bs) ->
-    throw({error,Lm,{mismatch,M}}). % Cannot happen.
+    throw({error,Lm,{mismatch,M}}).
 
 macro_args([{')',_Lrp}|Toks], _Lm, _M, [], Bs) ->
     {Bs,Toks};
@@ -937,38 +898,14 @@ macro_args([{',',_Lc}|Toks0], Lm, M, [A|As], Bs) ->
     {Arg,Toks1} = macro_arg(Toks0, [], []),
     macro_args(Toks1, Lm, M, As, store_arg(Lm, M, A, Arg, Bs));
 macro_args([], Lm, M, _As, _Bs) ->
-    throw({error,Lm,{arg_error,M}}); % Cannot happen.
+    throw({error,Lm,{arg_error,M}});
 macro_args(_Toks, Lm, M, _As, _Bs) ->
-    throw({error,Lm,{mismatch,M}}). % Cannot happen.
+    throw({error,Lm,{mismatch,M}}).
 
 store_arg(L, M, _A, [], _Bs) ->
     throw({error,L,{mismatch,M}});
 store_arg(_L, _M, A, Arg, Bs) ->
     dict:store(A, Arg, Bs).
-
-%% count_args(Tokens, MacroLine, MacroName)
-%%  Count the number of arguments in a macro call.
-count_args([{'(', _Llp},{')',_Lrp}|_Toks], _Lm, _M) ->
-    0;
-count_args([{'(', _Llp},{',',_Lc}|_Toks], Lm, M) ->
-    throw({error,Lm,{arg_error,M}});
-count_args([{'(',_Llp}|Toks0], Lm, M) ->
-    {_Arg,Toks1} = macro_arg(Toks0, [], []),
-    count_args(Toks1, Lm, M, 1);
-count_args(_Toks, _Lm, _M) ->
-    none.
-
-count_args([{')',_Lrp}|_Toks], _Lm, _M, NbArgs) ->
-    NbArgs;
-count_args([{',',_Lc},{')',_Lrp}|_Toks], Lm, M, _NbArgs) ->
-    throw({error,Lm,{arg_error,M}});
-count_args([{',',_Lc}|Toks0], Lm, M, NbArgs) ->
-    {_Arg,Toks1} = macro_arg(Toks0, [], []),
-    count_args(Toks1, Lm, M, NbArgs+1);
-count_args([], Lm, M, _NbArgs) ->
-    throw({error,Lm,{arg_error,M}});
-count_args(_Toks, Lm, M, _NbArgs) ->
-    throw({error,Lm,{mismatch,M}}). % Cannot happen.
 
 %% macro_arg([Tok], [ClosePar], [ArgTok]) -> {[ArgTok],[RestTok]}.
 %%  Collect argument tokens until we hit a ',' or a ')'. We know a
@@ -1087,11 +1024,11 @@ epp_reply(From, Rep) ->
 
 wait_epp_reply(Epp, Mref) ->
     receive
-	{epp_reply,Epp,Rep} ->
+	{epp_reply,Epp,Rep} -> 
 	    erlang:demonitor(Mref),
 	    receive {'DOWN',Mref,_,_,_} -> ok after 0 -> ok end,
 	    Rep;
-	{'DOWN',Mref,_,_,E} ->
+	{'DOWN',Mref,_,_,E} -> 
 	    receive {epp_reply,Epp,Rep} -> Rep
 	    after 0 -> exit(E)
 	    end
@@ -1148,7 +1085,7 @@ get_line({Line,_Column}) ->
 %% mainly aimed at yecc, the parser generator, which uses the -file
 %% attribute to get correct lines in messages referring to code
 %% supplied by the user (actions etc in .yrl files).
-%%
+%% 
 %% In a perfect world (read: perfectly implemented applications such
 %% as Xref, Cover, Debugger, etc.) it would not be necessary to
 %% distinguish -file attributes from epp and the input file. The
@@ -1168,7 +1105,7 @@ get_line({Line,_Column}) ->
 %% have been output by epp (corresponding to -include and
 %% -include_lib) are kept, but the user's -file attributes are
 %% removed. This seems sufficient for now.
-%%
+%% 
 %% It turns out to be difficult to distinguish -file attributes in the
 %% input file from the ones added by epp unless some action is taken.
 %% The (less than perfect) solution employed is to let epp assign
@@ -1180,7 +1117,7 @@ get_line({Line,_Column}) ->
 interpret_file_attribute(Forms) ->
     interpret_file_attr(Forms, 0, []).
 
-interpret_file_attr([{attribute,Loc,file,{File,Line}}=Form | Forms],
+interpret_file_attr([{attribute,Loc,file,{File,Line}}=Form | Forms], 
                     Delta, Fs) ->
     {line, L} = erl_scan:attributes_info(Loc, line),
     if

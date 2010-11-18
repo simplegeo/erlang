@@ -1,24 +1,24 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2008-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2008-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %% This file is generated DO NOT EDIT
 
 %% @doc See external documentation: <a href="http://www.wxwidgets.org/manuals/stable/wx_wxbufferedpaintdc.html">wxBufferedPaintDC</a>.
-%% <p>This class is derived (and can use functions) from:
+%% <p>This class is derived (and can use functions) from: 
 %% <br />{@link wxBufferedDC}
 %% <br />{@link wxMemoryDC}
 %% <br />{@link wxDC}
@@ -69,7 +69,7 @@ new(Window)
 
 %% @spec (Window::wxWindow:wxWindow(),X::term()) -> wxBufferedPaintDC()
 %% @doc See <a href="http://www.wxwidgets.org/manuals/stable/wx_wxbufferedpaintdc.html#wxbufferedpaintdcwxbufferedpaintdc">external documentation</a>.
-%% <br /> Alternatives:
+%% <br /> Alternatives: 
 %% <p><c>
 %% new(Window::wxWindow:wxWindow(), Buffer::wxBitmap:wxBitmap()) -> new(Window,Buffer, []) </c></p>
 %% <p><c>
@@ -104,23 +104,23 @@ new(#wx_ref{type=WindowT,ref=WindowRef},#wx_ref{type=BufferT,ref=BufferRef}, Opt
 
 %% @spec (This::wxBufferedPaintDC()) -> ok
 %% @doc Destroys this object, do not use object again
-destroy(Obj=#wx_ref{type=Type}) ->
+destroy(Obj=#wx_ref{type=Type}) -> 
   ?CLASS(Type,wxBufferedPaintDC),
   wxe_util:destroy(?DESTROY_OBJECT,Obj),
   ok.
- %% From wxBufferedDC
+ %% From wxBufferedDC 
 %% @hidden
 init(This,Dc,Area, Options) -> wxBufferedDC:init(This,Dc,Area, Options).
 %% @hidden
 init(This,Dc,Area) -> wxBufferedDC:init(This,Dc,Area).
 %% @hidden
 init(This,Dc) -> wxBufferedDC:init(This,Dc).
- %% From wxMemoryDC
+ %% From wxMemoryDC 
 %% @hidden
 selectObjectAsSource(This,Bmp) -> wxMemoryDC:selectObjectAsSource(This,Bmp).
 %% @hidden
 selectObject(This,Bmp) -> wxMemoryDC:selectObject(This,Bmp).
- %% From wxDC
+ %% From wxDC 
 %% @hidden
 startPage(This) -> wxDC:startPage(This).
 %% @hidden

@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 %% Yacc like LALR-1 parser generator for Erlang.
@@ -30,8 +30,8 @@
 
 -import(lists, [append/1, append/2, concat/1, delete/2, filter/2,
                 flatmap/2, foldl/3, foldr/3, foreach/2, keydelete/3,
-                keysort/2, last/1, map/2, member/2, reverse/1,
-                sort/1, usort/1]).
+                keysearch/3, keysort/2, last/1, map/2, member/2,
+                reverse/1, sort/1, usort/1]).
 
 -include("erl_compile.hrl").
 -include("ms_transform.hrl").
@@ -297,18 +297,18 @@ options(Options0, [Key | Keys], L) when is_list(Options0) ->
                   false ->
                       Options0
               end,
-    V = case lists:keyfind(Key, 1, Options) of
-            {Key, Filename0} when Key =:= includefile;
-                                  Key =:= parserfile ->
+    V = case keysearch(Key, 1, Options) of
+            {value, {Key, Filename0}} when Key =:= includefile; 
+                                           Key =:= parserfile ->
                 case is_filename(Filename0) of
                     no -> 
                         badarg;
                     Filename -> 
                         {ok, [{Key, Filename}]}
                 end;
-            {Key, Bool} = KB when is_boolean(Bool) ->
-                {ok, [KB]};
-            {Key, _} ->
+            {value, {Key, Bool}} when Bool =:= true; Bool =:= false ->
+                {ok, [{Key, Bool}]};
+            {value, {Key, _}} ->
                 badarg;
             false ->
                 {ok, [{Key, default_option(Key)}]}
@@ -348,7 +348,8 @@ atom_option(verbose) -> {verbose, true};
 atom_option(Key) -> Key.
 
 is_filename(T) ->
-    try filename:flatten(T)
+    try filename:flatten(T) of
+        Filename -> Filename
     catch error: _ -> no
     end.    
 
@@ -365,8 +366,8 @@ shorten_filename(Name0) ->
 
 start(Infilex, Options) ->
     Infile = assure_extension(Infilex, ".yrl"),
-    {_, Outfilex0} = lists:keyfind(parserfile, 1, Options),
-    {_, Includefilex} = lists:keyfind(includefile, 1, Options),
+    {value, {_, Outfilex0}} = keysearch(parserfile, 1, Options),
+    {value, {_, Includefilex}} = keysearch(includefile, 1, Options),
     Outfilex = case Outfilex0 of
                    [] -> filename:rootname(Infilex, ".yrl");
                    _ -> Outfilex0
@@ -714,14 +715,14 @@ names(Symbols) ->
     map(fun(Symbol) -> Symbol#symbol.name end, Symbols).
 
 symbol_line(Name, St) ->
-    #symbol{line = Line} = symbol_find(Name, St#yecc.all_symbols),
+    {value, #symbol{line = Line}} = symbol_search(Name, St#yecc.all_symbols),
     Line.
 
 symbol_member(Symbol, Symbols) ->
-    symbol_find(Symbol#symbol.name, Symbols) =/= false.
+    symbol_search(Symbol#symbol.name, Symbols) =/= false.
 
-symbol_find(Name, Symbols) ->
-    lists:keyfind(Name, #symbol.name, Symbols).
+symbol_search(Name, Symbols) ->
+    keysearch(Name, #symbol.name, Symbols).
 
 states_and_goto_table(St0) ->
     St1 = create_symbol_table(St0),
@@ -875,8 +876,8 @@ add_warnings(SymNames, W0, St0) ->
 check_rhs([#symbol{name = '$empty'}], St) ->
     St;
 check_rhs(Rhs, St0) ->
-    case symbol_find('$empty', Rhs) of
-        #symbol{line = Line} ->
+    case symbol_search('$empty', Rhs) of
+        {value, #symbol{line = Line}} ->
             add_error(Line, illegal_empty, St0);
         false ->
             foldl(fun(Sym, St) ->
@@ -1095,10 +1096,10 @@ compute_states2([{Sym,Seed} | Seeds], N, Try, CurrState, StateTab, Tables) ->
             compute_states2(Seeds, N, Try, CurrState, StateTab, Tables);
         {merge, M, NewCurrent} ->
             %% io:fwrite(<<"Merging with state ~w\n">>, [M]),
-            Try1 = case lists:keyfind(M, 1, Try) of
+            Try1 = case keysearch(M, 1, Try) of
                        false ->
                            [{M, NewCurrent} | Try];
-                       {_, OldCurrent} ->
+                       {value, {_, OldCurrent}} ->
                            case ordsets:is_subset(NewCurrent, OldCurrent) of
                                true ->
                                    Try;
@@ -1582,11 +1583,6 @@ find_action_conflicts2(Rs, Cxt0) ->
          
 find_reduce_reduce([R], Cxt) ->
     {R, Cxt};
-find_reduce_reduce([accept=A, #reduce{}=R | Rs], Cxt0) ->
-    Confl = conflict(R, A, Cxt0),
-    St = conflict_error(Confl, Cxt0#cxt.yecc), 
-    Cxt = Cxt0#cxt{yecc = St},
-    find_reduce_reduce([R | Rs], Cxt);
 find_reduce_reduce([#reduce{head = Categ1, prec = {P1, _}}=R1, 
                     #reduce{head = Categ2, prec = {P2, _}}=R2 | Rs], Cxt0) ->
     #cxt{res = Res0, yecc = St0} = Cxt0,
@@ -1778,8 +1774,6 @@ add_conflict(Conflict, St) ->
     case Conflict of
         {Symbol, StateN, _, {reduce, _, _, _}} ->
             St#yecc{reduce_reduce = [{StateN,Symbol} |St#yecc.reduce_reduce]};
-        {Symbol, StateN, _, {accept, _}} ->
-            St#yecc{reduce_reduce = [{StateN,Symbol} |St#yecc.reduce_reduce]};
         {Symbol, StateN, _, {shift, _, _}} ->
             St#yecc{shift_reduce = [{StateN,Symbol} | St#yecc.shift_reduce]};
         {_Symbol, _StateN, {one_level_up, _, _}, _Confl} ->
@@ -1798,8 +1792,6 @@ conflict(#reduce{rule_nmbr = RuleNmbr1}, NewAction, Cxt) ->
     #cxt{terminal = Symbol, state_n = N, yecc = St} = Cxt,
     {R1, RuleLine1, RuleN1} = rule(RuleNmbr1, St),
     Confl = case NewAction of
-                accept -> 
-                    {accept, St#yecc.rootsymbol};
                 #reduce{rule_nmbr = RuleNmbr2} -> 
                     {R2, RuleLine2, RuleN2} = rule(RuleNmbr2, St),
                     {reduce, R2, RuleN2, RuleLine2};
@@ -1839,10 +1831,7 @@ format_conflict({Symbol, N, Reduce, Confl}) ->
              {shift, NewState, Sym} ->
                  io_lib:fwrite(<<"   shift to state ~w, adding right "
                                  "sisters to ~s.">>,
-                               [NewState, format_symbol(Sym)]);
-             {accept, Rootsymbol} ->
-                 io_lib:fwrite(<<"   reduce to rootsymbol ~s.">>,
-                               [format_symbol(Rootsymbol)])
+                           [NewState, format_symbol(Sym)])
          end,
     [S1, S2, S3].
 
@@ -1875,12 +1864,8 @@ format_conflict({Symbol, N, Reduce, Confl}) ->
 %%   - "__Stack" has been substituted for "Stack";
 %%   - several states can share yeccpars2_S_cont(), which reduces code size;
 %%   - instead if calling lists:nthtail() matching code is emitted.
-%%
-%% "1.4", parsetools-2.0.4:
-%% - yeccerror() is called when a syntax error is found (as in version 1.1).
-%% - the include file yeccpre.hrl has been changed.
 
--define(CODE_VERSION, "1.4").
+-define(CODE_VERSION, "1.3").
 -define(YECC_BUG(M, A), 
         iolist_to_binary([" erlang:error({yecc_bug,\"",?CODE_VERSION,"\",",
                           io_lib:fwrite(M, A), "}).\n\n"])).
@@ -2010,16 +1995,14 @@ output_actions(St0, StateJumps, StateInfo) ->
     %% Not all the clauses of the dispatcher function yeccpars2() can
     %% be reached. Only when shifting, that is, calling yeccpars1(),
     %% will yeccpars2() be called.
-    Y2CL = [NewState || {_State,{Actions,J}} <- StateJumps,
-                        {_LA, #shift{state = NewState}} <- 
-                            (Actions
-                             ++ [A || {_Tag,_To,Part} <- [J], A <- Part])],
+    Y2CL = [NewState || {_State,{Actions,_J}} <- StateJumps,
+                        {_LA, #shift{state = NewState}} <- Actions],
     Y2CS = ordsets:from_list([0 | Y2CL]),
     Y2S = ordsets:from_list([S || {S,_} <- StateJumps]),
     NY2CS = ordsets:subtract(Y2S, Y2CS),
     Sel = [{S,true} || S <- ordsets:to_list(Y2CS)] ++
           [{S,false} || S <- ordsets:to_list(NY2CS)],
-
+                                    
     SelS = [{State,Called} || 
                {{State,_JActions}, {State,Called}} <- 
                    lists:zip(StateJumps, lists:keysort(1, Sel))],
@@ -2096,7 +2079,7 @@ output_action(St0, State, Terminal, #shift{state = NewState}, IsFirst, _SI) ->
 output_action(St0, State, Terminal, accept, IsFirst, _SI) ->
     St10 = delim(St0, IsFirst),
     St = fwrite(St10, 
-                <<"yeccpars2_~w(_S, ~s, _Ss, Stack, _T, _Ts, _Tzr) ->\n">>,
+                <<"yeccpars2_~w(_S, ~s, _Ss, Stack,  _T, _Ts, _Tzr) ->\n">>,
                 [State, quoted_atom(Terminal)]),
     fwrite(St, <<" {ok, hd(Stack)}">>, []);
 output_action(St, _State, _Terminal, nonassoc, _IsFirst, _SI) ->
@@ -2110,11 +2093,13 @@ output_call_to_includefile(NewState, St) ->
     fwrite(St, <<" yeccpars1(S, ~w, Ss, Stack, T, Ts, Tzr)">>, 
            [NewState]).
 
-output_state_actions_fini(State, St0) ->
-    %% Backward compatible.
+output_state_actions_fini(State, #yecc{includefile_version = {1,1}}=St0) ->
+    %% Backward compatibility.
     St10 = delim(St0, false),
     St = fwrite(St10, <<"yeccpars2_~w(_, _, _, _, T, _, _) ->\n">>, [State]),
-    fwrite(St, <<" yeccerror(T).\n\n">>, []).
+    fwrite(St, <<" yeccerror(T).\n\n">>, []);
+output_state_actions_fini(_State, St) ->
+    fwrite(St, <<".\n\n">>, []).
 
 output_reduce(St0, State, Terminal0, 
               #reduce{rule_nmbr = RuleNmbr, 
@@ -2418,7 +2403,7 @@ include1(Line, Inport, Outport, Nmbr_of_lines) ->
     include1(io:get_line(Inport, ''), Inport, Outport, Nmbr_of_lines + Incr).
 
 includefile_version([]) ->
-    {1,4};
+    {1,2};
 includefile_version(Includefile) ->
     case epp:open(Includefile, []) of
         {ok, Epp} ->
@@ -2434,7 +2419,7 @@ includefile_version(Includefile) ->
 parse_file(Epp) ->
     case epp:parse_erl_form(Epp) of
         {ok, {function,_Line,yeccpars1,7,_Clauses}} ->
-            {1,4};
+            {1,2};
         {eof,_Line} ->
             {1,1};
         _Form ->

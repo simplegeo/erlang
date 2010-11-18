@@ -876,44 +876,22 @@ BIF_RETTYPE hipe_bifs_misc_timer_clear_0(BIF_ALIST_0)
  * + The fallback, which is the same as {X,_} = runtime(statistics).
  */
 
-static double fallback_get_hrvtime(void)
-{
-    unsigned long ms_user;
-
-    elapsed_time_both(&ms_user, NULL, NULL, NULL);
-    return (double)ms_user;
-}
-
 #if USE_PERFCTR
 
 #include "hipe_perfctr.h"
-static int hrvtime_started;	/* 0: closed, +1: perfctr, -1: fallback */
-#define hrvtime_is_started()	(hrvtime_started != 0)
+static int hrvtime_is_open;
+#define hrvtime_is_started()	hrvtime_is_open
 
 static void start_hrvtime(void)
 {
     if (hipe_perfctr_hrvtime_open() >= 0)
-	hrvtime_started = 1;
-    else
-	hrvtime_started = -1;
+	hrvtime_is_open = 1;
 }
 
-static void stop_hrvtime(void)
-{
-    if (hrvtime_started > 0)
-	hipe_perfctr_hrvtime_close();
-    hrvtime_started = 0;
-}
+#define get_hrvtime()		hipe_perfctr_hrvtime_get()
+#define stop_hrvtime()		hipe_perfctr_hrvtime_close()
 
-static double get_hrvtime(void)
-{
-    if (hrvtime_started > 0)
-	return hipe_perfctr_hrvtime_get();
-    else
-	return fallback_get_hrvtime();
-}
-
-#else	/* !USE_PERFCTR */
+#else
 
 /*
  * Fallback, if nothing better exists.
@@ -924,9 +902,15 @@ static double get_hrvtime(void)
 #define hrvtime_is_started()	1
 #define start_hrvtime()		do{}while(0)
 #define stop_hrvtime()		do{}while(0)
-#define get_hrvtime()		fallback_get_hrvtime()
 
-#endif	/* !USE_PERFCTR */
+static double get_hrvtime(void)
+{
+    unsigned long ms_user;
+    elapsed_time_both(&ms_user, NULL, NULL, NULL);
+    return (double)ms_user;
+}
+
+#endif	/* hrvtime support */
 
 BIF_RETTYPE hipe_bifs_get_hrvtime_0(BIF_ALIST_0)
 {
@@ -934,8 +918,11 @@ BIF_RETTYPE hipe_bifs_get_hrvtime_0(BIF_ALIST_0)
     Eterm res;
     FloatDef f;
 
-    if (!hrvtime_is_started())
+    if (!hrvtime_is_started()) {
 	start_hrvtime();
+	if (!hrvtime_is_started())
+	    BIF_RET(NIL); /* arity 0 BIFs may not fail */
+    }
     f.fd = get_hrvtime();
     hp = HAlloc(BIF_P, FLOAT_SIZE_OBJECT);
     res = make_float(hp);

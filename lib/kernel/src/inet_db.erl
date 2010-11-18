@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1997-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1997-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 
@@ -88,7 +88,6 @@
 	 hosts_file_byaddr, %% hosts table from system file
 	 cache_timer        %% timer reference for refresh
 	}).
--type state() :: #state{}.
 
 -include("inet.hrl").
 -include("inet_int.hrl").
@@ -102,14 +101,14 @@
 
 start() ->
     case gen_server:start({local, inet_db}, inet_db, [], []) of
-	{ok, _Pid}=Ok -> inet_config:init(), Ok;
+	{ok,Pid} -> inet_config:init(), {ok,Pid};
 	Error -> Error
     end.
 
 
 start_link() ->
     case gen_server:start_link({local, inet_db}, inet_db, [], []) of
-	{ok, _Pid}=Ok -> inet_config:init(), Ok;
+	{ok,Pid} -> inet_config:init(), {ok,Pid};
 	Error -> Error
     end.
 	       
@@ -139,6 +138,7 @@ add_hosts(File) ->
 	      Res);
 	Error -> Error
     end.
+
 
 add_host(IP, Names) -> call({add_host, IP, Names}).
 
@@ -425,9 +425,7 @@ res_optname(usevc) -> res_usevc;
 res_optname(edns) -> res_edns;
 res_optname(udp_payload_size) -> res_udp_payload_size;
 res_optname(resolv_conf) -> res_resolv_conf;
-res_optname(resolv_conf_name) -> res_resolv_conf;
 res_optname(hosts_file) -> res_hosts_file;
-res_optname(hosts_file_name) -> res_hosts_file;
 res_optname(_) -> undefined.
 
 res_check_option(nameserver, NSs) -> %% Legacy
@@ -460,14 +458,8 @@ res_check_option(udp_payload_size, S) when is_integer(S), S >= 512 -> true;
 res_check_option(resolv_conf, "") -> true;
 res_check_option(resolv_conf, F) ->
     res_check_option_absfile(F);
-res_check_option(resolv_conf_name, "") -> true;
-res_check_option(resolv_conf_name, F) ->
-    res_check_option_absfile(F);
 res_check_option(hosts_file, "") -> true;
 res_check_option(hosts_file, F) ->
-    res_check_option_absfile(F);
-res_check_option(hosts_file_name, "") -> true;
-res_check_option(hosts_file_name, F) ->
     res_check_option_absfile(F);
 res_check_option(_, _) -> false.
 
@@ -481,7 +473,10 @@ res_check_option_absfile(F) ->
 
 res_check_list([], _Fun) -> true;
 res_check_list([H|T], Fun) ->
-    Fun(H) andalso res_check_list(T, Fun);
+    case Fun(H) of
+	true -> res_check_list(T, Fun);
+	false -> false
+    end;
 res_check_list(_, _Fun) -> false.
 
 res_check_ns({{A,B,C,D,E,F,G,H}, Port})
@@ -493,12 +488,12 @@ res_check_ns(_) -> false.
 res_check_search("") -> true;
 res_check_search(Dom) -> inet_parse:visible_string(Dom).
 
-socks_option(server)  -> db_get(socks5_server);
-socks_option(port)    -> db_get(socks5_port);
-socks_option(methods) -> db_get(socks5_methods);
-socks_option(noproxy) -> db_get(socks5_noproxy).
+socks_option(server)       -> db_get(socks5_server);
+socks_option(port)         -> db_get(socks5_port);
+socks_option(methods)      -> db_get(socks5_methods);
+socks_option(noproxy)      -> db_get(socks5_noproxy).
 
-gethostname()         -> db_get(hostname).
+gethostname()              -> db_get(hostname).
 
 res_update_conf() ->
     res_update(res_resolv_conf, res_resolv_conf_tm, res_resolv_conf_info,
@@ -508,7 +503,7 @@ res_update_hosts() ->
     res_update(res_hosts_file, res_hosts_file_tm, res_hosts_file_info,
 	       set_hosts_file_tm, fun set_hosts_file/1).
 
-res_update(Tag, TagTm, TagInfo, TagSetTm, SetFun) ->
+res_update(Tag, TagTm, TagInfo, CallTag, SetFun) ->
     case db_get(TagTm) of
 	undefined -> ok;
 	TM ->
@@ -527,12 +522,12 @@ res_update(Tag, TagTm, TagInfo, TagSetTm, SetFun) ->
 							 atime = undefined},
 				    case db_get(TagInfo) of
 					Finfo ->
-					    call({TagSetTm, Now});
+					    call({CallTag, Now});
 					_ ->
 					    SetFun(File)
 				    end;
 				_ ->
-				    call({TagSetTm, Now}),
+				    call({CallTag, Now}),
 				    error
 			    end
 		    end;
@@ -587,11 +582,13 @@ getbyname(Name, Type) ->
 
 getbysearch(Name, Dot, [Dom | Ds], Type, _) ->
     case hostent_by_domain(Name ++ Dot ++ Dom, Type) of
-	{ok, _HEnt}=Ok -> Ok;
-	Error -> getbysearch(Name, Dot, Ds, Type, Error)
+	{ok, HEnt} -> {ok, HEnt};
+	Error      ->
+	    getbysearch(Name, Dot, Ds, Type, Error)
     end;
 getbysearch(_Name, _Dot, [], _Type, Error) ->
     Error.
+
 
 
 %%
@@ -602,6 +599,7 @@ get_searchlist() ->
 	[] -> [res_option(domain)];
 	L -> L
     end.
+
 
 
 make_hostent(Name, Addrs, Aliases, ?S_A) ->
@@ -838,9 +836,6 @@ lookup_socket(Socket) when is_port(Socket) ->
 %% node_auth      Ls              - Default authenication
 %% node_crypt     Ls              - Default encryption
 %%
-
--spec init([]) -> {'ok', state()}.
-
 init([]) ->
     process_flag(trap_exit, true),
     Db = ets:new(inet_db, [public, named_table]),
@@ -894,10 +889,6 @@ reset_db(Db) ->
 %%          {stop, Reason, Reply, State}   | (terminate/2 is called)
 %%          {stop, Reason, Reply, State}     (terminate/2 is called)
 %%----------------------------------------------------------------------
-
--spec handle_call(term(), {pid(), term()}, state()) ->
-        {'reply', term(), state()} | {'stop', 'normal', 'ok', state()}.
-
 handle_call(Request, From, #state{db=Db}=State) ->
     case Request of
 	{load_hosts_file,IPNmAs} when is_list(IPNmAs) ->
@@ -983,55 +974,37 @@ handle_call(Request, From, #state{db=Db}=State) ->
 		    {reply, error, State}
 	    end;
 
-	{res_set, hosts_file_name=Option, Fname} ->
-	    handle_set_file(
-	      Option, Fname, res_hosts_file_tm, res_hosts_file_info,
-	      undefined, From, State);
-	{res_set, resolv_conf_name=Option, Fname} ->
-	    handle_set_file(
-	      Option, Fname, res_resolv_conf_tm, res_resolv_conf_info,
-	      undefined, From, State);
-
 	{res_set, hosts_file=Option, Fname} ->
-	    handle_set_file(
-	      Option, Fname, res_hosts_file_tm, res_hosts_file_info,
-	      fun (Bin) ->
-		      case inet_parse:hosts(
-			     Fname, {chars,Bin}) of
-			  {ok,Opts} ->
-			      [{load_hosts_file,Opts}];
-			  _ -> error
-		      end
-	      end,
-	      From, State);
+	    handle_set_file(Option, Fname,
+			    res_hosts_file_tm, res_hosts_file_info,
+			    fun (Bin) ->
+				    case inet_parse:hosts(Fname,
+							  {chars,Bin}) of
+					{ok,Opts} ->
+					    [{load_hosts_file,Opts}];
+					_ -> error
+				    end
+			    end,
+			    From, State);
 	%%
 	{res_set, resolv_conf=Option, Fname} ->
-	    handle_set_file(
-	      Option, Fname, res_resolv_conf_tm, res_resolv_conf_info,
-	      fun (Bin) ->
-		      case inet_parse:resolv(
-			     Fname, {chars,Bin}) of
-			  {ok,Opts} ->
-			      Search =
-				  lists:foldl(
-				    fun ({search,L}, _) ->
-					    L;
-					({domain,""}, S) ->
-					    S;
-					({domain,D}, _) ->
-					    [D];
-					(_, S) ->
-					    S
-				    end, [], Opts),
-			      [del_ns,
-			       clear_search,
-			       clear_cache,
-			       {search,Search}
-			       |[Opt || {nameserver,_}=Opt <- Opts]];
-			  _ -> error
-		      end
-	      end,
-	      From, State);
+	    handle_set_file(Option, Fname,
+			    res_resolv_conf_tm, res_resolv_conf_info,
+			    fun (Bin) ->
+				    case inet_parse:resolv(Fname,
+							  {chars,Bin}) of
+					{ok,Opts} ->
+					    [del_ns,
+					     clear_search,
+					     clear_cache
+					     |[Opt ||
+						  {T,_}=Opt <- Opts,
+						  (T =:= nameserver orelse
+						   T =:= search)]];
+					_ -> error
+				    end
+			    end,
+			    From, State);
 	%%
 	{res_set, Opt, Value} ->
 	    case res_optname(Opt) of
@@ -1139,15 +1112,13 @@ handle_call(Request, From, #state{db=Db}=State) ->
 	    {reply, error, State}
     end.
 
+
 %%----------------------------------------------------------------------
 %% Func: handle_cast/2
 %% Returns: {noreply, State}          |
 %%          {noreply, State, Timeout} |
 %%          {stop, Reason, State}            (terminate/2 is called)
 %%----------------------------------------------------------------------
-
--spec handle_cast(term(), state()) -> {'noreply', state()}.
-
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -1157,9 +1128,6 @@ handle_cast(_Msg, State) ->
 %%          {noreply, State, Timeout} |
 %%          {stop, Reason, State}            (terminate/2 is called)
 %%----------------------------------------------------------------------
-
--spec handle_info(term(), state()) -> {'noreply', state()}.
-
 handle_info(refresh_timeout, State) ->
     do_refresh_cache(State#state.cache),
     {noreply, State#state{cache_timer = init_timer()}};
@@ -1172,9 +1140,6 @@ handle_info(_Info, State) ->
 %% Purpose: Shutdown the server
 %% Returns: any (ignored by gen_server)
 %%----------------------------------------------------------------------
-
--spec terminate(term(), state()) -> 'ok'.
-
 terminate(_Reason, State) ->
     stop_timer(State#state.cache_timer),
     ok.
@@ -1191,12 +1156,6 @@ handle_set_file(Option, Fname, TagTm, TagInfo, ParseFun, From,
 	    ets:delete(Db, TagInfo),
 	    ets:delete(Db, TagTm),
 	    handle_set_file(ParseFun, <<>>, From, State);
-	true when ParseFun =:= undefined ->
-	    File = filename:flatten(Fname),
-	    ets:insert(Db, {res_optname(Option), File}),
-	    ets:insert(Db, {TagInfo, undefined}),
-	    ets:insert(Db, {TagTm, 0}),
-	    {reply,ok,State};
 	true ->
 	    File = filename:flatten(Fname),
 	    ets:insert(Db, {res_optname(Option), File}),
@@ -1219,8 +1178,7 @@ handle_set_file(Option, Fname, TagTm, TagInfo, ParseFun, From,
 
 handle_set_file(ParseFun, Bin, From, State) ->
     case ParseFun(Bin) of
-	error ->
-	    {reply,error,State};
+	error -> {reply,error,State};
 	Opts ->
 	    handle_rc_list(Opts, From, State)
     end.
@@ -1351,15 +1309,16 @@ do_add_rr(RR, Db, State) ->
     TM = times(),
     case alloc_entry(Db, CacheDb, TM) of
 	true ->
-	    cache_rr(Db, CacheDb, RR#dns_rr{tm = TM, cnt = TM});
+	    cache_rr(Db, CacheDb, RR#dns_rr { tm = TM,
+					      cnt = TM });
 	_ ->
 	    false
     end.
 
 cache_rr(_Db, Cache, RR) ->
     %% delete possible old entry
-    ets:match_delete(Cache, RR#dns_rr{cnt = '_', tm = '_', ttl = '_',
-				      bm = '_', func = '_'}),
+    ets:match_delete(Cache, RR#dns_rr { cnt = '_', tm = '_', ttl = '_',
+				        bm = '_', func = '_'}),
     ets:insert(Cache, RR).
 
 times() ->
@@ -1369,9 +1328,9 @@ times() ->
 %% lookup and remove old entries
 
 do_lookup_rr(Domain, Class, Type) ->
-    match_rr(#dns_rr{domain = tolower(Domain), class = Class,type = Type,
-		     cnt = '_', tm = '_', ttl = '_',
-		     bm = '_', func = '_', data = '_'}).
+    match_rr(#dns_rr { domain = tolower(Domain), class = Class,type = Type, 
+		      cnt = '_', tm = '_', ttl = '_',
+		      bm = '_', func = '_', data = '_'}).
 
 match_rr(RR) ->
     filter_rr(ets:match_object(inet_cache, RR), times()).
@@ -1422,7 +1381,7 @@ dn_in_addr_arpa(A,B,C,D) ->
 	integer_to_list(A) ++ ".in-addr.arpa".
 
 dnib(X) ->
-    [hex(X), $., hex(X bsr 4), $., hex(X bsr 8), $., hex(X bsr 12), $.].
+    [ hex(X), $., hex(X bsr 4), $., hex(X bsr 8), $., hex(X bsr 12), $.].
 
 hex(X) ->
     X4 = (X band 16#f),
@@ -1517,7 +1476,12 @@ alloc_entry(CacheDb, OldSize, TM, N) ->
 
 delete_n_oldest(CacheDb, TM, OldestTM, N) ->
     DelTM = trunc((TM - OldestTM) * 0.3) + OldestTM,
-    delete_older(CacheDb, DelTM, N) =/= 0.
+    case delete_older(CacheDb, DelTM, N) of
+	0 ->
+	    false;
+	_ ->
+	    true
+    end.
 
 %% Delete entries with latest access time older than TM.
 %% Delete max N number of entries.

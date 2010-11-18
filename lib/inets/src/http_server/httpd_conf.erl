@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1997-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1997-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 %%
@@ -25,15 +25,13 @@
 
 %% Application internal API
 -export([load/1, load/2, load_mime_types/1, store/1, store/2,
-	 remove/1, remove_all/1, get_config/2, get_config/3,
-	 lookup_socket_type/1, 
-	 lookup/2, lookup/3, lookup/4, 
-	 validate_properties/1]).
+	remove/1, remove_all/1, config/1, get_config/2, get_config/3,
+	lookup/2, lookup/3, lookup/4,
+	validate_properties/1]).
 
 -define(VMODULE,"CONF").
 -include("httpd.hrl").
 -include("httpd_internal.hrl").
--include_lib("inets/src/http_lib/http_internal.hrl").
 
 
 %%%=========================================================================
@@ -218,12 +216,9 @@ load("ServerName " ++ ServerName, []) ->
     {ok,[],{server_name,clean(ServerName)}};
 
 load("SocketType " ++ SocketType, []) ->
-    %% ssl is the same as HTTP_DEFAULT_SSL_KIND
-    %% ossl is ssl based on OpenSSL (the "old" ssl)
-    %% essl is the pure Erlang-based ssl (the "new" ssl)
-    case check_enum(clean(SocketType), ["ssl", "ossl", "essl", "ip_comm"]) of
+    case check_enum(clean(SocketType),["ssl","ip_comm"]) of
 	{ok, ValidSocketType} ->
-	    {ok, [], {socket_type, ValidSocketType}};
+	    {ok, [], {socket_type,ValidSocketType}};
 	{error,_} ->
 	    {error, ?NICE(clean(SocketType) ++ " is an invalid SocketType")}
     end;
@@ -231,7 +226,7 @@ load("SocketType " ++ SocketType, []) ->
 load("Port " ++ Port, []) ->
     case make_integer(Port) of
 	{ok, Integer} ->
-	    {ok, [], {port, Integer}};
+	    {ok, [], {port,Integer}};
 	{error, _} ->
 	    {error, ?NICE(clean(Port)++" is an invalid Port")}
     end;
@@ -359,7 +354,7 @@ load("DocumentRoot " ++ DocumentRoot,[]) ->
 	{ok, Directory} ->
 	    {ok, [], {document_root,string:strip(Directory,right,$/)}};
 	{error, _} ->
-	    {error, ?NICE(clean(DocumentRoot)++" is an invalid DocumentRoot")}
+	    {error, ?NICE(clean(DocumentRoot)++"is an invalid DocumentRoot")}
     end;
 load("DefaultType " ++ DefaultType, []) ->
     {ok, [], {default_type,clean(DefaultType)}};
@@ -539,10 +534,7 @@ validate_config_params([{server_name, Value} | _]) ->
     throw({server_name, Value});
 
 validate_config_params([{socket_type, Value} | Rest]) 
-  when (Value =:= ip_comm) orelse 
-       (Value =:= ssl) orelse 
-       (Value =:= ossl) orelse 
-       (Value =:= essl) ->
+  when (Value =:= ip_comm) orelse (Value =:= ssl) ->
     validate_config_params(Rest);
 validate_config_params([{socket_type, Value} | _]) ->
     throw({socket_type, Value});
@@ -703,8 +695,6 @@ store(ConfigList0) ->
 		  ConfigList)
     catch
 	throw:Error ->
-	    ?hdri("store - config parameter validation failed", 
-		  [{error, Error}]),
 	    {error, {invalid_option, Error}}
     end.
 
@@ -751,27 +741,27 @@ remove(ConfigDB) ->
     ets:delete(ConfigDB),
     ok.
 
-%% config(ConfigDB) ->
-%%     case httpd_util:lookup(ConfigDB, socket_type, ip_comm) of
-%% 	ssl ->
-%% 	    case ssl_certificate_file(ConfigDB) of
-%% 		undefined ->
-%% 		    {error,
-%% 		     "Directive SSLCertificateFile "
-%% 		     "not found in the config file"};
-%% 		SSLCertificateFile ->
-%% 		    {ssl,
-%% 		     SSLCertificateFile++
-%% 		     ssl_certificate_key_file(ConfigDB)++
-%% 		     ssl_verify_client(ConfigDB)++
-%% 		     ssl_ciphers(ConfigDB)++
-%% 		     ssl_password(ConfigDB)++
-%% 		     ssl_verify_depth(ConfigDB)++
-%% 		     ssl_ca_certificate_file(ConfigDB)}
-%% 	    end;
-%% 	ip_comm ->
-%% 	    ip_comm
-%%     end.
+config(ConfigDB) ->
+    case httpd_util:lookup(ConfigDB, socket_type,ip_comm) of
+	ssl ->
+	    case ssl_certificate_file(ConfigDB) of
+		undefined ->
+		    {error,
+		     "Directive SSLCertificateFile "
+		     "not found in the config file"};
+		SSLCertificateFile ->
+		    {ssl,
+		     SSLCertificateFile++
+		     ssl_certificate_key_file(ConfigDB)++
+		     ssl_verify_client(ConfigDB)++
+		     ssl_ciphers(ConfigDB)++
+		     ssl_password(ConfigDB)++
+		     ssl_verify_depth(ConfigDB)++
+		     ssl_ca_certificate_file(ConfigDB)}
+	    end;
+	ip_comm ->
+	    ip_comm
+    end.
 
 
 get_config(Address, Port) ->    
@@ -806,38 +796,6 @@ lookup(Address, Port, Key, Default) when is_integer(Port) ->
 table(Address, Port) ->
     httpd_util:make_name("httpd_conf", Address, Port).
 
-
-lookup_socket_type(ConfigDB) ->
-    case httpd_util:lookup(ConfigDB, socket_type, ip_comm) of
-	ip_comm ->
-	    ip_comm;
-	SSL when (SSL =:= ssl) orelse (SSL =:= ossl) orelse (SSL =:= essl) ->
-	    SSLTag = 
-		if
-		    (SSL =:= ssl) ->
-			?HTTP_DEFAULT_SSL_KIND;
-		    true ->
-			SSL
-		end,
-	    case ssl_certificate_file(ConfigDB) of
-		undefined ->
-		    Reason = "Directive SSLCertificateFile "
-			"not found in the config file", 
-		    throw({error, Reason}); 
-		SSLCertificateFile ->
-		    {SSLTag, SSLCertificateFile ++ ssl_config(ConfigDB)}
-	    end
-    end.
-
-ssl_config(ConfigDB) ->
-    ssl_certificate_key_file(ConfigDB) ++
-	ssl_verify_client(ConfigDB) ++
-	ssl_ciphers(ConfigDB) ++
-	ssl_password(ConfigDB) ++
-	ssl_verify_depth(ConfigDB) ++
-	ssl_ca_certificate_file(ConfigDB).
-	    
-    
 
 %%%========================================================================
 %%% Internal functions
@@ -906,22 +864,17 @@ load_traverse(Line, [Context|Contexts], [Module|Modules], NewContexts,
 	{'EXIT', {undef, _}} ->
 	    ?hdrt("does not implement load", []),
 	    load_traverse(Line, Contexts, Modules,
-			  [Context|NewContexts], ConfigList, yes);
+			  [Context|NewContexts], ConfigList,yes);
 
 	{'EXIT', Reason} ->
 	    error_logger:error_report({'EXIT', Reason}),
 	    load_traverse(Line, Contexts, Modules, 
 			  [Context|NewContexts], ConfigList, State);
 
-	ok ->
-	    ?hdrt("line processed", []),
-	    load_traverse(Line, Contexts, Modules, 
-			  [Context|NewContexts], ConfigList, yes);
-
 	{ok, NewContext} ->
 	    ?hdrt("line processed", [{new_context, NewContext}]),
 	    load_traverse(Line, Contexts, Modules, 
-			  [NewContext|NewContexts], ConfigList, yes);
+			  [NewContext|NewContexts], ConfigList,yes);
 
 	{ok, NewContext, ConfigEntry} when is_tuple(ConfigEntry) ->
 	     ?hdrt("line processed",

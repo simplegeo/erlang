@@ -1,27 +1,25 @@
 %% 
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1997-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1997-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %% 
 
 -module(snmpc_lib).
 
 %% API
-%% Avoid warning for local function error/2 clashing with autoimported BIF.
--compile({no_auto_import,[error/2]}).
 -export([test_father/4, make_ASN1type/1, import/1, makeInternalNode2/2,
 	 is_consistent/1, resolve_defval/1, make_variable_info/1,
 	 check_trap_name/3, make_table_info/4, get_final_mib/2, set_dir/2,
@@ -127,8 +125,7 @@ test_kibbles(Kibbles,Line) ->
 
 test_kibbles2([],_,_) ->
     ok;
-test_kibbles2([{_KibbleName,BitNo}|Ks],ExpectBitNo,Line)
-  when BitNo >= ExpectBitNo ->
+test_kibbles2([{_KibbleName,BitNo}|Ks],BitNo,Line) ->
     test_kibbles2(Ks,BitNo+1,Line);
 test_kibbles2([{_KibbleName,BitNo}|_Ks],ExpectBitNo,Line) ->
     print_error("Expected kibble no ~p but got ~p.",[ExpectBitNo,BitNo],Line).

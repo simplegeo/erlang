@@ -1,26 +1,25 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2004-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2004-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 %%%----------------------------------------------------------------
 %%% Purpose:Test Suite for the 'qlc' module.
 %%%-----------------------------------------------------------------
 -module(qlc_SUITE).
--compile(r12).
 
 -define(QLC, qlc).
 -define(QLCs, "qlc").
@@ -3184,9 +3183,7 @@ lookup2(Config) when is_list(Config) ->
                  [] = qlc:e(Q),
                  false = lookup_keys(Q)
          end, [{1,b},{2,3}])">>,
-        {warnings,[{2,sys_core_fold,nomatch_guard},
-		   {3,qlc,nomatch_filter},
-		   {3,sys_core_fold,{eval_failure,badarg}}]}},
+        {warnings,[{{3,48},qlc,nomatch_filter}]}},
 
        <<"etsc(fun(E) ->
                 Q = qlc:q([X || {X} <- ets:table(E), element(1,{X}) =:= 1]),

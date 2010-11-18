@@ -31,6 +31,7 @@
 iv() ->
     Vsn = string:substr(filename:basename(code:lib_dir(debugger)), 10),
     list_to_atom(Vsn).
+    
 
 %% -------------------------------------------
 %% Start a new graphical monitor.
@@ -287,9 +288,10 @@ ia(X,Y,Z) ->
 %% -------------------------------------------
 
 ia(Pid,Fnk) ->
-    case lists:keymember(Pid, 1, int:snapshot()) of
-	false -> no_proc;
-	true  -> int:attach(Pid,Fnk)
+    case lists:keysearch(Pid, 1, int:snapshot()) of
+	{value, _PidTuple} ->
+	    int:attach(Pid,Fnk);
+	false -> no_proc
     end.
 
 ia(X,Y,Z,Fnk) ->

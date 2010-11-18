@@ -141,7 +141,6 @@ main(int argc, char** argv)
     int eargc_base;		/* How many arguments in the base of eargv. */
     char* emulator;
     char *env;
-    int i;
     int need_shell = 0;
 
     env = get_env("DIALYZER_EMULATOR");
@@ -168,11 +167,9 @@ main(int argc, char** argv)
      * Push initial arguments.
      */
 
-    for (i = 1; i < argc; i++) {
-       if (strcmp(argv[i], "--wx") == 0) {
-           PUSH("-smp"); /* wx currently requires SMP enabled */
-           break;
-       }
+    if (argc > 1 && strcmp(argv[1], "--wx") == 0) {
+	PUSH2("-smp", "--wx"); /* wx currently requires SMP enabled */
+	argc--, argv++;
     }
 
     if (argc > 1 && strcmp(argv[1], "-smp") == 0) {

@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1999-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1999-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 %% Purpose : Type-based optimisations.
@@ -76,6 +76,9 @@ simplify_basic_1([{set,[D],[{integer,Index},Reg],{bif,element,_}}=I0|Is], Ts0, A
     end,
     Ts = update(I, Ts0),
     simplify_basic_1(Is, Ts, [I|Acc]);
+simplify_basic_1([{set,[_],[_],{bif,_,{f,0}}}=I|Is], Ts0, Acc) ->
+    Ts = update(I, Ts0),
+    simplify_basic_1(Is, Ts, [I|Acc]);
 simplify_basic_1([{set,[D],[TupleReg],{get_tuple_element,0}}=I|Is0], Ts0, Acc) ->
     case tdb_find(TupleReg, Ts0) of
 	{tuple,_,[Contents]} ->
@@ -115,6 +118,7 @@ simplify_basic_1([{test,is_record,_,[R,{atom,_}=Tag,{integer,Arity}]}=I|Is], Ts0
 	    Ts = update(I, Ts0),
 	    simplify_basic_1(Is, Ts, [I|Acc])
     end;
+
 simplify_basic_1([I|Is], Ts0, Acc) ->
     Ts = update(I, Ts0),
     simplify_basic_1(Is, Ts, [I|Acc]);
@@ -179,7 +183,7 @@ simplify_float_1([], Ts, Rs, Acc0) ->
     {Is,Ts}.
 
 opt_fmoves([{set,[{x,_}=R],[{fr,_}]=Src,fmove}=I1,
-	    {set,[_]=Dst,[{x,_}=R],move}=I2|Is], Acc) ->
+	    {set,[{y,_}]=Dst,[{x,_}=R],move}=I2|Is], Acc) ->
     case beam_utils:is_killed_block(R, Is) of
 	false -> opt_fmoves(Is, [I2,I1|Acc]);
 	true -> opt_fmoves(Is, [{set,Dst,Src,fmove}|Acc])
@@ -249,6 +253,8 @@ flt_need_heap_2({set,_,_,{put_tuple,_}}, H, Fl) ->
     {[],H+1,Fl};
 flt_need_heap_2({set,_,_,put}, H, Fl) ->
     {[],H+1,Fl};
+flt_need_heap_2({set,_,_,{put_string,L,_Str}}, H, Fl) ->
+    {[],H+2*L,Fl};
 %% Then the "neutral" instructions. We just pass them.
 flt_need_heap_2({set,[{fr,_}],_,_}, H, Fl) ->
     {[],H,Fl};

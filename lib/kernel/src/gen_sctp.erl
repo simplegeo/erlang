@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2007-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2007-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 
@@ -27,7 +27,7 @@
 -include("inet_sctp.hrl").
 
 -export([open/0,open/1,open/2,close/1]).
--export([listen/2,connect/4,connect/5,connect_init/4,connect_init/5]).
+-export([listen/2,connect/4,connect/5]).
 -export([eof/2,abort/2]).
 -export([send/3,send/4,recv/1,recv/2]).
 -export([error_string/1]).
@@ -39,7 +39,7 @@ open() ->
     open([]).
 
 open(Opts) when is_list(Opts) ->
-    Mod = mod(Opts, undefined),
+    Mod = mod(Opts),
     case Mod:open(Opts) of
 	{error,badarg} ->
 	    erlang:error(badarg, [Opts]);
@@ -80,26 +80,7 @@ listen(S, Flag) ->
 connect(S, Addr, Port, Opts) ->
     connect(S, Addr, Port, Opts, infinity).
 
-connect(S, Addr, Port, Opts, Timeout) ->
-    case do_connect(S, Addr, Port, Opts, Timeout, true) of
-	badarg ->
-	    erlang:error(badarg, [S,Addr,Port,Opts,Timeout]);
-	Result ->
-	    Result
-    end.
-
-connect_init(S, Addr, Port, Opts) ->
-    connect_init(S, Addr, Port, Opts, infinity).
-
-connect_init(S, Addr, Port, Opts, Timeout) ->
-    case do_connect(S, Addr, Port, Opts, Timeout, false) of
-	badarg ->
-	    erlang:error(badarg, [S,Addr,Port,Opts,Timeout]);
-	Result ->
-	    Result
-    end.
-
-do_connect(S, Addr, Port, Opts, Timeout, ConnWait) when is_port(S), is_list(Opts) ->
+connect(S, Addr, Port, Opts, Timeout) when is_port(S), is_list(Opts) ->
     case inet_db:lookup_socket(S) of
 	{ok,Mod} ->
 	    case Mod:getserv(Port) of
@@ -108,26 +89,21 @@ do_connect(S, Addr, Port, Opts, Timeout, ConnWait) when is_port(S), is_list(Opts
 			Timer ->
 			    try Mod:getaddr(Addr, Timer) of
 				{ok,IP} ->
-				    ConnectTimer = if ConnWait == false ->
-							   nowait;
-						      true ->
-							   Timer
-						   end,
-				    Mod:connect(S, IP, Port, Opts, ConnectTimer);
+				    Mod:connect(S, IP, Port, Opts, Timer);
 				Error -> Error
 			    after
 				inet:stop_timer(Timer)
 			    end
 		    catch
 			error:badarg ->
-			    badarg
+			    erlang:error(badarg, [S,Addr,Port,Opts,Timeout])
 		    end;
 		Error -> Error
 	    end;
 	Error -> Error
     end;
-do_connect(_S, _Addr, _Port, _Opts, _Timeout, _ConnWait) ->
-    badarg.
+connect(S, Addr, Port, Opts, Timeout) ->
+    erlang:error(badarg, [S,Addr,Port,Opts,Timeout]).
 
 
 
@@ -166,14 +142,18 @@ send(S, #sctp_assoc_change{assoc_id=AssocId}, Stream, Data)
   when is_port(S), is_integer(Stream) ->
     case inet_db:lookup_socket(S) of
 	{ok,Mod} ->
-	    Mod:send(S, AssocId, Stream, Data);
+	    Mod:sendmsg(S, #sctp_sndrcvinfo{
+			  stream   = Stream,
+			  assoc_id = AssocId}, Data);
 	Error -> Error
     end;
 send(S, AssocId, Stream, Data)
   when is_port(S), is_integer(AssocId), is_integer(Stream) ->
     case inet_db:lookup_socket(S) of
 	{ok,Mod} ->
-	    Mod:send(S, AssocId, Stream, Data);
+	    Mod:sendmsg(S, #sctp_sndrcvinfo{
+			  stream   = Stream,
+			  assoc_id = AssocId}, Data);
 	Error -> Error
     end;
 send(S, AssocChange, Stream, Data) ->
@@ -234,27 +214,17 @@ controlling_process(S, Pid) ->
 %% Utilites
 %%
 
-%% Get the SCTP module, but IPv6 address overrides default IPv4
-mod(Address) ->
-    case inet_db:sctp_module() of
-	inet_sctp when tuple_size(Address) =:= 8 ->
-	    inet6_sctp;
-	Mod ->
-	    Mod
-    end.
+%% Get the SCTP moudule
+mod() -> inet_db:sctp_module().
 
 %% Get the SCTP module, but option sctp_module|inet|inet6 overrides
-mod([{sctp_module,Mod}|_], _Address) ->
+mod([{sctp_module,Mod}|_]) ->
     Mod;
-mod([inet|_], _Address) ->
+mod([inet|_]) ->
     inet_sctp;
-mod([inet6|_], _Address) ->
+mod([inet6|_]) ->
     inet6_sctp;
-mod([{ip, Address}|Opts], _) ->
-    mod(Opts, Address);
-mod([{ifaddr, Address}|Opts], _) ->
-    mod(Opts, Address);
-mod([_|Opts], Address) ->
-    mod(Opts, Address);
-mod([], Address) ->
-    mod(Address).
+mod([_|Opts]) ->
+    mod(Opts);
+mod([]) ->
+    mod().

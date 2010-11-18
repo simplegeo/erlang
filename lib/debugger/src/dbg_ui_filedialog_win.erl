@@ -202,7 +202,8 @@ handle_event({gs, 'Files', doubleclick, _Data, _Arg}, WinInfo) ->
 handle_event({gs, _Id, click, select, _Arg}, _WinInfo) ->
     {select, gs:read('Selection', text)};
 handle_event({gs, _Id, click, multiselect, _Arg}, WinInfo) ->
-    Files = [untag(File) || File <- gs:read('Files', items)],
+    Files = lists:map(fun(File) -> untag(File) end,
+		      gs:read('Files', items)),
     {multiselect, WinInfo#winInfo.cwd, Files};
 handle_event({gs, _Id, click, filter, _Arg}, WinInfo) ->
     {Cwd, Pattern} = update_win(gs:read('Filter', text),
@@ -285,7 +286,7 @@ max_existing([Name | Names]) ->
 max_existing(Dir, [Name | Names]) ->
     Dir2 = filename:join(Dir, Name),
     case filelib:is_file(Dir2, erl_prim_loader) of
-	true when Names =:= [] -> {Dir2, []};
+	true when Names==[] -> {Dir2, []};
 	true -> max_existing(Dir2, Names);
 	false -> {Dir, [Name | Names]}
     end.
@@ -308,8 +309,11 @@ extra_filter([], _Dir, _Fun) -> [].
 get_subdirs(Dir) ->
     case erl_prim_loader:list_dir(Dir) of
 	{ok, FileNames} ->
-	    X = [FN || FN <- FileNames,
-		       filelib:is_dir(filename:join(Dir, FN), erl_prim_loader)],
+	    X = lists:filter(fun(FileName) ->
+				     File = filename:join(Dir, FileName),
+				     filelib:is_dir(File, erl_prim_loader)
+			     end,
+			     FileNames),
 	    lists:sort(X);
 	_Error ->
 	    []
@@ -331,3 +335,4 @@ compare([], [$/|File]) ->
     File;
 compare(_, _) ->
     error.
+    

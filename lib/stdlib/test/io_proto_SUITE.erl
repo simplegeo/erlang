@@ -1,38 +1,35 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2009-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 -module(io_proto_SUITE).
--compile(r12).
 
 -export([all/1]).
 
 -export([init_per_testcase/2, fin_per_testcase/2]).
 
 -export([setopts_getopts/1,unicode_options/1,unicode_options_gen/1, binary_options/1, bc_with_r12/1,
-	 bc_with_r12_gl/1, read_modes_gl/1,bc_with_r12_ogl/1, read_modes_ogl/1, broken_unicode/1,eof_on_pipe/1,unicode_prompt/1]).
+	 bc_with_r12_gl/1, read_modes_gl/1,bc_with_r12_ogl/1, read_modes_ogl/1, broken_unicode/1,eof_on_pipe/1]).
 
 
 -export([io_server_proxy/1,start_io_server_proxy/0, proxy_getall/1, proxy_setnext/2, proxy_quit/1]).
 %% For spawn
 -export([toerl_server/3,hold_the_line/3,answering_machine1/3,
 	 answering_machine2/3]).
-
--export([uprompt/1]).
 
 %-define(without_test_server, true).
 
@@ -46,17 +43,14 @@
 -define(privdir(Conf), ?config(priv_dir, Conf)).
 -endif.
 
--define(debug, true).
+%-define(debug, true).
 
 -ifdef(debug).
 -define(format(S, A), io:format(S, A)).
 -define(dbg(Data),io:format(standard_error, "DBG: ~p\r\n",[Data])).
--define(RM_RF(Dir),begin io:format(standard_error, "Not Removed: ~p\r\n",[Dir]), 
-	ok end).
 -else.
 -define(format(S, A), ok).
 -define(dbg(Data),noop).
--define(RM_RF(Dir),rm_rf(Dir)).
 -endif.
 
 
@@ -85,7 +79,7 @@ all(doc) ->
 all(suite) ->
     [setopts_getopts, unicode_options, unicode_options_gen, binary_options, bc_with_r12, 
      bc_with_r12_gl,bc_with_r12_ogl, read_modes_gl, read_modes_ogl, 
-     broken_unicode,eof_on_pipe,unicode_prompt].
+     broken_unicode,eof_on_pipe].
 
 
 -record(state, {
@@ -93,48 +87,6 @@ all(suite) ->
 	  nxt = eof,
 	  mode = list
 	  }).
-
-uprompt(_L) ->
-    [1050,1072,1082,1074,1086,32,1077,32,85,110,105,99,111,100,101,32,63].
-
-unicode_prompt(suite) ->
-    [];
-unicode_prompt(doc) ->
-    ["Test that an Unicode prompt does not crash the shell"];
-unicode_prompt(Config) when is_list(Config) ->
-    ?line PA = filename:dirname(code:which(?MODULE)),
-    ?line rtnode([{putline,""},
-		  {putline, "2."},
-		  {getline, "2"},
-		  {putline, "shell:prompt_func({io_proto_SUITE,uprompt})."},
-		  {getline, "default"},
-		  {putline, "io:get_line('')."},
-		  {putline, "hej"},
-		  {getline, "\"hej\\n\""},
-		  {putline, "io:setopts([{binary,true}])."},
-		  {getline, "ok"},
-		  {putline, "io:get_line('')."},
-		  {putline, "hej"},
-		  {getline, "<<\"hej\\n\">>"}
-		  ],[],[],"-pa "++ PA),
-    %% And one with oldshell
-     ?line rtnode([{putline,""},
-		   {putline, "2."},
-		   {getline_re, ".*2."},
-		   {getline, "2"},
-		   {putline, "shell:prompt_func({io_proto_SUITE,uprompt})."},
-		   {getline_re, ".*default"},
-		   {putline, "io:get_line('')."},
-		   {putline, "hej"},
-		   {getline_re, ".*\"hej\\\\n\""},
-		   {putline, "io:setopts([{binary,true}])."},
-		   {getline_re, ".*ok"},
-		   {putline, "io:get_line('')."},
-		   {putline, "hej"},
-		   {getline_re, ".*<<\"hej\\\\n\">>"}
-		  ],[],[],"-oldshell -pa "++PA),
-    ok.
-    
 
 setopts_getopts(suite) ->
     [];
@@ -245,15 +197,6 @@ setopts_getopts(Config) when is_list(Config) ->
 		  {getline_re, ".*<<\"hej\\\\n\">>"}
 		  ],[],[],"-oldshell"),
     ok.
-
-
-get_lc_ctype() ->
-	case {os:type(),os:version()} of
-		{{unix,sunos},{5,N,_}} when N =< 8 ->
-			"iso_8859_1";
-		_ ->
-			"ISO-8859-1"
-	end.
     
 unicode_options(suite) ->
     [];
@@ -426,7 +369,7 @@ unicode_options(Config) when is_list(Config) ->
 		  {getline, 
 		   binary_to_list(unicode:characters_to_binary(
 				    [1024],unicode,utf8))}
-		 ],[],"LC_CTYPE=\""++get_lc_ctype()++"\"; export LC_CTYPE; "),
+		 ],[],"LC_CTYPE=\"ISO-8859-1\"; export LC_CTYPE; "),
     ?line rtnode([{putline,""},
 		  {putline, "2."},
 		  {getline_re, ".*2."},
@@ -441,7 +384,7 @@ unicode_options(Config) when is_list(Config) ->
 		  {getline_re, 
 		   ".*"++binary_to_list(unicode:characters_to_binary(
 					  [1024],unicode,utf8))}
-		 ],[],"LC_CTYPE=\""++get_lc_ctype()++"\"; export LC_CTYPE; ",
+		 ],[],"LC_CTYPE=\"ISO-8859-1\"; export LC_CTYPE; ",
 		 " -oldshell "),
 
     ok.
@@ -1031,7 +974,7 @@ answering_machine1(OthNode,OthReg,Me) ->
 		  {putline, TestDataUtf},
 		  {getline_re, ".*Okej"}
 		  
-		 ],Me,"LC_CTYPE=\""++get_lc_ctype()++"\"; export LC_CTYPE; "),
+		 ],Me,"LC_CTYPE=\"ISO-8859-1\"; export LC_CTYPE; "),
     O = list_to_atom(OthReg),
     O ! {self(),done},
     ok.
@@ -1102,7 +1045,7 @@ answering_machine2(OthNode,OthReg,Me) ->
 		  {putline, TestDataUtf},
 		  {getline_re, ".*Okej"}
 		  
-		 ],Me,"LC_CTYPE=\""++get_lc_ctype()++"\"; export LC_CTYPE; "," -oldshell "),
+		 ],Me,"LC_CTYPE=\"ISO-8859-1\"; export LC_CTYPE; "," -oldshell "),
     O = list_to_atom(OthReg),
     O ! {self(),done},
     ok.
@@ -1144,9 +1087,7 @@ read_modes_gl_1(_Config,Machine) ->
 		[MyNodeList, "io_proto_suite", N2List]),
     
     ?line GL = receive X when is_pid(X) -> X end,
-    ?dbg({group_leader,X}),
     %% get_line
-    ?line receive after 500 -> ok end, % Dont clash with the new shell...
     ?line "Hej\n" = io:get_line(GL,"Prompt\n"),
     ?line io:setopts(GL,[binary]),
     ?line io:format(GL,"Okej~n",[]),
@@ -1346,7 +1287,7 @@ rtnode(Commands,Nodename,ErlPrefix,Extra) ->
 					      ?line ok
 				      end,
 				?line wait_for_runerl_server(SPid),
-				?line ok = ?RM_RF(Tempdir),
+				?line ok = rm_rf(Tempdir),
 				?line ok = Res
 			end
 	  end.
@@ -1367,7 +1308,7 @@ timeout(normal) ->
 %% stop_noshell_node(Node) ->
 %%     test_server:stop_node(Node).
 
--ifndef(debug).
+
 rm_rf(Dir) ->
     try
       {ok,List} = file:list_dir(Dir),
@@ -1383,7 +1324,7 @@ rm_rf(Dir) ->
     catch
 	_:Exception -> {error, {Exception,Dir}}
     end.
--endif.       
+       
 
 get_and_put(_CPid,[],_) ->
     ok;
@@ -1586,8 +1527,6 @@ start_runerl_node(RunErl,Erl,Tempdir,Nodename,Extra) ->
 		    " "++Extra
 	    end,
     spawn(fun() ->
-		  ?dbg(RunErl++" "++Tempdir++"/ "++Tempdir++" \""++
-			 Erl++XArg++XXArg++"\""),
 		  os:cmd(RunErl++" "++Tempdir++"/ "++Tempdir++" \""++
 			 Erl++XArg++XXArg++"\"")
 	  end).

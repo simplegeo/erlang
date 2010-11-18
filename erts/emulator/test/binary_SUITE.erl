@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1997-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1997-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 
@@ -27,7 +27,6 @@
 %%	binary_to_list/1
 %%	binary_to_list/3
 %%	binary_to_term/1
-%%  	binary_to_term/2
 %%      bitstr_to_list/1
 %%	term_to_binary/1
 %%      erlang:external_size/1
@@ -50,11 +49,12 @@
 	 t_hash/1,
 	 bad_size/1,
 	 bad_term_to_binary/1,
-	 bad_binary_to_term_2/1,safe_binary_to_term2/1,
+	 bad_binary_to_term_2/1,
 	 bad_binary_to_term/1, bad_terms/1, more_bad_terms/1,
 	 otp_5484/1,otp_5933/1,
 	 ordering/1,unaligned_order/1,gc_test/1,
 	 bit_sized_binary_sizes/1,
+	 bitlevel_roundtrip/1,
 	 otp_6817/1,deep/1,obsolete_funs/1,robustness/1,otp_8117/1,
 	 otp_8180/1]).
 
@@ -66,10 +66,10 @@ all(suite) ->
      t_split_binary, bad_split, t_concat_binary,
      bad_list_to_binary, bad_binary_to_list, terms, terms_float,
      external_size, t_iolist_size,
-     bad_binary_to_term_2,safe_binary_to_term2,
+     bad_binary_to_term_2,
      bad_binary_to_term, bad_terms, t_hash, bad_size, bad_term_to_binary,
      more_bad_terms, otp_5484, otp_5933, ordering, unaligned_order,
-     gc_test, bit_sized_binary_sizes, otp_6817, otp_8117,
+     gc_test, bit_sized_binary_sizes, bitlevel_roundtrip, otp_6817, otp_8117,
      deep,obsolete_funs,robustness,otp_8180].
 
 init_per_testcase(Func, Config) when is_atom(Func), is_list(Config) ->
@@ -438,11 +438,8 @@ terms(Config) when is_list(Config) ->
 			      ok
 		      end,
 		      Term = binary_to_term(Bin),
-		      Term = binary_to_term(Bin, [safe]),
 		      Unaligned = make_unaligned_sub_binary(Bin),
 		      Term = binary_to_term(Unaligned),
-		      Term = binary_to_term(Unaligned, []),
-		      Term = binary_to_term(Bin, [safe]),
 		      BinC = erlang:term_to_binary(Term, [compressed]),
 		      Term = binary_to_term(BinC),
 		      true = size(BinC) =< size(Bin),
@@ -541,23 +538,6 @@ bad_binary_to_term(Config) when is_list(Config) ->
 bad_bin_to_term(BadBin) ->
     {'EXIT',{badarg,_}} = (catch binary_to_term(BadBin)).
 
-bad_bin_to_term(BadBin,Opts) ->
-    {'EXIT',{badarg,_}} = (catch binary_to_term(BadBin,Opts)).
-
-safe_binary_to_term2(doc) -> "Test safety options for binary_to_term/2";
-safe_binary_to_term2(Config) when is_list(Config) ->
-    ?line bad_bin_to_term(<<131,100,0,14,"undefined_atom">>, [safe]),
-    ?line bad_bin_to_term(<<131,100,0,14,"other_bad_atom">>, [safe]),
-    BadHostAtom = <<100,0,14,"badguy@badhost">>,
-    Empty = <<0,0,0,0>>,
-    BadRef = <<131,114,0,3,BadHostAtom/binary,0,<<0,0,0,255>>/binary,
-	      Empty/binary,Empty/binary>>,
-    ?line bad_bin_to_term(BadRef, [safe]), % good ref, with a bad atom
-    ?line fullsweep_after = binary_to_term(<<131,100,0,15,"fullsweep_after">>, [safe]), % should be a good atom
-    BadExtFun = <<131,113,100,0,4,98,108,117,101,100,0,4,109,111,111,110,97,3>>,
-    ?line bad_bin_to_term(BadExtFun, [safe]),
-    ok.
-
 %% Tests bad input to binary_to_term/1.
 
 bad_terms(suite) -> [];
@@ -579,18 +559,11 @@ corrupter(Term) ->
     ?line corrupter(CompressedBin, size(CompressedBin)-1).
 
 corrupter(Bin, Pos) when Pos >= 0 ->
-    ?line {ShorterBin, Rest} = split_binary(Bin, Pos),
+    ?line {ShorterBin, _} = split_binary(Bin, Pos),
     ?line catch binary_to_term(ShorterBin), %% emulator shouldn't crash
     ?line MovedBin = list_to_binary([ShorterBin]),
     ?line catch binary_to_term(MovedBin), %% emulator shouldn't crash
-
-    %% Bit faults, shouldn't crash
-    <<Byte,Tail/binary>> = Rest,
-    Fun = fun(M) -> FaultyByte = Byte bxor M,                    
-		    catch binary_to_term(<<ShorterBin/binary,
-					  FaultyByte, Tail/binary>>) end,
-    ?line lists:foreach(Fun,[1,2,4,8,16,32,64,128,255]),    
-    ?line corrupter(Bin, Pos-1);
+    ?line corrupter(MovedBin, Pos-1);
 corrupter(_Bin, _) ->
     ok.
 
@@ -1148,6 +1121,35 @@ bsbs_1(A) ->
     io:format("A: ~p BinSize: ~p", [A,BinSize]),
     Bin = binary_to_term(<<131,$M,5:32,A,0,0,0,0,0>>),
     BinSize = bit_size(Bin).
+
+bitlevel_roundtrip(Config) when is_list(Config) ->
+    case ?t:is_release_available("r11b") of
+	true -> bitlevel_roundtrip_1();
+	false -> {skip,"No R11B found"}
+    end.
+
+bitlevel_roundtrip_1() ->
+    Name = bitlevelroundtrip,
+    ?line N = list_to_atom(atom_to_list(Name) ++ "@" ++ hostname()),
+    ?line ?t:start_node(Name, slave, [{erl,[{release,"r11b"}]}]),
+
+    ?line {<<128>>,1} = roundtrip(N, <<1:1>>),
+    ?line {<<64>>,2} = roundtrip(N, <<1:2>>),
+    ?line {<<16#E0>>,3} = roundtrip(N, <<7:3>>),
+    ?line {<<16#70>>,4} = roundtrip(N, <<7:4>>),
+    ?line {<<16#10>>,5} = roundtrip(N, <<2:5>>),
+    ?line {<<16#8>>,6} = roundtrip(N, <<2:6>>),
+    ?line {<<16#2>>,7} = roundtrip(N, <<1:7>>),
+    ?line {<<8,128>>,1} = roundtrip(N, <<8,1:1>>),
+    ?line {<<42,248>>,5} = roundtrip(N, <<42,31:5>>),
+
+    ?line ?t:stop_node(N),
+    ok.
+
+roundtrip(Node, Term) ->
+    {badrpc,{'EXIT',Res}} = rpc:call(Node, erlang, exit, [Term]),
+    io:format("<<~p bits>> => ~w", [bit_size(Term),Res]),
+    Res.
 
 deep(Config) when is_list(Config) ->
     ?line deep_roundtrip(lists:foldl(fun(E, A) ->

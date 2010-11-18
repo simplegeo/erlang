@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 -module(gen_event_SUITE).
@@ -23,11 +23,9 @@
 -export([all/1]).
 -export([start/1, test_all/1, add_handler/1, add_sup_handler/1,
 	 delete_handler/1, swap_handler/1, swap_sup_handler/1,
-	 notify/1, sync_notify/1, call/1, info/1, hibernate/1,
-	 call_format_status/1, error_format_status/1]).
+	 notify/1, sync_notify/1, call/1, info/1, hibernate/1]).
 
-all(suite) -> {req, [stdlib], [start, test_all, hibernate,
-			       call_format_status, error_format_status]}.
+all(suite) -> {req, [stdlib], [start, test_all, hibernate]}.
 
 %% --------------------------------------
 %% Start an event manager.
@@ -35,7 +33,7 @@ all(suite) -> {req, [stdlib], [start, test_all, hibernate,
 
 start(doc) -> [];
 start(suite) -> [];
-start(Config) when is_list(Config) ->
+start(Config) when list(Config) ->
     OldFl = process_flag(trap_exit, true),
 
     ?line {ok, Pid0} = gen_event:start(), %anonymous
@@ -177,7 +175,7 @@ test_all(suite) -> [add_handler, add_sup_handler, delete_handler,
 
 add_handler(doc) -> [];
 add_handler(suite) -> [];
-add_handler(Config) when is_list(Config) ->
+add_handler(Config) when list(Config) ->
     ?line {ok,_} = gen_event:start({local, my_dummy_handler}),
     ?line {error, my_error} =
 	gen_event:add_handler(my_dummy_handler, dummy_h, make_error),
@@ -198,7 +196,7 @@ add_handler(Config) when is_list(Config) ->
 
 add_sup_handler(doc) -> [];
 add_sup_handler(suite) -> [];
-add_sup_handler(Config) when is_list(Config) ->
+add_sup_handler(Config) when list(Config) ->
     ?line {ok,Pid} = gen_event:start({local, my_dummy_handler}),
     ?line {error, my_error} =
 	gen_event:add_sup_handler(my_dummy_handler, dummy_h, make_error),
@@ -240,7 +238,7 @@ add_sup_handler(Config) when is_list(Config) ->
 
 delete_handler(doc) -> [];
 delete_handler(suite) -> [];
-delete_handler(Config) when is_list(Config) ->
+delete_handler(Config) when list(Config) ->
     ?line {ok,_} = gen_event:start({local, my_dummy_handler}),
     ?line ok = gen_event:add_handler(my_dummy_handler, dummy_h, [self()]),
     ?line {error, module_not_found} =
@@ -272,7 +270,7 @@ delete_handler(Config) when is_list(Config) ->
 
 swap_handler(doc) -> [];
 swap_handler(suite) -> [];
-swap_handler(Config) when is_list(Config) ->
+swap_handler(Config) when list(Config) ->
     ?line {ok,_} = gen_event:start({local, my_dummy_handler}),
     ?line ok = gen_event:add_handler(my_dummy_handler, dummy_h, [self()]),
     ?line {error, non_existing} =
@@ -301,7 +299,7 @@ swap_handler(Config) when is_list(Config) ->
 	
 swap_sup_handler(doc) -> [];
 swap_sup_handler(suite) -> [];
-swap_sup_handler(Config) when is_list(Config) ->
+swap_sup_handler(Config) when list(Config) ->
     ?line {ok,_} = gen_event:start({local, my_dummy_handler}),
     ?line ok = gen_event:add_sup_handler(my_dummy_handler, dummy_h, [self()]),
     ?line {error, non_existing} =
@@ -343,7 +341,7 @@ swap_sup_handler(Config) when is_list(Config) ->
 	
 notify(doc) -> [];
 notify(suite) -> [];
-notify(Config) when is_list(Config) ->
+notify(Config) when list(Config) ->
     ?line {ok,_} = gen_event:start({local, my_dummy_handler}),
     ?line ok = gen_event:add_handler(my_dummy_handler, dummy_h, [self()]),
     Event = {event, self()},
@@ -459,7 +457,7 @@ notify(Config) when is_list(Config) ->
 
 sync_notify(doc) -> [];
 sync_notify(suite) -> [];
-sync_notify(Config) when is_list(Config) ->
+sync_notify(Config) when list(Config) ->
     ?line {ok,_} = gen_event:start({local, my_dummy_handler}),
     ?line ok = gen_event:add_handler(my_dummy_handler, dummy_h, [self()]),
     Event = {event, self()},
@@ -578,7 +576,7 @@ sync_notify(Config) when is_list(Config) ->
 
 call(doc) -> [];
 call(suite) -> [];
-call(Config) when is_list(Config) ->
+call(Config) when list(Config) ->
     ?line {ok,_} = gen_event:start({local, my_dummy_handler}),
     ?line ok = gen_event:add_handler(my_dummy_handler, dummy_h, [self()]),
     ?line ok = gen_event:add_handler(my_dummy_handler, {dummy_h, 1}, [self()]),
@@ -720,7 +718,7 @@ flush() ->
 
 info(doc) -> [];
 info(suite) -> [];
-info(Config) when is_list(Config) ->
+info(Config) when list(Config) ->
     ?line {ok,_} = gen_event:start({local, my_dummy_handler}),
     ?line ok = gen_event:add_handler(my_dummy_handler, dummy_h, [self()]),
     Info = {info, self()},
@@ -845,57 +843,4 @@ info(Config) when is_list(Config) ->
     ?line [] = gen_event:which_handlers(my_dummy_handler),
 
     ?line ok = gen_event:stop(my_dummy_handler),
-    ok.
-
-call_format_status(suite) ->
-    [];
-call_format_status(doc) ->
-    ["Test that sys:get_status/1,2 calls format_status/2"];
-call_format_status(Config) when is_list(Config) ->
-    ?line {ok, Pid} = gen_event:start({local, my_dummy_handler}),
-    %% State here intentionally differs from what we expect from format_status
-    State = self(),
-    FmtState = "dummy1_h handler state",
-    ?line ok = gen_event:add_handler(my_dummy_handler, dummy1_h, [State]),
-    ?line Status1 = sys:get_status(Pid),
-    ?line Status2 = sys:get_status(Pid, 5000),
-    ?line ok = gen_event:stop(Pid),
-    ?line {status, Pid, _, [_, _, Pid, [], Data1]} = Status1,
-    ?line HandlerInfo1 = proplists:get_value(items, Data1),
-    ?line {"Installed handlers", [{_,dummy1_h,_,FmtState,_}]} = HandlerInfo1,
-    ?line {status, Pid, _, [_, _, Pid, [], Data2]} = Status2,
-    ?line HandlerInfo2 = proplists:get_value(items, Data2),
-    ?line {"Installed handlers", [{_,dummy1_h,_,FmtState,_}]} = HandlerInfo2,
-    ok.
-
-error_format_status(suite) ->
-    [];
-error_format_status(doc) ->
-    ["Test that a handler error calls format_status/2"];
-error_format_status(Config) when is_list(Config) ->
-    ?line error_logger_forwarder:register(),
-    OldFl = process_flag(trap_exit, true),
-    State = self(),
-    ?line {ok, Pid} = gen_event:start({local, my_dummy_handler}),
-    ?line ok = gen_event:add_sup_handler(my_dummy_handler, dummy1_h, [State]),
-    ?line ok = gen_event:notify(my_dummy_handler, do_crash),
-    ?line receive
-	      {gen_event_EXIT,dummy1_h,{'EXIT',_}} -> ok
-	  after 5000 ->
-		  ?t:fail(exit_gen_event)
-	  end,
-    FmtState = "dummy1_h handler state",
-    receive
-	{error,_GroupLeader, {Pid,
-			      "** gen_event handler"++_,
-			      [dummy1_h,my_dummy_handler,do_crash,
-			       FmtState, _]}} ->
-	    ok;
-	Other ->
-	    ?line io:format("Unexpected: ~p", [Other]),
-	    ?line ?t:fail()
-    end,
-    ?t:messages_get(),
-    ?line ok = gen_event:stop(Pid),
-    process_flag(trap_exit, OldFl),
     ok.

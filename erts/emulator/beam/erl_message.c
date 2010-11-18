@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- *
- * Copyright Ericsson AB 1997-2010. All Rights Reserved.
- *
+ * 
+ * Copyright Ericsson AB 1997-2009. All Rights Reserved.
+ * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- *
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
+ * 
  * %CopyrightEnd%
  */
 /*
@@ -30,7 +30,6 @@
 #include "erl_message.h"
 #include "erl_process.h"
 #include "erl_nmgc.h"
-#include "erl_binary.h"
 
 ERTS_SCHED_PREF_QUICK_ALLOC_IMPL(message,
 				 ErlMessage,
@@ -42,15 +41,6 @@ ERTS_SCHED_PREF_QUICK_ALLOC_IMPL(message,
 #else
 #undef HARD_DEBUG
 #endif
-
-
-
-
-static ERTS_INLINE int in_heapfrag(const Eterm* ptr, const ErlHeapFragment *bp)
-{
-    return ((unsigned)(ptr - bp->mem) < bp->used_size);
-}
-
 
 void
 init_message(void)
@@ -91,12 +81,9 @@ erts_resize_message_buffer(ErlHeapFragment *bp, Uint size,
 #endif
     ErlHeapFragment* nbp;
 
-    /* ToDo: Make use of 'used_size' to avoid realloc
-	when shrinking just a few words */
-
 #ifdef DEBUG
     {
-	Uint off_sz = size < bp->used_size ? size : bp->used_size;
+	Uint off_sz = size < bp->size ? size : bp->size;
 	for (i = 0; i < brefs_size; i++) {
 	    Eterm *ptr;
 	    if (is_immed(brefs[i]))
@@ -108,12 +95,12 @@ erts_resize_message_buffer(ErlHeapFragment *bp, Uint size,
     }
 #endif
 
-    if (size == bp->used_size)
+    if (size == bp->size)
 	return bp;
 
 #ifdef HARD_DEBUG
     dbg_brefs = erts_alloc(ERTS_ALC_T_UNDEF, sizeof(Eterm *)*brefs_size);
-    dbg_bp = new_message_buffer(bp->used_size);
+    dbg_bp = new_message_buffer(bp->size);
     dbg_hp = dbg_bp->mem;
     dbg_tot_size = 0;
     for (i = 0; i < brefs_size; i++) {
@@ -122,15 +109,19 @@ erts_resize_message_buffer(ErlHeapFragment *bp, Uint size,
 	dbg_brefs[i] = copy_struct(brefs[i], dbg_size, &dbg_hp,
 				   &dbg_bp->off_heap);
     }
-    ASSERT(dbg_tot_size == (size < bp->used_size ? size : bp->used_size));
+    ASSERT(dbg_tot_size == (size < bp->size ? size : bp->size));
 #endif
 
     nbp = (ErlHeapFragment*) ERTS_HEAP_REALLOC(ERTS_ALC_T_HEAP_FRAG,
 					       (void *) bp,
-					       ERTS_HEAP_FRAG_SIZE(bp->alloc_size),
-					       ERTS_HEAP_FRAG_SIZE(size));
+					       (sizeof(ErlHeapFragment)
+						- sizeof(Eterm)
+						+ bp->size*sizeof(Eterm)),
+					       (sizeof(ErlHeapFragment)
+						- sizeof(Eterm)
+						+ size*sizeof(Eterm)));
     if (bp != nbp) {
-	Uint off_sz = size < nbp->used_size ? size : nbp->used_size;
+	Uint off_sz = size < nbp->size ? size : nbp->size;
 	Eterm *sp = &bp->mem[0];
 	Eterm *ep = sp + off_sz;
 	Sint offs = &nbp->mem[0] - sp;
@@ -148,8 +139,8 @@ erts_resize_message_buffer(ErlHeapFragment *bp, Uint size,
 	}
 #endif
     }
-    nbp->alloc_size = size;
-    nbp->used_size = size;
+    nbp->size = size;
+
 
 #ifdef HARD_DEBUG
     for (i = 0; i < brefs_size; i++)
@@ -165,40 +156,28 @@ erts_resize_message_buffer(ErlHeapFragment *bp, Uint size,
 void
 erts_cleanup_offheap(ErlOffHeap *offheap)
 {
-    union erl_off_heap_ptr u;
-
-    for (u.hdr = offheap->first; u.hdr; u.hdr = u.hdr->next) {
-	switch (thing_subtag(u.hdr->thing_word)) {
-	case REFC_BINARY_SUBTAG:
-	    if (erts_refc_dectest(&u.pb->val->refc, 0) == 0) {
-		erts_bin_free(u.pb->val);
-	    }
-	    break;
-	case FUN_SUBTAG:
-	    if (erts_refc_dectest(&u.fun->fe->refc, 0) == 0) {
-		erts_erase_fun_entry(u.fun->fe);		    
-	    }
-	    break;
-	default:
-	    ASSERT(is_external_header(u.hdr->thing_word));
-	    erts_deref_node_entry(u.ext->node);
-	    break;
-	}
+    if (offheap->mso) {
+	erts_cleanup_mso(offheap->mso);
+    }
+#ifndef HYBRID /* FIND ME! */
+    if (offheap->funs) {
+	erts_cleanup_funs(offheap->funs);
+    }
+#endif
+    if (offheap->externals) {
+	erts_cleanup_externals(offheap->externals);
     }
 }
 
 void
 free_message_buffer(ErlHeapFragment* bp)
 {
-    ASSERT(bp != NULL);
-    do {
-	ErlHeapFragment* next_bp = bp->next;
-
-	erts_cleanup_offheap(&bp->off_heap);
-	ERTS_HEAP_FREE(ERTS_ALC_T_HEAP_FRAG, (void *) bp,
-		       ERTS_HEAP_FRAG_SIZE(bp->size));	
-	bp = next_bp;
-    }while (bp != NULL);
+    erts_cleanup_offheap(&bp->off_heap);
+    ERTS_HEAP_FREE(ERTS_ALC_T_HEAP_FRAG,
+		   (void *) bp,
+		   (sizeof(ErlHeapFragment)
+		    - sizeof(Eterm)
+		    + bp->size*sizeof(Eterm)));
 }
 
 static ERTS_INLINE void
@@ -208,19 +187,43 @@ link_mbuf_to_proc(Process *proc, ErlHeapFragment *bp)
 	/* Link the message buffer */
 	bp->next = MBUF(proc);
 	MBUF(proc) = bp;
-	MBUF_SIZE(proc) += bp->used_size;
+	MBUF_SIZE(proc) += bp->size;
 	FLAGS(proc) |= F_FORCE_GC;
 
-	/* Move any off_heap's into the process */
-	if (bp->off_heap.first != NULL) {
-	    struct erl_off_heap_header** next_p = &bp->off_heap.first;
+	/* Move any binaries into the process */
+	if (bp->off_heap.mso != NULL) {
+	    ProcBin** next_p = &bp->off_heap.mso;
 	    while (*next_p != NULL) {
 		next_p = &((*next_p)->next);
 	    }
-	    *next_p = MSO(proc).first;
-	    MSO(proc).first = bp->off_heap.first;
-	    bp->off_heap.first = NULL;
-	    OH_OVERHEAD(&(MSO(proc)), bp->off_heap.overhead);
+	    *next_p = MSO(proc).mso;
+	    MSO(proc).mso = bp->off_heap.mso;
+	    bp->off_heap.mso = NULL;
+	    MSO(proc).overhead += bp->off_heap.overhead;
+	}
+
+	/* Move any funs into the process */
+#ifndef HYBRID
+	if (bp->off_heap.funs != NULL) {
+	    ErlFunThing** next_p = &bp->off_heap.funs;
+	    while (*next_p != NULL) {
+		next_p = &((*next_p)->next);
+	    }
+	    *next_p = MSO(proc).funs;
+	    MSO(proc).funs = bp->off_heap.funs;
+	    bp->off_heap.funs = NULL;
+	}
+#endif
+
+	/* Move any external things into the process */
+	if (bp->off_heap.externals != NULL) {
+	    ExternalThing** next_p = &bp->off_heap.externals;
+	    while (*next_p != NULL) {
+		next_p = &((*next_p)->next);
+	    }
+	    *next_p = MSO(proc).externals;
+	    MSO(proc).externals = bp->off_heap.externals;
+	    bp->off_heap.externals = NULL;
 	}
     }
 }
@@ -245,7 +248,7 @@ erts_msg_distext2heap(Process *pp,
 	goto decode_error;
     if (is_not_nil(*tokenp)) {
 	ErlHeapFragment *heap_frag = erts_dist_ext_trailer(dist_extp);
-	tok_sz = heap_frag->used_size;
+	tok_sz = heap_frag->size;
 	sz += tok_sz;
     }
     if (pp)
@@ -286,13 +289,12 @@ erts_msg_distext2heap(Process *pp,
 	erts_cleanup_offheap(&heap_frag->off_heap);
     }
     erts_free_dist_ext_copy(dist_extp);
-    if (*bpp) {
+    if (*bpp)
 	free_message_buffer(*bpp);
-	*bpp = NULL;
-    }    
     else if (hp) {
 	HRelease(pp, hp_end, hp);
     }
+    *bpp = NULL;
     return THE_NON_VALUE;
  }
 
@@ -440,10 +442,11 @@ erts_queue_message(Process* receiver,
     ERL_MESSAGE_TERM(mp) = message;
     ERL_MESSAGE_TOKEN(mp) = seq_trace_token;
     mp->next = NULL;
-    mp->data.heap_frag = bp;
 
 #ifdef ERTS_SMP
     if (*receiver_locks & ERTS_PROC_LOCK_MAIN) {
+	mp->data.heap_frag = bp;
+
 	/*
 	 * We move 'in queue' to 'private queue' and place
 	 * message at the end of 'private queue' in order
@@ -456,9 +459,11 @@ erts_queue_message(Process* receiver,
 	LINK_MESSAGE_PRIVQ(receiver, mp);
     }
     else {
+	mp->data.heap_frag = bp;
 	LINK_MESSAGE(receiver, mp);
     }
 #else
+    mp->data.heap_frag = bp;
     LINK_MESSAGE(receiver, mp);
 #endif
 
@@ -492,7 +497,19 @@ erts_link_mbuf_to_proc(struct process *proc, ErlHeapFragment *bp)
 void
 erts_move_msg_mbuf_to_heap(Eterm** hpp, ErlOffHeap* off_heap, ErlMessage *msg)
 {
-    struct erl_off_heap_header* oh;
+    /* Unions for typecasts avoids warnings about type-punned pointers and aliasing */
+    union {
+	Uint** upp;
+	ProcBin **pbpp;
+	ErlFunThing **efpp;
+	ExternalThing **etpp;
+    } oh_list_pp, oh_el_next_pp;
+    union {
+	Uint *up;
+	ProcBin *pbp;
+	ErlFunThing *efp;
+	ExternalThing *etp;
+    } oh_el_p;
     Eterm term, token, *fhp, *hp;
     Sint offs;
     Uint sz;
@@ -519,33 +536,40 @@ erts_move_msg_mbuf_to_heap(Eterm** hpp, ErlOffHeap* off_heap, ErlMessage *msg)
 #ifdef HARD_DEBUG
     dbg_term_sz = size_object(term);
     dbg_token_sz = size_object(token);
-    /*ASSERT(dbg_term_sz + dbg_token_sz == erts_msg_used_frag_sz(msg));
-      Copied size may be smaller due to removed SubBins's or garbage.
-      Copied size may be larger due to duplicated shared terms.
-    */
-    dbg_bp = new_message_buffer(dbg_term_sz + dbg_token_sz);
+    ASSERT(bp->size == dbg_term_sz + dbg_token_sz);
+
+    dbg_bp = new_message_buffer(bp->size);
     dbg_hp = dbg_bp->mem;
     dbg_term = copy_struct(term, dbg_term_sz, &dbg_hp, &dbg_bp->off_heap);
     dbg_token = copy_struct(token, dbg_token_sz, &dbg_hp, &dbg_bp->off_heap);
     dbg_thp_start = *hpp;
 #endif
 
-    if (bp->next != NULL) {
-	move_multi_frags(hpp, off_heap, bp, msg->m, 2);
-	goto copy_done;
+    ASSERT(bp);
+    msg->data.attached = NULL;
+
+    off_heap->overhead += bp->off_heap.overhead;
+    sz = bp->size;
+
+#ifdef DEBUG
+    if (is_not_immed(term)) {
+	ASSERT(bp->mem <= ptr_val(term));
+	ASSERT(bp->mem + bp->size > ptr_val(term));
     }
 
-    OH_OVERHEAD(off_heap, bp->off_heap.overhead);
-    sz = bp->used_size;
-
-    ASSERT(is_immed(term) || in_heapfrag(ptr_val(term),bp));
-    ASSERT(is_immed(token) || in_heapfrag(ptr_val(token),bp));
+    if (is_not_immed(token)) {
+	ASSERT(bp->mem <= ptr_val(token));
+	ASSERT(bp->mem + bp->size > ptr_val(token));
+    }
+#endif
 
     fhp = bp->mem;
     hp = *hpp;
     offs = hp - fhp;
 
-    oh = NULL;
+    oh_list_pp.upp = NULL;
+    oh_el_next_pp.upp = NULL; /* Shut up compiler warning */
+    oh_el_p.up = NULL; /* Shut up compiler warning */
     while (sz--) {
 	Uint cpy_sz;
 	Eterm val = *fhp++;
@@ -556,7 +580,8 @@ erts_move_msg_mbuf_to_heap(Eterm** hpp, ErlOffHeap* off_heap, ErlMessage *msg)
 	    break;
 	case TAG_PRIMARY_LIST:
 	case TAG_PRIMARY_BOXED:
-	    ASSERT(in_heapfrag(ptr_val(val), bp));
+	    ASSERT(bp->mem <= ptr_val(val));
+	    ASSERT(bp->mem + bp->size > ptr_val(val));
 	    *hp++ = offset_ptr(val, offs);
 	    break;
 	case TAG_PRIMARY_HEADER:
@@ -565,18 +590,31 @@ erts_move_msg_mbuf_to_heap(Eterm** hpp, ErlOffHeap* off_heap, ErlMessage *msg)
 	    case ARITYVAL_SUBTAG:
 		break;
 	    case REFC_BINARY_SUBTAG:
+		oh_list_pp.pbpp = &off_heap->mso;
+		oh_el_p.up = (hp-1);
+		oh_el_next_pp.pbpp = &(oh_el_p.pbp)->next;
+		cpy_sz = thing_arityval(val);
+		goto cpy_words;
 	    case FUN_SUBTAG:
+#ifndef HYBRID
+		oh_list_pp.efpp = &off_heap->funs;
+		oh_el_p.up = (hp-1);
+		oh_el_next_pp.efpp = &(oh_el_p.efp)->next;
+#endif
+		cpy_sz = thing_arityval(val);
+		goto cpy_words;
 	    case EXTERNAL_PID_SUBTAG:
 	    case EXTERNAL_PORT_SUBTAG:
 	    case EXTERNAL_REF_SUBTAG:
-		oh = (struct erl_off_heap_header*) (hp-1);
+		oh_list_pp.etpp = &off_heap->externals;
+		oh_el_p.up = (hp-1);
+		oh_el_next_pp.etpp =  &(oh_el_p.etp)->next;
 		cpy_sz = thing_arityval(val);
 		goto cpy_words;
 	    default:
 		cpy_sz = header_arity(val);
 
 	    cpy_words:
-		ASSERT(sz >= cpy_sz);
 		sz -= cpy_sz;
 		while (cpy_sz >= 8) {
 		    cpy_sz -= 8;
@@ -599,13 +637,44 @@ erts_move_msg_mbuf_to_heap(Eterm** hpp, ErlOffHeap* off_heap, ErlMessage *msg)
 		case 1: *hp++ = *fhp++;
 		default: break;
 		}
-		if (oh) {
+		if (oh_list_pp.upp) {
+#ifdef HARD_DEBUG
+		    Uint *dbg_old_oh_list_p = *oh_list_pp.upp;
+#endif
 		    /* Add to offheap list */
-		    oh->next = off_heap->first;
-		    off_heap->first = oh;
-		    ASSERT(*hpp <= (Eterm*)oh);
-		    ASSERT(hp > (Eterm*)oh);
-		    oh = NULL;
+		    *oh_el_next_pp.upp = *oh_list_pp.upp;
+		    *oh_list_pp.upp = oh_el_p.up;
+		    ASSERT(*hpp <= oh_el_p.up);
+		    ASSERT(hp > oh_el_p.up);
+#ifdef HARD_DEBUG
+		    switch (val & _HEADER_SUBTAG_MASK) {
+		    case REFC_BINARY_SUBTAG:
+			ASSERT(off_heap->mso == *oh_list_pp.pbpp);
+			ASSERT(off_heap->mso->next
+			       == (ProcBin *) dbg_old_oh_list_p);
+			break;
+#ifndef HYBRID
+		    case FUN_SUBTAG:
+			ASSERT(off_heap->funs == *oh_list_pp.efpp);
+			ASSERT(off_heap->funs->next
+			       == (ErlFunThing *) dbg_old_oh_list_p);
+			break;
+#endif
+		    case EXTERNAL_PID_SUBTAG:
+		    case EXTERNAL_PORT_SUBTAG:
+		    case EXTERNAL_REF_SUBTAG:
+			ASSERT(off_heap->externals
+			       == *oh_list_pp.etpp);
+			ASSERT(off_heap->externals->next
+			       == (ExternalThing *) dbg_old_oh_list_p);
+			break;
+		    default:
+			ASSERT(0);
+		    }
+#endif
+		    oh_list_pp.upp = NULL;
+
+
 		}
 		break;
 	    }
@@ -613,11 +682,12 @@ erts_move_msg_mbuf_to_heap(Eterm** hpp, ErlOffHeap* off_heap, ErlMessage *msg)
 	}
     }
 
-    ASSERT(bp->used_size == hp - *hpp);
+    ASSERT(bp->size == hp - *hpp);
     *hpp = hp;
 
     if (is_not_immed(token)) {
-	ASSERT(in_heapfrag(ptr_val(token), bp));
+	ASSERT(bp->mem <= ptr_val(token));
+	ASSERT(bp->mem + bp->size > ptr_val(token));
 	ERL_MESSAGE_TOKEN(msg) = offset_ptr(token, offs);
 #ifdef HARD_DEBUG
 	ASSERT(dbg_thp_start <= ptr_val(ERL_MESSAGE_TOKEN(msg)));
@@ -626,7 +696,8 @@ erts_move_msg_mbuf_to_heap(Eterm** hpp, ErlOffHeap* off_heap, ErlMessage *msg)
     }
 
     if (is_not_immed(term)) {
-	ASSERT(in_heapfrag(ptr_val(term),bp));
+	ASSERT(bp->mem <= ptr_val(term));
+	ASSERT(bp->mem + bp->size > ptr_val(term));
 	ERL_MESSAGE_TERM(msg) = offset_ptr(term, offs);
 #ifdef HARD_DEBUG
 	ASSERT(dbg_thp_start <= ptr_val(ERL_MESSAGE_TERM(msg)));
@@ -634,12 +705,10 @@ erts_move_msg_mbuf_to_heap(Eterm** hpp, ErlOffHeap* off_heap, ErlMessage *msg)
 #endif
     }
 
-copy_done:
 
 #ifdef HARD_DEBUG
     {
 	int i, j;
-	ErlHeapFragment* frag;
 	{
 	    ProcBin *mso = off_heap->mso;
 	    i = j = 0;
@@ -647,12 +716,10 @@ copy_done:
 		mso = mso->next;
 		i++;
 	    }
-	    for (frag=bp; frag; frag=frag->next) {
-		mso = frag->off_heap.mso;
-		while (mso) {
-		    mso = mso->next;
-		    j++;
-		}
+	    mso = bp->off_heap.mso;
+	    while (mso) {
+		mso = mso->next;
+		j++;
 	    }
 	    ASSERT(i == j);
 	}
@@ -663,12 +730,10 @@ copy_done:
 		fun = fun->next;
 		i++;
 	    }
-	    for (frag=bp; frag; frag=frag->next) {
-		fun = frag->off_heap.funs;
-		while (fun) {
-		    fun = fun->next;
-		    j++;
-		}
+	    fun = bp->off_heap.funs;
+	    while (fun) {
+		fun = fun->next;
+		j++;
 	    }
 	    ASSERT(i == j);
 	}
@@ -679,12 +744,10 @@ copy_done:
 		external = external->next;
 		i++;
 	    }
-	    for (frag=bp; frag; frag=frag->next) {
-		external = frag->off_heap.externals;
-		while (external) {
-		    external = external->next;
-		    j++;
-		}
+	    external = bp->off_heap.externals;
+	    while (external) {
+		external = external->next;
+		j++;
 	    }
 	    ASSERT(i == j);
 	}
@@ -692,9 +755,12 @@ copy_done:
 #endif
 	    
 
-    bp->off_heap.first = NULL;
+    bp->off_heap.mso = NULL;
+#ifndef HYBRID
+    bp->off_heap.funs = NULL;
+#endif
+    bp->off_heap.externals = NULL;
     free_message_buffer(bp);
-    msg->data.heap_frag = NULL;
 
 #ifdef HARD_DEBUG
     ASSERT(eq(ERL_MESSAGE_TERM(msg), dbg_term));
@@ -703,7 +769,6 @@ copy_done:
 #endif
 
 }
-
 
 Uint
 erts_msg_attached_data_size_aux(ErlMessage *msg)
@@ -730,7 +795,7 @@ erts_msg_attached_data_size_aux(ErlMessage *msg)
     if (is_not_nil(msg->m[1])) {
 	ErlHeapFragment *heap_frag;
 	heap_frag = erts_dist_ext_trailer(msg->data.dist_ext);
-	sz += heap_frag->used_size;
+	sz += heap_frag->size;
     }
     return sz;
 }
@@ -746,7 +811,7 @@ erts_move_msg_attached_data_to_heap(Eterm **hpp, ErlOffHeap *ohp, ErlMessage *ms
 	    ErlHeapFragment *heap_frag;
 	    heap_frag = erts_dist_ext_trailer(msg->data.dist_ext);
 	    ERL_MESSAGE_TOKEN(msg) = copy_struct(ERL_MESSAGE_TOKEN(msg),
-						 heap_frag->used_size,
+						 heap_frag->size,
 						 hpp,
 						 ohp);
 	    erts_cleanup_offheap(&heap_frag->off_heap);
@@ -1003,4 +1068,3 @@ erts_deliver_exit_message(Eterm from, Process *to, ErtsProcLocks *to_locksp,
 	erts_queue_message(to, to_locksp, bp, save, NIL);
     }
 }
-

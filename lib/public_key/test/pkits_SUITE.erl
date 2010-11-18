@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %% 
-%% Copyright Ericsson AB 2008-2010. All Rights Reserved.
+%% Copyright Ericsson AB 2008-2009. All Rights Reserved.
 %% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -187,9 +187,9 @@ run([],_) -> ok.
 read_certs(Test) ->
     File = test_file(Test),
     %% io:format("Read ~p ",[File]),
-    Ders = erl_make_certs:pem_to_der(File),
+    {ok, Ders} = public_key:pem_to_der(File),
     %% io:format("Ders ~p ~n",[length(Ders)]),
-    [Cert || {'Certificate', Cert, not_encrypted} <- Ders].
+    [Cert || {cert,Cert,not_encrypted} <- Ders].
 
 test_file(Test) ->
     file(?CONV, lists:append(string:tokens(Test, " -")) ++ ".pem").

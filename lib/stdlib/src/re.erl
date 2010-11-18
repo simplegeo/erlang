@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2008-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2008-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 -module(re).
@@ -32,7 +32,18 @@ split(Subject,RE,Options) ->
     try
     {NewOpt,Convert,Unicode,Limit,Strip,Group} =
 	process_split_params(Options,iodata,false,-1,false,false),
-    FlatSubject = to_binary(Subject, Unicode),
+    FlatSubject = 
+	case is_binary(Subject) of
+	    true ->
+		Subject;
+	    false ->
+		case Unicode of
+		    true ->
+			unicode:characters_to_binary(Subject,unicode);
+		    false ->
+			iolist_to_binary(Subject)
+		end
+	end,
     case compile_split(RE,NewOpt) of
 	{error,_Err} ->
 	    throw(badre);
@@ -206,9 +217,19 @@ replace(Subject,RE,Replacement,Options) ->
     try
     {NewOpt,Convert,Unicode} =
 	process_repl_params(Options,iodata,false),
-    FlatSubject = to_binary(Subject, Unicode),
-    FlatReplacement = to_binary(Replacement, Unicode),
-    case do_replace(FlatSubject,Subject,RE,FlatReplacement,NewOpt) of
+    FlatSubject = 
+	case is_binary(Subject) of
+	    true ->
+		Subject;
+	    false ->
+		case Unicode of
+		    true ->
+			unicode:characters_to_binary(Subject,unicode);
+		    false ->
+			iolist_to_binary(Subject)
+		end
+	end,
+    case do_replace(FlatSubject,Subject,RE,Replacement,NewOpt) of
 	{error,_Err} ->
 	    throw(badre);
 	IoList ->
@@ -216,12 +237,7 @@ replace(Subject,RE,Replacement,Options) ->
 		iodata ->
 		    IoList;
 		binary ->
-		    case Unicode of
-			false ->
-			    iolist_to_binary(IoList);
-			true ->
-			    unicode:characters_to_binary(IoList,unicode)
-		    end;
+		    iolist_to_binary(IoList);
 		list ->
 		    case Unicode of
 			false ->
@@ -308,7 +324,8 @@ process_split_params([H|T],C,U,L,S,G) ->
     {[H|NT],NC,NU,NL,NS,NG}.
 
 apply_mlist(Subject,Replacement,Mlist) ->
-    do_mlist(Subject,Subject,0,precomp_repl(Replacement), Mlist).
+    do_mlist(Subject,Subject,0,precomp_repl(iolist_to_binary(Replacement)),
+	     Mlist).
 
 
 precomp_repl(<<>>) ->
@@ -528,7 +545,7 @@ process_uparams([],Type) ->
 
 ucompile(RE,Options) ->
     try
-	re:compile(unicode:characters_to_binary(RE,unicode),Options)
+	re:compile(unicode:characters_to_binary(RE,unicode))
     catch
 	error:AnyError ->
 	    {'EXIT',{new_stacktrace,[{Mod,_,L}|Rest]}} = 
@@ -601,7 +618,18 @@ grun(Subject,RE,{Options,NeedClean,OrigRE}) ->
 
 grun2(Subject,RE,{Options,NeedClean}) ->
     Unicode = check_for_unicode(RE,Options),
-    FlatSubject = to_binary(Subject, Unicode),
+    FlatSubject = 
+	case is_binary(Subject) of
+	    true ->
+		Subject;
+	    false ->
+		case Unicode of
+		    true ->
+			unicode:characters_to_binary(Subject,unicode);
+		    false ->
+			iolist_to_binary(Subject)
+		end
+	end,
     do_grun(FlatSubject,Subject,Unicode,RE,{Options,NeedClean}).
 
 do_grun(FlatSubject,Subject,Unicode,RE,{Options0,NeedClean}) ->
@@ -721,10 +749,3 @@ runopt(global) ->
     true;
 runopt(_) ->
     false.
-
-to_binary(Bin, _IsUnicode) when is_binary(Bin) ->
-    Bin;
-to_binary(Data, true) ->
-    unicode:characters_to_binary(Data,unicode);
-to_binary(Data, false) ->
-    iolist_to_binary(Data).

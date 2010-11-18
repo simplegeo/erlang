@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2005-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2005-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 
@@ -35,12 +35,12 @@
 %-compile(export_all).
 -export([all/1, init_per_testcase/2, fin_per_testcase/2]).
 
--export([process_count/1, system_version/1, misc_smoke_tests/1, heap_size/1, wordsize/1]).
+-export([process_count/1, system_version/1, misc_smoke_tests/1]).
 
 -define(DEFAULT_TIMEOUT, ?t:minutes(2)).
 
 all(doc) -> [];
-all(suite) -> [process_count, system_version, misc_smoke_tests, heap_size, wordsize].
+all(suite) -> [process_count, system_version, misc_smoke_tests].
 
 init_per_testcase(_Case, Config) when is_list(Config) ->
     Dog = ?t:timetrap(?DEFAULT_TIMEOUT),
@@ -135,33 +135,8 @@ misc_smoke_tests(Config) when is_list(Config) ->
     ?line ok.
     
 
-heap_size(doc) -> [];
-heap_size(suite) -> [];
-heap_size(Config) when is_list(Config) ->
-   ?line {min_bin_vheap_size, VHmin} = erlang:system_info(min_bin_vheap_size),
-   ?line {min_heap_size, Hmin} =  erlang:system_info(min_heap_size),
-   ?line GCinf =  erlang:system_info(garbage_collection),
-   ?line VHmin = proplists:get_value(min_bin_vheap_size, GCinf),
-   ?line Hmin  = proplists:get_value(min_heap_size, GCinf),
-   ok.
 
-wordsize(suite) ->
-    [];
-wordsize(doc) ->
-    ["Tests the various wordsize variants"];
-wordsize(Config) when is_list(Config) ->
-    ?line A = erlang:system_info(wordsize),
-    ?line true = is_integer(A),
-    ?line A = erlang:system_info({wordsize,internal}),
-    ?line B = erlang:system_info({wordsize,external}),
-    ?line true = A =< B,
-    case {B,A} of
-	{4,4} ->
-	    {comment, "True 32-bit emulator"};
-	{8,8} ->
-	    {comment, "True 64-bit emulator"};
-	{8,4} ->
-	    {comment, "Halfword 64-bit emulator"};
-	Other ->
-	    exit({unexpected_wordsizes,Other})
-    end.
+
+
+
+

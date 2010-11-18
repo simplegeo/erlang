@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 -module(gen_event).
@@ -42,6 +42,7 @@
 	 system_continue/3,
 	 system_terminate/4,
 	 system_code_change/4,
+	 print_event/3,
 	 format_status/2]).
 
 -import(error_logger, [error_msg/2]).
@@ -238,7 +239,7 @@ fetch_msg(Parent, ServerName, MSL, Debug, Hib) ->
 	Msg when Debug =:= [] ->
 	    handle_msg(Msg, Parent, ServerName, MSL, []);
 	Msg ->
-	    Debug1 = sys:handle_debug(Debug, fun print_event/3,
+	    Debug1 = sys:handle_debug(Debug, {?MODULE, print_event}, 
 				      ServerName, {in, Msg}),
 	    handle_msg(Msg, Parent, ServerName, MSL, Debug1)
     end.
@@ -677,23 +678,12 @@ report_error(Handler, Reason, State, LastIn, SName) ->
 	    _ ->
 		Reason
 	end,
-    Mod = Handler#handler.module,
-    FmtState = case erlang:function_exported(Mod, format_status, 2) of
-		   true ->
-		       Args = [get(), State],
-		       case catch Mod:format_status(terminate, Args) of
-			   {'EXIT', _} -> State;
-			   Else -> Else
-		       end;
-		   _ ->
-		       State
-	       end,
     error_msg("** gen_event handler ~p crashed.~n"
 	      "** Was installed in ~p~n"
 	      "** Last event was: ~p~n"
 	      "** When handler state == ~p~n"
 	      "** Reason == ~p~n",
-	      [handler(Handler),SName,LastIn,FmtState,Reason1]).
+	      [handler(Handler),SName,LastIn,State,Reason1]).
 
 handler(Handler) when not Handler#handler.id ->
     Handler#handler.module;
@@ -722,20 +712,10 @@ get_modules(MSL) ->
 %%-----------------------------------------------------------------
 %% Status information
 %%-----------------------------------------------------------------
-format_status(Opt, StatusData) ->
-    [PDict, SysState, Parent, _Debug, [ServerName, MSL, _Hib]] = StatusData,
+format_status(_Opt, StatusData) ->
+    [_PDict, SysState, Parent, _Debug, [ServerName, MSL, _Hib]] = StatusData,
     Header = lists:concat(["Status for event handler ", ServerName]),
-    FmtMSL = [case erlang:function_exported(Mod, format_status, 2) of
-		  true ->
-		      Args = [PDict, State],
-		      case catch Mod:format_status(Opt, Args) of
-			  {'EXIT', _} -> MSL;
-			  Else -> MS#handler{state = Else}
-		      end;
-		  _ ->
-		      MS
-	      end || #handler{module = Mod, state = State} = MS <- MSL],
     [{header, Header},
      {data, [{"Status", SysState},
 	     {"Parent", Parent}]},
-     {items, {"Installed handlers", FmtMSL}}].
+     {items, {"Installed handlers", MSL}}].

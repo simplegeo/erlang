@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- *
- * Copyright Ericsson AB 2002-2010. All Rights Reserved.
- *
+ * 
+ * Copyright Ericsson AB 2002-2009. All Rights Reserved.
+ * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- *
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
+ * 
  * %CopyrightEnd%
  */
 
@@ -69,14 +69,14 @@ static int initialized = 0;
 
 #if HAVE_ERTS_MSEG
 
-#define INV_MSEG_UNIT_MASK	((UWord) (mseg_unit_size - 1))
+#define INV_MSEG_UNIT_MASK	((Uint) (mseg_unit_size - 1))
 #define MSEG_UNIT_MASK		(~INV_MSEG_UNIT_MASK)
 #define MSEG_UNIT_FLOOR(X)	((X) & MSEG_UNIT_MASK)
 #define MSEG_UNIT_CEILING(X)	MSEG_UNIT_FLOOR((X) + INV_MSEG_UNIT_MASK)
 
 #endif
 
-#define INV_SYS_ALLOC_CARRIER_MASK	((UWord) (sys_alloc_carrier_size - 1))
+#define INV_SYS_ALLOC_CARRIER_MASK	((Uint) (sys_alloc_carrier_size - 1))
 #define SYS_ALLOC_CARRIER_MASK		(~INV_SYS_ALLOC_CARRIER_MASK)
 #define SYS_ALLOC_CARRIER_FLOOR(X)	((X) & SYS_ALLOC_CARRIER_MASK)
 #define SYS_ALLOC_CARRIER_CEILING(X) \
@@ -85,7 +85,7 @@ static int initialized = 0;
 #undef ASSERT
 #define ASSERT ASSERT_EXPR
 
-#define ERTS_ALCU_FLG_FAIL_REALLOC_MOVE ((UWord) 1)
+#define ERTS_ALCU_FLG_FAIL_REALLOC_MOVE ((Uint) 1)
 
 #if 0
 /* Can be useful for debugging */
@@ -114,12 +114,12 @@ static Uint mseg_unit_size;
 
 /* Blocks ... */
 
-#define SBC_BLK_FTR_FLG		(((UWord) 1) << 0)
-#define UNUSED1_BLK_FTR_FLG	(((UWord) 1) << 1)
-#define UNUSED2_BLK_FTR_FLG	(((UWord) 1) << 2)
+#define SBC_BLK_FTR_FLG		(((Uint) 1) << 0)
+#define UNUSED1_BLK_FTR_FLG	(((Uint) 1) << 1)
+#define UNUSED2_BLK_FTR_FLG	(((Uint) 1) << 2)
 
 #define ABLK_HDR_SZ (sizeof(Block_t))
-#define FBLK_FTR_SZ (sizeof(UWord))
+#define FBLK_FTR_SZ (sizeof(Uint))
 
 #define UMEMSZ2BLKSZ(AP, SZ)						\
   (ABLK_HDR_SZ + (SZ) <= (AP)->min_block_size				\
@@ -130,14 +130,14 @@ static Uint mseg_unit_size;
 #define BLK2UMEM(P) ((void *)    (((char *) (P)) + ABLK_HDR_SZ))
 
 #define PREV_BLK_SZ(B) \
-  ((UWord) (*(((UWord *) (B)) - 1) & SZ_MASK))
+  ((Uint) (*(((Uint *) (B)) - 1) & SZ_MASK))
 
 #define SET_BLK_SZ_FTR(B, SZ) \
-  (*((UWord *) (((char *) (B)) + (SZ) - sizeof(UWord))) = (SZ))
+  (*((Uint *) (((char *) (B)) + (SZ) - sizeof(Uint))) = (SZ))
 
-#define THIS_FREE_BLK_HDR_FLG 	(((UWord) 1) << 0)
-#define PREV_FREE_BLK_HDR_FLG 	(((UWord) 1) << 1)
-#define LAST_BLK_HDR_FLG 	(((UWord) 1) << 2)
+#define THIS_FREE_BLK_HDR_FLG 	(((Uint) 1) << 0)
+#define PREV_FREE_BLK_HDR_FLG 	(((Uint) 1) << 1)
+#define LAST_BLK_HDR_FLG 	(((Uint) 1) << 2)
 
 #define SET_BLK_SZ(B, SZ) \
   (ASSERT(((SZ) & FLG_MASK) == 0), \
@@ -156,11 +156,11 @@ static Uint mseg_unit_size;
   (*((Block_t *) (B)) &= ~LAST_BLK_HDR_FLG)
 
 #define SBH_THIS_FREE		THIS_FREE_BLK_HDR_FLG
-#define SBH_THIS_ALLOCED	((UWord) 0)
+#define SBH_THIS_ALLOCED	((Uint) 0)
 #define SBH_PREV_FREE		PREV_FREE_BLK_HDR_FLG
-#define SBH_PREV_ALLOCED	((UWord) 0)
+#define SBH_PREV_ALLOCED	((Uint) 0)
 #define SBH_LAST_BLK		LAST_BLK_HDR_FLG
-#define SBH_NOT_LAST_BLK	((UWord) 0)
+#define SBH_NOT_LAST_BLK	((Uint) 0)
 
 #define SET_BLK_HDR(B, Sz, F) \
   (ASSERT(((Sz) & FLG_MASK) == 0), *((Block_t *) (B)) = ((Sz) | (F)))
@@ -200,7 +200,7 @@ static Uint mseg_unit_size;
   ((FTR) = 0)
 
 #define IS_SBC_BLK(B) \
-  (IS_PREV_BLK_FREE((B)) && (((UWord *) (B))[-1] & SBC_BLK_FTR_FLG))
+  (IS_PREV_BLK_FREE((B)) && (((Uint *) (B))[-1] & SBC_BLK_FTR_FLG))
 #define IS_MBC_BLK(B) \
   (!IS_SBC_BLK((B)))
 
@@ -211,8 +211,8 @@ static Uint mseg_unit_size;
 
 /* Carriers ... */
 
-#define MSEG_CARRIER_HDR_FLAG		(((UWord) 1) << 0)
-#define SBC_CARRIER_HDR_FLAG		(((UWord) 1) << 1)
+#define MSEG_CARRIER_HDR_FLAG		(((Uint) 1) << 0)
+#define SBC_CARRIER_HDR_FLAG		(((Uint) 1) << 1)
 
 #define SCH_SYS_ALLOC			0
 #define SCH_MSEG			MSEG_CARRIER_HDR_FLAG
@@ -407,18 +407,18 @@ do {									\
 
 /* Debug stuff... */
 #ifdef DEBUG
-static UWord carrier_alignment;
+static Uint carrier_alignment;
 #define DEBUG_SAVE_ALIGNMENT(C)						\
 do {									\
-    UWord algnmnt__ = sizeof(Unit_t) - (((UWord) (C)) % sizeof(Unit_t));	\
+    Uint algnmnt__ = sizeof(Unit_t) - (((Uint) (C)) % sizeof(Unit_t));	\
     carrier_alignment = MIN(carrier_alignment, algnmnt__);		\
-    ASSERT(((UWord) (C)) % sizeof(UWord) == 0);				\
+    ASSERT(((Uint) (C)) % sizeof(Uint) == 0);				\
 } while (0)
 #define DEBUG_CHECK_ALIGNMENT(P)					\
 do {									\
-    ASSERT(sizeof(Unit_t) - (((UWord) (P)) % sizeof(Unit_t))		\
+    ASSERT(sizeof(Unit_t) - (((Uint) (P)) % sizeof(Unit_t))		\
 	   >= carrier_alignment);					\
-    ASSERT(((UWord) (P)) % sizeof(UWord) == 0);				\
+    ASSERT(((Uint) (P)) % sizeof(Uint) == 0);				\
 } while (0)
 
 #else
@@ -610,7 +610,7 @@ unlink_carrier(CarrierList_t *cl, Carrier_t *crr)
 }
 
 
-static Block_t *create_carrier(Allctr_t *, Uint, UWord);
+static Block_t *create_carrier(Allctr_t *, Uint, Uint);
 static void destroy_carrier(Allctr_t *, Block_t *);
 
 /* Multi block carrier alloc/realloc/free ... */
@@ -630,11 +630,6 @@ mbc_alloc_block(Allctr_t *allctr, Uint size, Uint *blk_szp)
 
     blk = (*allctr->get_free_block)(allctr, *blk_szp, NULL, 0);
 
-#if HALFWORD_HEAP
-    if (!blk) {
-	blk = create_carrier(allctr, *blk_szp, CFLG_MBC|CFLG_FORCE_MSEG);
-    }
-#else
     if (!blk) {
 	blk = create_carrier(allctr, *blk_szp, CFLG_MBC);
 	if (!blk) {
@@ -645,7 +640,6 @@ mbc_alloc_block(Allctr_t *allctr, Uint size, Uint *blk_szp)
 				 CFLG_SBC|CFLG_FORCE_SIZE|CFLG_FORCE_SYS_ALLOC);
 	}
     }
-#endif
 
 #ifdef ERTS_ALLOC_UTIL_HARD_DEBUG
     if (IS_MBC_BLK(blk)) {
@@ -662,14 +656,14 @@ static ERTS_INLINE void
 mbc_alloc_finalize(Allctr_t *allctr,
 		   Block_t *blk,
 		   Uint org_blk_sz,
-		   UWord flags,
+		   Uint flags,
 		   Uint want_blk_sz,
 		   int valid_blk_info)
 {
     Uint blk_sz;
     Uint nxt_blk_sz;
     Block_t *nxt_blk;
-    UWord prev_free_flg = flags & PREV_FREE_BLK_HDR_FLG;
+    Uint prev_free_flg = flags & PREV_FREE_BLK_HDR_FLG;
 
     ASSERT(org_blk_sz >= want_blk_sz);
     ASSERT(blk);
@@ -859,7 +853,7 @@ mbc_free(Allctr_t *allctr, void *p)
 }
 
 static void *
-mbc_realloc(Allctr_t *allctr, void *p, Uint size, UWord flgs)
+mbc_realloc(Allctr_t *allctr, void *p, Uint size, Uint flgs)
 {
     void *new_p;
     Uint old_blk_sz;
@@ -1150,7 +1144,7 @@ mbc_realloc(Allctr_t *allctr, void *p, Uint size, UWord flgs)
 	}
 	else {
 	    Uint new_blk_sz;
-	    UWord new_blk_flgs;
+	    Uint new_blk_flgs;
 	    Uint prev_blk_sz;
 	    Uint blk_cpy_sz;
 
@@ -1245,7 +1239,7 @@ do {									\
 
 
 static Block_t *
-create_carrier(Allctr_t *allctr, Uint umem_sz, UWord flags)
+create_carrier(Allctr_t *allctr, Uint umem_sz, Uint flags)
 {
     Block_t *blk;
     Carrier_t *crr;
@@ -1289,8 +1283,8 @@ create_carrier(Allctr_t *allctr, Uint umem_sz, UWord flags)
 	if (crr_sz < allctr->mbc_header_size + blk_sz)
 	    crr_sz = allctr->mbc_header_size + blk_sz;
 #ifdef ERTS_ALLOC_UTIL_HARD_DEBUG
-	if (sizeof(Unit_t) == sizeof(UWord))
-	    crr_sz += sizeof(UWord);
+	if (sizeof(Unit_t) == sizeof(Uint))
+	    crr_sz += sizeof(Uint);
 #endif
     }
     crr_sz = MSEG_UNIT_CEILING(crr_sz);
@@ -1330,8 +1324,8 @@ create_carrier(Allctr_t *allctr, Uint umem_sz, UWord flags)
 	    && bcrr_sz < allctr->smallest_mbc_size)
 	    bcrr_sz = allctr->smallest_mbc_size;
 #ifdef ERTS_ALLOC_UTIL_HARD_DEBUG
-	if (sizeof(Unit_t) == sizeof(UWord))
-	    bcrr_sz += sizeof(UWord);
+	if (sizeof(Unit_t) == sizeof(Uint))
+	    bcrr_sz += sizeof(Uint);
 #endif
 
     }
@@ -1366,7 +1360,7 @@ create_carrier(Allctr_t *allctr, Uint umem_sz, UWord flags)
 
 	blk = SBC2BLK(allctr, crr);
 
-	SET_SBC_BLK_FTR(((UWord *) blk)[-1]);
+	SET_SBC_BLK_FTR(((Uint *) blk)[-1]);
 	SET_BLK_HDR(blk, blk_sz, SBH_THIS_ALLOCED|SBH_PREV_FREE|SBH_LAST_BLK);
 
 	link_carrier(&allctr->sbc_list, crr);
@@ -1385,13 +1379,13 @@ create_carrier(Allctr_t *allctr, Uint umem_sz, UWord flags)
 	blk = MBC2FBLK(allctr, crr);
 
 #ifdef ERTS_ALLOC_UTIL_HARD_DEBUG
-	if (sizeof(Unit_t) == sizeof(UWord))
-	    crr_sz -= sizeof(UWord);
+	if (sizeof(Unit_t) == sizeof(Uint))
+	    crr_sz -= sizeof(Uint);
 #endif
 
 	blk_sz = UNIT_FLOOR(crr_sz - allctr->mbc_header_size);
 
-	SET_MBC_BLK_FTR(((UWord *) blk)[-1]);
+	SET_MBC_BLK_FTR(((Uint *) blk)[-1]);
 	SET_BLK_HDR(blk, blk_sz, SBH_THIS_FREE|SBH_PREV_FREE|SBH_LAST_BLK);
 
 #ifdef ERTS_ALLOC_UTIL_HARD_DEBUG
@@ -1406,13 +1400,13 @@ create_carrier(Allctr_t *allctr, Uint umem_sz, UWord flags)
 	link_carrier(&allctr->mbc_list, crr);
 
 #ifdef ERTS_ALLOC_UTIL_HARD_DEBUG
-	if (sizeof(Unit_t) == sizeof(UWord))
-	    crr_sz += sizeof(UWord);
+	if (sizeof(Unit_t) == sizeof(Uint))
+	    crr_sz += sizeof(Uint);
 #endif
 	CHECK_1BLK_CARRIER(allctr, 0, is_mseg, crr, crr_sz, blk, blk_sz);
 #ifdef ERTS_ALLOC_UTIL_HARD_DEBUG
-	if (sizeof(Unit_t) == sizeof(UWord))
-	    crr_sz -= sizeof(UWord);
+	if (sizeof(Unit_t) == sizeof(Uint))
+	    crr_sz -= sizeof(Uint);
 #endif
 	if (allctr->creating_mbc)
 	    (*allctr->creating_mbc)(allctr, crr);
@@ -1424,12 +1418,11 @@ create_carrier(Allctr_t *allctr, Uint umem_sz, UWord flags)
 }
 
 static Block_t *
-resize_carrier(Allctr_t *allctr, Block_t *old_blk, Uint umem_sz, UWord flags)
+resize_carrier(Allctr_t *allctr, Block_t *old_blk, Uint umem_sz, Uint flags)
 {
     Block_t *new_blk;
     Carrier_t *new_crr, *old_crr;
-    UWord create_flags;
-    Uint old_crr_sz, old_blk_sz, new_blk_sz, new_crr_sz;
+    Uint create_flags, old_crr_sz, old_blk_sz, new_blk_sz, new_crr_sz;
     Uint new_bcrr_sz;
 
     if (flags & CFLG_MBC) {
@@ -2529,12 +2522,7 @@ do_erts_alcu_alloc(ErtsAlcType_t type, void *extra, Uint size)
     INC_CC(allctr->calls.this_alloc);
 
     if (size >= allctr->sbc_threshold) {
-#if HALFWORD_HEAP
-	Block_t *blk = create_carrier(allctr, size,
-				      CFLG_SBC | CFLG_FORCE_MSEG);
-#else
 	Block_t *blk = create_carrier(allctr, size, CFLG_SBC);
-#endif
 	res = blk ? BLK2UMEM(blk) : NULL;
     }
     else
@@ -2606,16 +2594,16 @@ erts_alcu_alloc_thr_pref(ErtsAlcType_t type, void *extra, Uint size)
     Allctr_t *allctr;
     void *res;
 
-    ASSERT(sizeof(UWord) == sizeof(Allctr_t *));
+    ASSERT(sizeof(Uint) == sizeof(Allctr_t *));
     ASSERT(ix > 0);
     if (ix >= tspec->size)
 	ix = (ix % (tspec->size - 1)) + 1;
     allctr = tspec->allctr[ix];
     erts_mtx_lock(&allctr->mutex);
-    res = do_erts_alcu_alloc(type, allctr, size + sizeof(UWord));
+    res = do_erts_alcu_alloc(type, allctr, size + sizeof(Uint));
     if (res) {
 	*((Allctr_t **) res) = allctr;
-	res = (void *) (((char *) res) + sizeof(UWord));
+	res = (void *) (((char *) res) + sizeof(Uint));
     }
     erts_mtx_unlock(&allctr->mutex);
     DEBUG_CHECK_ALIGNMENT(res);
@@ -2693,7 +2681,7 @@ void
 erts_alcu_free_thr_pref(ErtsAlcType_t type, void *unused, void *p)
 {
     if (p) {
-	void *ptr = (void *) (((char *) p) - sizeof(UWord));
+	void *ptr = (void *) (((char *) p) - sizeof(Uint));
 	Allctr_t *allctr = *((Allctr_t **) ptr);
 	erts_mtx_lock(&allctr->mutex);
 	do_erts_alcu_free(type, allctr, ptr);
@@ -2710,7 +2698,7 @@ do_erts_alcu_realloc(ErtsAlcType_t type,
 		     void *extra,
 		     void *p,
 		     Uint size,
-		     UWord flgs)
+		     Uint flgs)
 {
     Allctr_t *allctr = (Allctr_t *) extra; 
     Block_t *blk;
@@ -2792,21 +2780,13 @@ do_erts_alcu_realloc(ErtsAlcType_t type,
 	Block_t *new_blk;
 	if(IS_SBC_BLK(blk)) {
 	do_carrier_resize:
-#if HALFWORD_HEAP
-	    new_blk = resize_carrier(allctr, blk, size, CFLG_SBC | CFLG_FORCE_MSEG);
-#else
 	    new_blk = resize_carrier(allctr, blk, size, CFLG_SBC);
-#endif
 	    res = new_blk ? BLK2UMEM(new_blk) : NULL;
 	}
 	else if (flgs & ERTS_ALCU_FLG_FAIL_REALLOC_MOVE)
 	    return NULL;
 	else {
-#if HALFWORD_HEAP
-	    new_blk = create_carrier(allctr, size, CFLG_SBC | CFLG_FORCE_MSEG);
-#else
 	    new_blk = create_carrier(allctr, size, CFLG_SBC);
-#endif
 	    if (new_blk) {
 		res = BLK2UMEM(new_blk);
 		sys_memcpy((void *) res,
@@ -2982,7 +2962,7 @@ erts_alcu_realloc_thr_pref(ErtsAlcType_t type, void *extra, void *p, Uint size)
     if (!p)
 	return erts_alcu_alloc_thr_pref(type, extra, size);
 
-    ptr = (void *) (((char *) p) - sizeof(UWord));
+    ptr = (void *) (((char *) p) - sizeof(Uint));
     used_allctr = *((Allctr_t **) ptr);
 
     ix = erts_alc_get_thr_ix();
@@ -2996,32 +2976,32 @@ erts_alcu_realloc_thr_pref(ErtsAlcType_t type, void *extra, void *p, Uint size)
     res = do_erts_alcu_realloc(type,
 			       used_allctr,
 			       ptr,
-			       size + sizeof(UWord),
+			       size + sizeof(Uint),
 			       (pref_allctr != used_allctr
 				? ERTS_ALCU_FLG_FAIL_REALLOC_MOVE
 				: 0));
     erts_mtx_unlock(&used_allctr->mutex);
     if (res) {
 	ASSERT(used_allctr == *((Allctr_t **) res));
-	res = (void *) (((char *) res) + sizeof(UWord));
+	res = (void *) (((char *) res) + sizeof(Uint));
 	DEBUG_CHECK_ALIGNMENT(res);
     }
     else {
 	erts_mtx_lock(&pref_allctr->mutex);
-	res = do_erts_alcu_alloc(type, pref_allctr, size + sizeof(UWord));
+	res = do_erts_alcu_alloc(type, pref_allctr, size + sizeof(Uint));
 	erts_mtx_unlock(&pref_allctr->mutex);
 	if (res) {
 	    Block_t *blk;
 	    size_t cpy_size;
 
 	    *((Allctr_t **) res) = pref_allctr;
-	    res = (void *) (((char *) res) + sizeof(UWord));
+	    res = (void *) (((char *) res) + sizeof(Uint));
 
 	    DEBUG_CHECK_ALIGNMENT(res);
 
 	    erts_mtx_lock(&used_allctr->mutex);
 	    blk = UMEM2BLK(ptr);
-	    cpy_size = BLK_SZ(blk) - ABLK_HDR_SZ - sizeof(UWord);
+	    cpy_size = BLK_SZ(blk) - ABLK_HDR_SZ - sizeof(Uint);
 	    if (cpy_size > size)
 		cpy_size = size;
 	    sys_memcpy(res, p, cpy_size);
@@ -3046,7 +3026,7 @@ erts_alcu_realloc_mv_thr_pref(ErtsAlcType_t type, void *extra,
     if (!p)
 	return erts_alcu_alloc_thr_pref(type, extra, size);
 
-    ptr = (void *) (((char *) p) - sizeof(UWord));
+    ptr = (void *) (((char *) p) - sizeof(Uint));
     used_allctr = *((Allctr_t **) ptr);
 
     ix = erts_alc_get_thr_ix();
@@ -3057,7 +3037,7 @@ erts_alcu_realloc_mv_thr_pref(ErtsAlcType_t type, void *extra,
     ASSERT(used_allctr && pref_allctr);
 
     erts_mtx_lock(&pref_allctr->mutex);
-    res = do_erts_alcu_alloc(type, pref_allctr, size + sizeof(UWord));
+    res = do_erts_alcu_alloc(type, pref_allctr, size + sizeof(Uint));
     if (!res) {
 	erts_mtx_unlock(&pref_allctr->mutex);
 	res = erts_alcu_realloc_thr_pref(type, extra, p, size);
@@ -3068,7 +3048,7 @@ erts_alcu_realloc_mv_thr_pref(ErtsAlcType_t type, void *extra,
 	Allctr_t *allctr;
 
 	*((Allctr_t **) res) = pref_allctr;
-	res = (void *) (((char *) res) + sizeof(UWord));
+	res = (void *) (((char *) res) + sizeof(Uint));
 
 	DEBUG_CHECK_ALIGNMENT(res);
 
@@ -3081,7 +3061,7 @@ erts_alcu_realloc_mv_thr_pref(ErtsAlcType_t type, void *extra,
 	}
 
 	blk = UMEM2BLK(ptr);
-	cpy_size = BLK_SZ(blk) - ABLK_HDR_SZ - sizeof(UWord);
+	cpy_size = BLK_SZ(blk) - ABLK_HDR_SZ - sizeof(Uint);
 	if (cpy_size > size)
 	    cpy_size = size;
 	sys_memcpy(res, p, cpy_size);
@@ -3158,11 +3138,11 @@ erts_alcu_start(Allctr_t *allctr, AllctrInit_t *init)
     if (allctr->min_block_size < ABLK_HDR_SZ)
 	goto error;
     allctr->min_block_size		= UNIT_CEILING(allctr->min_block_size
-						       + sizeof(UWord));
+						       + sizeof(Uint));
 
 #if HAVE_ERTS_MSEG
-    if (allctr->mseg_opt.abs_shrink_th > ~((UWord) 0) / 100)
-	allctr->mseg_opt.abs_shrink_th = ~((UWord) 0) / 100;
+    if (allctr->mseg_opt.abs_shrink_th > ~((Uint) 0) / 100)
+	allctr->mseg_opt.abs_shrink_th = ~((Uint) 0) / 100;
 #endif
 
 #ifdef USE_THREADS
@@ -3202,15 +3182,15 @@ erts_alcu_start(Allctr_t *allctr, AllctrInit_t *init)
 	allctr->mbc_header_size = (UNIT_CEILING(allctr->mbc_header_size
 						+ FBLK_FTR_SZ
 						+ ABLK_HDR_SZ
-						+ sizeof(UWord))
+						+ sizeof(Uint))
 				   - ABLK_HDR_SZ
-				   - sizeof(UWord));
+				   - sizeof(Uint));
 	allctr->sbc_header_size = (UNIT_CEILING(sizeof(Carrier_t)
 						+ FBLK_FTR_SZ
 						+ ABLK_HDR_SZ
-						+ sizeof(UWord))
+						+ sizeof(Uint))
 				   - ABLK_HDR_SZ
-				   - sizeof(UWord));
+				   - sizeof(Uint));
     }
     else
 #endif
@@ -3228,21 +3208,12 @@ erts_alcu_start(Allctr_t *allctr, AllctrInit_t *init)
     if (allctr->main_carrier_size) {
 	Block_t *blk;
 
-#if HALFWORD_HEAP
-	blk = create_carrier(allctr,
-			     allctr->main_carrier_size,
-			     CFLG_MBC
-			     | CFLG_FORCE_SIZE
-			     | CFLG_FORCE_MSEG
-			     | CFLG_MAIN_CARRIER);
-#else
 	blk = create_carrier(allctr,
 			     allctr->main_carrier_size,
 			     CFLG_MBC
 			     | CFLG_FORCE_SIZE
 			     | CFLG_FORCE_SYS_ALLOC
 			     | CFLG_MAIN_CARRIER);
-#endif
 	if (!blk)
 	    goto error;
 
@@ -3438,7 +3409,7 @@ check_blk_carrier(Allctr_t *allctr, Block_t *iblk)
 	    is_free_blk = (int) IS_FREE_BLK(blk);
 	    if(is_free_blk) {
 		if (IS_NOT_LAST_BLK(blk))
-		    ASSERT(*((UWord *) (((char *) blk)+blk_sz-sizeof(UWord)))
+		    ASSERT(*((Uint *) (((char *) blk)+blk_sz-sizeof(Uint)))
 			   == blk_sz);
 	    }
 
@@ -3446,7 +3417,7 @@ check_blk_carrier(Allctr_t *allctr, Block_t *iblk)
 		(*allctr->check_block)(allctr, blk, (int) is_free_blk);
 
 	    if (IS_LAST_BLK(blk)) {
-		carrier_end = ((char *) NXT_BLK(blk)) + sizeof(UWord);
+		carrier_end = ((char *) NXT_BLK(blk)) + sizeof(Uint);
 		mbc = *((Carrier_t **) NXT_BLK(blk));
 		prev_blk = NULL;
 		blk = MBC2FBLK(allctr, mbc);
@@ -3462,7 +3433,7 @@ check_blk_carrier(Allctr_t *allctr, Block_t *iblk)
 	ASSERT((((char *) mbc)
 		+ allctr->mbc_header_size
 		+ tot_blk_sz
-		+ sizeof(UWord)) == carrier_end);
+		+ sizeof(Uint)) == carrier_end);
 	ASSERT(((char *) mbc) + CARRIER_SZ(mbc) == carrier_end);
 
 	if (allctr->check_mbc)

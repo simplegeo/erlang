@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- *
- * Copyright Ericsson AB 1999-2010. All Rights Reserved.
- *
+ * 
+ * Copyright Ericsson AB 1999-2009. All Rights Reserved.
+ * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- *
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
+ * 
  * %CopyrightEnd%
  */
 
@@ -39,10 +39,10 @@ static Eterm check_process_code(Process* rp, Module* modp);
 static void delete_code(Process *c_p, ErtsProcLocks c_p_locks, Module* modp);
 static void delete_export_references(Eterm module);
 static int purge_module(int module);
-static int is_native(BeamInstr* code);
+static int is_native(Eterm* code);
 static int any_heap_ref_ptrs(Eterm* start, Eterm* end, char* mod_start, Uint mod_size);
 static int any_heap_refs(Eterm* start, Eterm* end, char* mod_start, Uint mod_size);
-static void remove_from_address_table(BeamInstr* code);
+static void remove_from_address_table(Eterm* code);
 
 Eterm
 load_module_2(BIF_ALIST_2)
@@ -337,14 +337,15 @@ BIF_RETTYPE finish_after_on_load_2(BIF_ALIST_2)
 		ep->code[0] == BIF_ARG_1 &&
 		ep->code[4] != 0) {
 		ep->address = (void *) ep->code[4];
+		ep->code[3] = 0;
 		ep->code[4] = 0;
 	    }
 	}
 	modp->code[MI_ON_LOAD_FUNCTION_PTR] = 0;
 	set_default_trace_pattern(BIF_ARG_1);
     } else if (BIF_ARG_2 == am_false) {
-	BeamInstr* code;
-	BeamInstr* end;
+	Eterm* code;
+	Eterm* end;
 
 	/*
 	 * The on_load function failed. Remove the loaded code.
@@ -353,7 +354,7 @@ BIF_RETTYPE finish_after_on_load_2(BIF_ALIST_2)
 	 */
 	erts_total_code_size -= modp->code_length;
 	code = modp->code;
-	end = (BeamInstr *)((char *)code + modp->code_length);
+	end = (Eterm *)((char *)code + modp->code_length);
 	erts_cleanup_funs_on_purge(code, end);
 	beam_catches_delmod(modp->catches, code, modp->code_length);
 	erts_free(ERTS_ALC_T_CODE, (void *) code);
@@ -367,6 +368,7 @@ BIF_RETTYPE finish_after_on_load_2(BIF_ALIST_2)
     BIF_RET(am_true);
 }
 
+
 static void
 set_default_trace_pattern(Eterm module)
 {
@@ -395,13 +397,13 @@ set_default_trace_pattern(Eterm module)
 static Eterm
 check_process_code(Process* rp, Module* modp)
 {
-    BeamInstr* start;
+    Eterm* start;
     char* mod_start;
     Uint mod_size;
-    BeamInstr* end;
+    Eterm* end;
     Eterm* sp;
 #ifndef HYBRID /* FIND ME! */
-    struct erl_off_heap_header* oh;
+    ErlFunThing* funp;
     int done_gc = 0;
 #endif
 
@@ -416,7 +418,7 @@ check_process_code(Process* rp, Module* modp)
      * Pick up limits for the module.
      */
     start = modp->old_code;
-    end = (BeamInstr *)((char *)start + modp->old_code_length);
+    end = (Eterm *)((char *)start + modp->old_code_length);
     mod_start = (char *) start;
     mod_size = modp->old_code_length;
 
@@ -469,30 +471,27 @@ check_process_code(Process* rp, Module* modp)
 
 #ifndef HYBRID /* FIND ME! */
  rescan:
-    for (oh = MSO(rp).first; oh; oh = oh->next) {
-	if (thing_subtag(oh->thing_word) == FUN_SUBTAG) {
-	    ErlFunThing* funp = (ErlFunThing*) oh;
-	    BeamInstr* fun_code;
+    for (funp = MSO(rp).funs; funp; funp = funp->next) {
+	Eterm* fun_code;
 
-	    fun_code = funp->fe->address;
+	fun_code = funp->fe->address;
 
-	    if (INSIDE((BeamInstr *) funp->fe->address)) {
-		if (done_gc) {
-		    return am_true;
-		} else {
-		    /*
-		    * Try to get rid of this fun by garbage collecting.
-		    * Clear both fvalue and ftrace to make sure they
-		    * don't hold any funs.
-		    */
-		    rp->freason = EXC_NULL;
-		    rp->fvalue = NIL;
-		    rp->ftrace = NIL;
-		    done_gc = 1;
-		    FLAGS(rp) |= F_NEED_FULLSWEEP;
-		    (void) erts_garbage_collect(rp, 0, rp->arg_reg, rp->arity);
-		    goto rescan;
-		}
+	if (INSIDE((Eterm *) funp->fe->address)) {
+	    if (done_gc) {
+		return am_true;
+	    } else {
+		/*
+		 * Try to get rid of this fun by garbage collecting.
+		 * Clear both fvalue and ftrace to make sure they
+		 * don't hold any funs.
+		 */
+		rp->freason = EXC_NULL;
+		rp->fvalue = NIL;
+		rp->ftrace = NIL;
+		done_gc = 1;
+                FLAGS(rp) |= F_NEED_FULLSWEEP;
+		(void) erts_garbage_collect(rp, 0, rp->arg_reg, rp->arity);
+		goto rescan;
 	    }
 	}
     }
@@ -577,7 +576,7 @@ any_heap_ref_ptrs(Eterm* start, Eterm* end, char* mod_start, Uint mod_size)
 	switch (primary_tag(val)) {
 	case TAG_PRIMARY_BOXED:
 	case TAG_PRIMARY_LIST:
-	    if (in_area(EXPAND_POINTER(val), mod_start, mod_size)) {
+	    if (in_area(val, mod_start, mod_size)) {
 		return 1;
 	    }
 	    break;
@@ -597,7 +596,7 @@ any_heap_refs(Eterm* start, Eterm* end, char* mod_start, Uint mod_size)
 	switch (primary_tag(val)) {
 	case TAG_PRIMARY_BOXED:
 	case TAG_PRIMARY_LIST:
-	    if (in_area(EXPAND_POINTER(val), mod_start, mod_size)) {
+	    if (in_area(val, mod_start, mod_size)) {
 		return 1;
 	    }
 	    break;
@@ -618,8 +617,8 @@ any_heap_refs(Eterm* start, Eterm* end, char* mod_start, Uint mod_size)
 static int
 purge_module(int module)
 {
-    BeamInstr* code;
-    BeamInstr* end;
+    Eterm* code;
+    Eterm* end;
     Module* modp;
 
     /*
@@ -643,9 +642,21 @@ purge_module(int module)
     /*
      * Unload any NIF library
      */
-    if (modp->old_nif != NULL) {
-	erts_unload_nif(modp->old_nif);
-	modp->old_nif = NULL;
+    if (modp->old_nif.handle != NULL) {
+	if (modp->old_nif.entry->unload != NULL) {
+	    ErlNifEnv env;
+	    env.nif_data = modp->old_nif.data;
+	    env.proc = NULL; /* BUGBUG: unlink can not access calling process */
+	    env.hp = NULL;
+	    env.hp_end = NULL;
+	    env.heap_frag_sz = 0;
+	    env.fpe_was_unmasked = erts_block_fpe();
+	    modp->old_nif.entry->unload(NULL, modp->old_nif.data);
+	    erts_unblock_fpe(env.fpe_was_unmasked);
+	}
+	erts_sys_ddll_close(modp->old_nif.handle);
+	modp->old_nif.handle = NULL;
+	modp->old_nif.entry = NULL;
     }
 
     /*
@@ -654,7 +665,7 @@ purge_module(int module)
     ASSERT(erts_total_code_size >= modp->old_code_length);
     erts_total_code_size -= modp->old_code_length;
     code = modp->old_code;
-    end = (BeamInstr *)((char *)code + modp->old_code_length);
+    end = (Eterm *)((char *)code + modp->old_code_length);
     erts_cleanup_funs_on_purge(code, end);
     beam_catches_delmod(modp->old_catches, code, modp->old_code_length);
     erts_free(ERTS_ALC_T_CODE, (void *) code);
@@ -666,7 +677,7 @@ purge_module(int module)
 }
 
 static void
-remove_from_address_table(BeamInstr* code)
+remove_from_address_table(Eterm* code)
 {
     int i;
 
@@ -721,7 +732,8 @@ delete_code(Process *c_p, ErtsProcLocks c_p_locks, Module* modp)
     modp->code = NULL;
     modp->code_length = 0;
     modp->catches = BEAM_CATCHES_NIL;
-    modp->nif = NULL;
+    modp->nif.handle = NULL;
+    modp->nif.entry = NULL;
 }
 
 
@@ -739,11 +751,11 @@ delete_export_references(Eterm module)
 	Export *ep = export_list(i);
         if (ep != NULL && (ep->code[0] == module)) {
 	    if (ep->address == ep->code+3 &&
-		(ep->code[3] == (BeamInstr) em_apply_bif)) {
+		(ep->code[3] == (Eterm) em_apply_bif)) {
 		continue;
 	    }
 	    ep->address = ep->code+3;
-	    ep->code[3] = (BeamInstr) em_call_error_handler;
+	    ep->code[3] = (Uint) em_call_error_handler;
 	    ep->code[4] = 0;
 	    MatchSetUnref(ep->match_prog_set);
 	    ep->match_prog_set = NULL;
@@ -775,7 +787,7 @@ beam_make_current_old(Process *c_p, ErtsProcLocks c_p_locks, Eterm module)
 }
 
 static int
-is_native(BeamInstr* code)
+is_native(Eterm* code)
 {
     return ((Eterm *)code[MI_FUNCTIONS])[1] != 0;
 }

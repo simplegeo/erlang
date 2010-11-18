@@ -1,19 +1,19 @@
 #
 # %CopyrightBegin%
-#
-# Copyright Ericsson AB 1998-2010. All Rights Reserved.
-#
+# 
+# Copyright Ericsson AB 1998-2009. All Rights Reserved.
+# 
 # The contents of this file are subject to the Erlang Public License,
 # Version 1.1, (the "License"); you may not use this file except in
 # compliance with the License. You should have received a copy of the
 # Erlang Public License along with this software. If not, it can be
 # retrieved online at http://www.erlang.org/.
-#
+# 
 # Software distributed under the License is distributed on an "AS IS"
 # basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 # the License for the specific language governing rights and limitations
 # under the License.
-#
+# 
 # %CopyrightEnd%
 #
 #
@@ -72,9 +72,6 @@ XML_CHAPTER_FILES = \
 	notes.xml
 
 BOOK_FILES = book.xml
-
-XML_FILES = $(BOOK_FILES) $(XML_APPLICATION_FILES) $(XML_REF3_FILES) \
-            $(XML_PART_FILES) $(XML_CHAPTER_FILES) 
 
 GIF_FILES = \
 	book.gif \
@@ -172,7 +169,6 @@ JD_GIF_FILES = \
 
 PACK_DIR = com/ericsson/otp/ic
 JAVA_SOURCE_DIR = ../../java_src/$(PACK_DIR)
-JAVA_OUT_DIR = ../html/java
 
 JD_PACK_HTML_FILES = \
 	package-frame.html \
@@ -180,10 +176,10 @@ JD_PACK_HTML_FILES = \
 	package-tree.html
 
 JAVADOC_PACK_HTML_FILES = \
-	$(JAVA_SOURCE_FILES:%.java=$(JAVA_OUT_DIR)/$(PACK_DIR)/%.html) \
-	$(JD_PACK_HTML_FILES:%=$(JAVA_OUT_DIR)/$(PACK_DIR)/%)
+	$(JAVA_SOURCE_FILES:%.java=../html/java/$(PACK_DIR)/%.html) \
+	$(JD_PACK_HTML_FILES:%=../html/java/$(PACK_DIR)/%)
 
-JAVADOC_INDEX_HTML_FILES = $(JD_INDEX_HTML_FILES:%=$(JAVA_OUT_DIR)/%)
+JAVADOC_INDEX_HTML_FILES = $(JD_INDEX_HTML_FILES:%=../html/java/%)
 
 JAVADOC_GENERATED_FILES = $(JAVADOC_PACK_HTML_FILES) $(JAVADOC_INDEX_HTML_FILES)
 
@@ -211,11 +207,7 @@ $(HTMLDIR)/%.gif: %.gif
 
 ifdef DOCSUPPORT
 
-ifneq (,$(JAVA))
 docs: pdf html man $(JAVADOC_GENERATED_FILES)
-else
-docs: pdf html man
-endif
 
 $(TOP_PDF_FILE): $(XML_FILES)
 
@@ -252,14 +244,11 @@ clean clean_docs clean_tex:
 	rm -f $(HTML_FILES) $(MAN3_FILES)
 	rm -f $(TOP_PDF_FILE) $(TOP_PS_FILE)
 	rm -f errs core *~ *xmls_output *xmls_errs $(LATEX_CLEAN) 
-	rm -rf $(JAVA_OUT_DIR)
+	rm -rf ../html/java/*
 
 endif
 
-$(JAVA_OUT_DIR):
-	mkdir $(JAVA_OUT_DIR)
-
-$(JAVADOC_GENERATED_FILES): $(JAVA_OUT_DIR)
+$(JAVADOC_GENERATED_FILES):
 	@(cd ../../java_src; $(JAVADOC) $(JAVADOCFLAGS) com.ericsson.otp.ic)
 
 man: $(MAN3_FILES)
@@ -305,7 +294,6 @@ release_docs_spec: docs
 	$(INSTALL_DATA) $(GIF_FILES) $(EXTRA_FILES) $(HTML_FILES) \
 		$(RELSYSDIR)/doc/html
 	$(INSTALL_DATA) $(INFO_FILE) $(RELSYSDIR)
-ifneq (,$(JAVA))
 	$(INSTALL_DIR) $(RELSYSDIR)/doc/html/java
 	$(INSTALL_DIR) $(RELSYSDIR)/doc/html/java/resources
 	$(INSTALL_DIR) $(RELSYSDIR)/doc/html/java/com
@@ -318,7 +306,6 @@ ifneq (,$(JAVA))
 		$(RELSYSDIR)/doc/html/java/resources
 	$(INSTALL_DATA) $(JAVADOC_PACK_HTML_FILES) \
 		$(RELSYSDIR)/doc/html/java/com/ericsson/otp/ic
-endif
 	$(INSTALL_DIR) $(RELEASE_PATH)/man/man3
 	$(INSTALL_DATA) $(MAN3_FILES) $(RELEASE_PATH)/man/man3
 

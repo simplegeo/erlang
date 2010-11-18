@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 -module(ets_SUITE).
@@ -33,7 +33,7 @@
 -export([misc/1, dups/1, misc1/1, safe_fixtable/1, info/1, tab2list/1]).
 -export([files/1, tab2file/1, tab2file2/1, tab2file3/1, tabfile_ext1/1,
 	tabfile_ext2/1, tabfile_ext3/1, tabfile_ext4/1]).
--export([heavy/1, heavy_lookup/1, heavy_lookup_element/1, heavy_concurrent/1]).
+-export([heavy/1, heavy_lookup/1, heavy_lookup_element/1]).
 -export([lookup_element/1, lookup_element_mult/1]).
 -export([fold/1]).
 -export([foldl_ordered/1, foldr_ordered/1, foldl/1, foldr/1, fold_empty/1]).
@@ -63,8 +63,7 @@
 	 meta_lookup_unnamed_read/1, meta_lookup_unnamed_write/1, 
 	 meta_lookup_named_read/1, meta_lookup_named_write/1,
 	 meta_newdel_unnamed/1, meta_newdel_named/1]).
--export([smp_insert/1, smp_fixed_delete/1, smp_unfix_fix/1, smp_select_delete/1,
-         otp_8166/1, otp_8732/1]).
+-export([smp_insert/1, smp_fixed_delete/1, smp_unfix_fix/1, smp_select_delete/1, otp_8166/1]).
 -export([exit_large_table_owner/1,
 	 exit_many_large_table_owner/1,
 	 exit_many_tables_owner/1,
@@ -90,11 +89,8 @@
 	 match_delete_do/1, match_delete3_do/1, firstnext_do/1, 
 	 slot_do/1, match1_do/1, match2_do/1, match_object_do/1, match_object2_do/1,
 	 misc1_do/1, safe_fixtable_do/1, info_do/1, dups_do/1, heavy_lookup_do/1,
-	 heavy_lookup_element_do/1, member_do/1, otp_5340_do/1, otp_7665_do/1, meta_wb_do/1,
-	 do_heavy_concurrent/1
+	 heavy_lookup_element_do/1, member_do/1, otp_5340_do/1, otp_7665_do/1, meta_wb_do/1
 	]).
-
--export([t_select_reverse/1]).
 
 -include("test_server.hrl").
 
@@ -130,10 +126,10 @@ all(suite) ->
      match_heavy, fold, member,
      t_delete_object, t_init_table, t_whitebox, 
      t_delete_all_objects, t_insert_list, t_test_ms,
-     t_select_delete, t_ets_dets, memory, t_select_reverse,
+     t_select_delete, t_ets_dets, memory,
      t_bucket_disappears,
      select_fail,t_insert_new, t_repair_continuation, otp_5340, otp_6338,
-     otp_6842_select_1000, otp_7665, otp_8732,
+     otp_6842_select_1000, otp_7665,
      meta_wb,
      grow_shrink, grow_pseudo_deleted, shrink_pseudo_deleted,
      meta_smp,
@@ -395,7 +391,7 @@ memory(Config) when is_list(Config) ->
     ?line erts_debug:set_internal_state(available_internal_state, true),
     ?line ok = chk_normal_tab_struct_size(),
     ?line L = [T1,T2,T3,T4] = fill_sets_int(1000),
-    ?line XRes1 = adjust_xmem(L, {13862,13072,13072,13078}),
+    ?line XRes1 = adjust_xmem(L, {16862,16072,16072,16078}),
     ?line Res1 = {?S(T1),?S(T2),?S(T3),?S(T4)},
     ?line lists:foreach(fun(T) ->
  				Before = ets:info(T,size),
@@ -406,7 +402,7 @@ memory(Config) when is_list(Config) ->
 					  [Key, ets:info(T,type), Before, ets:info(T,size), Objs])
 		  end,
 		  L),
-    ?line XRes2 = adjust_xmem(L, {13852,13063,13054,13060}),
+    ?line XRes2 = adjust_xmem(L, {16849,16060,16048,16054}),
     ?line Res2 = {?S(T1),?S(T2),?S(T3),?S(T4)},
     ?line lists:foreach(fun(T) ->
  				Before = ets:info(T,size),
@@ -417,7 +413,7 @@ memory(Config) when is_list(Config) ->
 					  [Key, ets:info(T,type), Before, ets:info(T,size), Objs])
 			end,
 			L),
-    ?line XRes3 = adjust_xmem(L, {13842,13054,13036,13042}),
+    ?line XRes3 = adjust_xmem(L, {16836,16048,16024,16030}),
     ?line Res3 = {?S(T1),?S(T2),?S(T3),?S(T4)},
     ?line lists:foreach(fun(T) ->
 			  ?line ets:delete_all_objects(T)
@@ -789,67 +785,6 @@ t_test_ms(Config) when is_list(Config) ->
 						   ['$$']}]),
     ?line true = (if is_list(String) -> true; true -> false end),
     ?line verify_etsmem(EtsMem).
-
-t_select_reverse(doc) ->
-    ["Test the select reverse BIF's"];
-t_select_reverse(suite) ->
-    [];
-t_select_reverse(Config) when is_list(Config) ->
-    ?line Table = ets:new(xxx, [ordered_set]),
-    ?line filltabint(Table,1000),
-    ?line A = lists:reverse(ets:select(Table,[{{'$1', '_'},
-					 [{'>',
-					   {'rem',
-					    '$1', 5},
-					   2}],
-					 ['$_']}])),
-    ?line A = ets:select_reverse(Table,[{{'$1', '_'},
-				   [{'>',
-				     {'rem',
-				      '$1', 5},
-				     2}],
-				   ['$_']}]),
-    ?line A = reverse_chunked(Table,[{{'$1', '_'},
-				   [{'>',
-				     {'rem',
-				      '$1', 5},
-				     2}],
-				   ['$_']}],3),
-    % A set/bag/duplicate_bag should get the same result regardless
-    % of select or select_reverse
-    ?line Table2 = ets:new(xxx, [set]),
-    ?line filltabint(Table2,1000),
-    ?line Table3 = ets:new(xxx, [bag]),
-    ?line filltabint(Table3,1000),
-    ?line Table4 = ets:new(xxx, [duplicate_bag]),
-    ?line filltabint(Table4,1000),
-    ?line lists:map(fun(Tab) ->
-		      B = ets:select(Tab,[{{'$1', '_'},
-					   [{'>',
-					     {'rem',
-					      '$1', 5},
-					     2}],
-					   ['$_']}]),
-		      B = ets:select_reverse(Tab,[{{'$1', '_'},
-						   [{'>',
-						     {'rem',
-						      '$1', 5},
-						     2}],
-						   ['$_']}])
-	      end,[Table2, Table3, Table4]),
-    ok.
-
-
-
-reverse_chunked(T,MS,N) ->
-    do_reverse_chunked(ets:select_reverse(T,MS,N),[]).
-
-do_reverse_chunked('$end_of_table',Acc) ->
-    lists:reverse(Acc);
-do_reverse_chunked({L,C},Acc) ->
-    NewAcc = lists:reverse(L)++Acc,
-    do_reverse_chunked(ets:select_reverse(C), NewAcc).
-
 
 t_select_delete(doc) ->
     ["Test the ets:select_delete/2 and ets:select_count/2 BIF's"];
@@ -3942,7 +3877,7 @@ make_sub_binary(List, Num) when is_list(List) ->
     {_,B} = split_binary(Bin, N+1),
     B.
 
-heavy(suite) -> [heavy_lookup, heavy_lookup_element, heavy_concurrent].
+heavy(suite) -> [heavy_lookup, heavy_lookup_element].
 
 %% Lookup stuff like crazy...
 heavy_lookup(doc) -> ["Performs multiple lookups for every key ",
@@ -4004,44 +3939,6 @@ do_lookup_element(Tab, N, M) ->
 	      _ -> ?line do_lookup_element(Tab, N, M+1)
     end.
 
-
-heavy_concurrent(_Config) ->
-    repeat_for_opts(do_heavy_concurrent).
-
-do_heavy_concurrent(Opts) ->
-    ?line Size = 20000,
-    ?line EtsMem = etsmem(),
-    ?line Tab = ets:new(blupp, [set, public, {keypos, 2} | Opts]),
-    ?line ok = fill_tab2(Tab, 0, Size),
-    ?line Procs = lists:map(
-		    fun (N) ->
-			    spawn_link(
-			      fun () ->
-				      do_heavy_concurrent_proc(Tab, Size, N)
-			      end)
-		    end,
-		    lists:seq(1, 500)),
-    ?line lists:foreach(fun (P) ->
-				M = erlang:monitor(process, P),
-				receive
-				    {'DOWN', M, process, P, _} ->
-					ok
-				end
-			end,
-			Procs),
-    ?line true = ets:delete(Tab),
-    ?line verify_etsmem(EtsMem).
-
-do_heavy_concurrent_proc(_Tab, 0, _Offs) ->
-    done;
-do_heavy_concurrent_proc(Tab, N, Offs) when (N+Offs) rem 100 == 0 ->
-    Data = {"here", are, "S O M E ", data, "toooooooooooooooooo", insert,
-	    make_ref(), make_ref(), make_ref()},
-    true=ets:insert(Tab, {{self(),Data}, N}),
-    do_heavy_concurrent_proc(Tab, N-1, Offs);
-do_heavy_concurrent_proc(Tab, N, Offs) ->
-    _ = ets:lookup(Tab, N),
-    do_heavy_concurrent_proc(Tab, N-1, Offs).
 
 fold(suite) -> [foldl_ordered, foldr_ordered,
 		foldl, foldr,
@@ -4633,15 +4530,9 @@ meta_wb(Config) when is_list(Config) ->
 
 meta_wb_do(Opts) ->
     %% Do random new/delete/rename of colliding named tables
-    Names0 = [pioneer | colliding_names(pioneer)],
-
-    %% Remove any names that happen to exist as tables already
-    Names = lists:filter(fun(Name) -> ets:info(Name) == undefined end,
-                         Names0),
+    Names = [pioneer | colliding_names(pioneer)],
     Len = length(Names),
     OpFuns = {fun meta_wb_new/4, fun meta_wb_delete/4, fun meta_wb_rename/4},
-
-    ?line true = (Len >= 3),
 
     io:format("Colliding names = ~p\n",[Names]),
     F = fun(0,_,_) -> ok;
@@ -5113,14 +5004,8 @@ verify_table_load(T) ->
 	       end.
     
 		  
-otp_8732(doc) -> ["ets:select on a tree with NIL key object"];
-otp_8732(Config) when is_list(Config) ->
-    Tab = ets:new(noname,[ordered_set]),
-    filltabstr(Tab,999),
-    ets:insert(Tab,{[],"nasty NIL object"}),
-    ?line [] = ets:match(Tab,{'_',nomatch}), %% Will hang if bug not fixed
-    ok.
-
+    
+    
 
 smp_select_delete(suite) -> [];
 smp_select_delete(doc) ->
@@ -5445,7 +5330,7 @@ only_if_smp(Schedulers, Func) ->
 %% Repeat test function with different combination of table options
 %%       
 repeat_for_opts(F) ->
-    repeat_for_opts(F, [write_concurrency, read_concurrency]).
+    repeat_for_opts(F, [write_concurrency]).
 
 repeat_for_opts(F, OptGenList) when is_atom(F) ->
     repeat_for_opts(fun(Opts) -> ?MODULE:F(Opts) end, OptGenList);
@@ -5465,7 +5350,6 @@ repeat_for_opts(F, [Atom | Tail], AccList) when is_atom(Atom) ->
     repeat_for_opts(F, [repeat_for_opts_atom2list(Atom) | Tail ], AccList).
 
 repeat_for_opts_atom2list(all_types) -> [set,ordered_set,bag,duplicate_bag];
-repeat_for_opts_atom2list(write_concurrency) -> [{write_concurrency,false},{write_concurrency,true}];
-repeat_for_opts_atom2list(read_concurrency) -> [{read_concurrency,false},{read_concurrency,true}].
+repeat_for_opts_atom2list(write_concurrency) -> [{write_concurrency,false},{write_concurrency,true}].
 
     

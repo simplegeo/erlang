@@ -4,7 +4,7 @@
 <erlref>
   <header>
     <copyright>
-      <year>1996</year><year>2010</year>
+      <year>1996</year><year>2009</year>
       <holder>Ericsson AB. All Rights Reserved.</holder>
     </copyright>
     <legalnotice>
@@ -13,12 +13,12 @@
       compliance with the License. You should have received a copy of the
       Erlang Public License along with this software. If not, it can be
       retrieved online at http://www.erlang.org/.
-
+    
       Software distributed under the License is distributed on an "AS IS"
       basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
       the License for the specific language governing rights and limitations
       under the License.
-
+    
     </legalnotice>
 
     <title>lists</title>
@@ -30,15 +30,14 @@
   <module>lists</module>
   <modulesummary>List Processing Functions</modulesummary>
   <description>
-    <p>This module contains functions for list processing.</p>
-
+    <p>This module contains functions for list processing. The functions
+      are organized in two groups: those in the first group perform a
+      particular operation on one or more lists, whereas those in the
+      second group are higher-order functions, using a fun as argument
+      to perform an operation on one list.</p>
     <p>Unless otherwise stated, all functions assume that position
       numbering starts at 1. That is, the first element of a list is at
       position 1.</p>
-
-    <p>Two terms <c>T1</c> and <c>T2</c> compare equal if
-      <c>T1&nbsp;==&nbsp;T2</c> evaluates to <c>true</c>. They match
-      if <c>T1&nbsp;=:=&nbsp;T2</c> evaluates to <c>true</c>.</p>
 
     <p>Whenever an <marker
       id="ordering_function"></marker><em>ordering function</em>
@@ -48,7 +47,7 @@
       <item><p>if x <c>F</c> y and y <c>F</c> x then x = y (<c>F</c>
         is antisymmetric);</p>
       </item>
-      <item><p>if x <c>F</c> y and y <c>F</c> z then x <c>F</c> z
+      <item><p>if x <c>F</c> y and and y <c>F</c> z then x <c>F</c> z
         (<c>F</c> is transitive);</p>
       </item>
       <item><p>x <c>F</c> y or y <c>F</c> x (<c>F</c> is total).</p>
@@ -220,7 +219,7 @@
           follows:</p>
         <code type="none">
 flatmap(Fun, List1) ->
-    append(map(Fun, List1)).</code>
+    append(map(Fun, List1))</code>
         <p>Example:</p>
         <pre>
 > <input>lists:flatmap(fun(X)->[X,X] end, [a,b,c]).</input>
@@ -443,7 +442,7 @@ flatmap(Fun, List1) ->
       <desc>
         <p>Returns a list containing the sorted elements of the list
           <c>TupleList1</c>. Sorting is performed on the <c>N</c>th
-          element of the tuples. The sort is stable.</p>
+          element of the tuples.</p>
       </desc>
     </func>
     <func>
@@ -466,7 +465,7 @@ flatmap(Fun, List1) ->
       </desc>
     </func>
     <func>
-      <name>keytake(Key, N, TupleList1) -> {value, Tuple, TupleList2}
+      <name>keytake(Key, N, TupleList1) -> {value, Tuple, TupleList2} 
              | false</name>
       <fsummary>Extract an element from a list of tuples</fsummary>
       <type>
@@ -523,7 +522,7 @@ flatmap(Fun, List1) ->
         <v>&nbsp;A = B = term()</v>
       </type>
       <desc>
-        <p><c>mapfoldl</c> combines the operations of <c>map/2</c> and
+        <p><c>mapfold</c> combines the operations of <c>map/2</c> and
           <c>foldl/3</c> into one pass. An example, summing
           the elements in a list and double them at the same time:</p>
         <pre>
@@ -543,7 +542,7 @@ flatmap(Fun, List1) ->
         <v>&nbsp;A = B = term()</v>
       </type>
       <desc>
-        <p><c>mapfoldr</c> combines the operations of <c>map/2</c> and
+        <p><c>mapfold</c> combines the operations of <c>map/2</c> and
           <c>foldr/3</c> into one pass.</p>
       </desc>
     </func>
@@ -840,7 +839,7 @@ length(lists:seq(From, To, Incr)) == (To-From+Incr) div Incr</code>
           <c>Pred</c>. <c>splitwith/2</c> behaves as if it is defined
           as follows:</p>
         <code type="none">
-splitwith(Pred, List) ->
+splitwith(Pred, List) -> 
     {takewhile(Pred, List), dropwhile(Pred, List)}.</code>
         <p>Examples:</p>
         <pre>

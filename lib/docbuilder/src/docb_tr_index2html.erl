@@ -73,7 +73,9 @@ prune_flat([], _) ->
     [].
 
 keep_pcdata(Trees) ->
-    [T || T = {pcdata, _, _} <- Trees].
+    lists:filter(fun({pcdata, _, _}) -> true;
+		    (_) -> false
+		 end, Trees).
 
 new_trees(FileFuncs) ->
     Files0 = [{File, RefType} || {File, RefType, _} <- FileFuncs],

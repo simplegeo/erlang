@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2004-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2004-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 %% Purpose: Optimizes booleans in guards.
@@ -123,12 +123,6 @@ bopt_block(Reg, Fail, OldIs, [{block,Bl0}|Acc0], St0) ->
 		throw:mixed ->
 		    failed;
 
-		%% There was a reference to a boolean expression
-		%% from inside a protected block (try/catch), to
-		%% a boolean expression outside.
-		  throw:protected_barrier ->
-		    failed;
-
 		  %% The 'xor' operator was used. We currently don't
 		  %% find it worthwile to translate 'xor' operators
 		  %% (the code would be clumsy).
@@ -173,7 +167,7 @@ bopt_block(Reg, Fail, OldIs, [{block,Bl0}|Acc0], St0) ->
 %%  whether the optimized code is guaranteed to work in the same
 %%  way as the original code.
 %%
-%%  Throw an exception if the optimization is not safe.
+%%  Throws an exception if the optmization is not safe.
 %%
 ensure_opt_safe(Bl, NewCode, OldIs, Fail, PreceedingCode, St) ->
     %% Here are the conditions that must be true for the
@@ -190,10 +184,10 @@ ensure_opt_safe(Bl, NewCode, OldIs, Fail, PreceedingCode, St) ->
     %%    by the code that follows.
     %%
     %% 3. Any register that is assigned a value in the optimized
-    %%    code must be UNUSED or KILLED in the following code
-    %%    (because the register might be assigned the wrong value,
-    %%    and even if the value is right it might no longer be
-    %%    assigned on *all* paths leading to its use).
+    %%    code must be UNUSED or KILLED in the following code.
+    %%    (Possible future improvement: Registers that are known
+    %%    to be assigned the SAME value in the original and optimized
+    %%    code don't need to be unused in the following code.)
 
     InitInPreceeding = initialized_regs(PreceedingCode),
 
@@ -310,8 +304,6 @@ dst_regs([{set,[D],_,{bif,_,{f,_}}}|Is], Acc) ->
     dst_regs(Is, [D|Acc]);
 dst_regs([{set,[D],_,{alloc,_,{gc_bif,_,{f,_}}}}|Is], Acc) ->
     dst_regs(Is, [D|Acc]);
-dst_regs([{set,[D],_,move}|Is], Acc) ->
-    dst_regs(Is, [D|Acc]);
 dst_regs([_|Is], Acc) ->
     dst_regs(Is, Acc);
 dst_regs([], Acc) -> ordsets:from_list(Acc).
@@ -422,10 +414,11 @@ bopt_good_args([A|As], Regs) ->
 bopt_good_args([], _) -> ok.
 
 bopt_good_arg({Tag,_}=X, Regs) when Tag =:= x; Tag =:= tmp ->
-    case gb_trees:lookup(X, Regs) of
-	{value,any} -> ok;
-	{value,_} -> throw(mixed);
-	none -> throw(protected_barrier)
+    case gb_trees:get(X, Regs) of
+	any -> ok;
+	_Other ->
+	    %%io:format("not any: ~p: ~p\n", [X,_Other]),
+	    throw(mixed)
     end;
 bopt_good_arg(_, _) -> ok.
 
@@ -631,10 +624,10 @@ fetch_reg(V, [{I,V}|_]) -> {x,I};
 fetch_reg(V, [_|SRs]) -> fetch_reg(V, SRs).
 
 live_regs(Regs) ->
-    foldl(fun ({I,_}, _) ->
-		  I
-	  end, -1, Regs)+1.
-
+    foldl(fun ({I,_}, _) -> I;
+	      ([], Max) -> Max end,
+	  -1, Regs)+1.
+    
     
 %%%
 %%% Convert a block to Static Single Assignment (SSA) form.
@@ -748,7 +741,8 @@ initialized_regs([{bs_context_to_binary,Src}|Is], Regs) ->
 initialized_regs([{label,_},{func_info,_,_,Arity}|_], Regs) ->
     InitRegs = free_vars_regs(Arity),
     add_init_regs(InitRegs, Regs);
-initialized_regs([_|_], Regs) -> Regs.
+initialized_regs([_|_], Regs) -> Regs;
+initialized_regs([], Regs) -> Regs.
 
 add_init_regs([{x,_}=X|T], Regs) ->
     add_init_regs(T, ordsets:add_element(X, Regs));

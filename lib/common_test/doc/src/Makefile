@@ -1,19 +1,19 @@
 #
 # %CopyrightBegin%
-#
-# Copyright Ericsson AB 2003-2010. All Rights Reserved.
-#
+# 
+# Copyright Ericsson AB 2003-2009. All Rights Reserved.
+# 
 # The contents of this file are subject to the Erlang Public License,
 # Version 1.1, (the "License"); you may not use this file except in
 # compliance with the License. You should have received a copy of the
 # Erlang Public License along with this software. If not, it can be
 # retrieved online at http://www.erlang.org/.
-#
+# 
 # Software distributed under the License is distributed on an "AS IS"
 # basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 # the License for the specific language governing rights and limitations
 # under the License.
-#
+# 
 # %CopyrightEnd%
 #
 
@@ -45,8 +45,7 @@ CT_MODULES = \
 	ct_ssh \
 	ct_rpc \
 	ct_snmp \
-	unix_telnet \
-	ct_slave
+	unix_telnet
 
 CT_XML_FILES = $(CT_MODULES:=.xml)
 
@@ -113,16 +112,18 @@ DVIPS_FLAGS +=
 
 CT_SRC_DIR = $(ERL_TOP)/../internal_tools/common_test/src
 
+EDOC_ARGS=[{preprocess,true},{includes,["$(XMERL_DIR)/include","../../../test_server/include","../../include","../../../../erts/lib/kernel/include","../../../../lib/kernel/include","../../../../erts/lib/snmp/include","../../../../lib/snmp/include"]}]
+
+
 $(HTMLDIR)/%.gif: %.gif
 	$(INSTALL_DATA) $< $@
 
 docs: pdf html man
 
 $(CT_XML_FILES): 
-	escript $(DOCGEN)/priv/bin/xml_from_edoc.escript -preprocess true -i $(XMERL_DIR)/include \
-		-i ../../../test_server/include -i  ../../include \
-		-i ../../../../erts/lib/kernel/include -i ../../../../lib/kernel/include \
-		-i ../../../../erts/lib/snmp/include -i ../../../../lib/snmp/include ../../src/$(@:%.xml=%.erl)
+	erl -boot start_clean -noshell \
+	-eval 'docb_gen:module("../../src/$(@:%.xml=%.erl)",$(EDOC_ARGS))' \
+	-s erlang halt
 
 $(TOP_PDF_FILE): $(XML_FILES)
 

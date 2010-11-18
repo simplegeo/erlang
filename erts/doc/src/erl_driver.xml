@@ -4,7 +4,7 @@
 <cref>
   <header>
     <copyright>
-      <year>2001</year><year>2010</year>
+      <year>2001</year><year>2009</year>
       <holder>Ericsson AB. All Rights Reserved.</holder>
     </copyright>
     <legalnotice>
@@ -13,12 +13,12 @@
       compliance with the License. You should have received a copy of the
       Erlang Public License along with this software. If not, it can be
       retrieved online at http://www.erlang.org/.
-
+    
       Software distributed under the License is distributed on an "AS IS"
       basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
       the License for the specific language governing rights and limitations
       under the License.
-
+    
     </legalnotice>
 
     <title>erl_driver</title>
@@ -171,8 +171,8 @@
        asynchronous function calls, using a thread pool provided by
        Erlang. There is also a select call, that can be used for
        asynchronous drivers.</item>
-      <tag><marker id="multi_threading">Multi-threading</marker></tag>
-      <item>
+      <tag>Multi-threading</tag>
+      <item><marker id="multi_threading"></marker>
       <p>A POSIX thread like API for multi-threading is provided. The
          Erlang driver thread API only provide a subset of the functionality
 	 provided by the POSIX thread API. The subset provided is
@@ -245,8 +245,9 @@
       <item>A driver can add and later remove drivers.</item>
       <tag>Monitoring processes</tag>
       <item>A driver can monitor a process that does not own a port.</item>
-      <tag><marker id="version_management">Version management</marker></tag>
+      <tag>Version management</tag>
       <item>
+        <marker id="version_management"></marker>
         <p>Version management is enabled for drivers that have set the
           <seealso marker="driver_entry#extended_marker">extended_marker</seealso>
           field of their
@@ -298,8 +299,6 @@ typedef struct ErlDrvSysInfo {
    int smp_support;
    int async_threads;
    int scheduler_threads;
-   int nif_major_version;
-   int nif_minor_version;
 } ErlDrvSysInfo;
       </code>
 
@@ -366,14 +365,9 @@ typedef struct ErlDrvSysInfo {
            (the same as returned by
           <seealso marker="erts:erlang#system_info_schedulers">erlang:system_info(schedulers)</seealso>).
         </item>
-        <tag><c>nif_major_version</c></tag>
-        <item>The value of <c>ERL_NIF_MAJOR_VERSION</c> when the runtime system was compiled.
-        </item>
-        <tag><c>nif_minor_version</c></tag>
-        <item>The value of <c>ERL_NIF_MINOR_VERSION</c> when the runtime system was compiled.
-        </item>
         </taglist>
       </item>
+
       <tag><marker id="ErlDrvBinary"/>ErlDrvBinary</tag>
       <item>
       <p/>
@@ -781,7 +775,7 @@ typedef struct ErlIOVec {
         <marker id="driver_get_now"></marker>
         <p>This function reads a timestamp into the memory pointed to by 
           the parameter <c>now</c>. See the description of <seealso marker="#ErlDrvNowData">ErlDrvNowData</seealso> for
-          specification of its fields.  </p>
+          specification of it's fields.  </p>
         <p>The return value is 0 unless the <c>now</c> pointer is not
           valid, in which case it is &lt; 0.  </p>
       </desc>
@@ -1298,7 +1292,7 @@ typedef struct ErlIOVec {
 	   has been set in the
 	   <seealso marker="driver_entry">driver_entry</seealso>,
 	   data can be forced into the driver via
-	   <seealso marker="erlang#port_command/3">port_command(Port, Data, [force])</seealso>
+	   <seealso marker="erlang#erlang:port_command/3">port_command(Port, Data, [force])</seealso>
 	   even though the driver has signaled that it is busy.
 	</p>
       </desc>

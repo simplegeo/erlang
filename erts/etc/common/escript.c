@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- *
- * Copyright Ericsson AB 2007-2010. All Rights Reserved.
- *
+ * 
+ * Copyright Ericsson AB 2007-2009. All Rights Reserved.
+ * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- *
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
+ * 
  * %CopyrightEnd%
  */
 /*
@@ -199,10 +199,9 @@ find_prog(char *origpath)
 		    continue;
 		} else {
 		    /* Wow we found the executable. */
-		    strcpy(relpath, wildcard);
+		    strcpy(abspath, wildcard);
 		    FindClose(dir_handle);
-		    look_for_sep = FALSE;
-		    break;
+		    return strsave(abspath);
 		}
 #else
                 dp = opendir(dir);
@@ -217,12 +216,11 @@ find_prog(char *origpath)
 
                         if (strcmp(origpath, dirp->d_name) == 0) {
                             /* Wow we found the executable. */
-                            strcpy(relpath, dir);
-                            strcat(relpath, DIRSEPSTR);
-                            strcat(relpath, dirp->d_name);
+                            strcpy(abspath, dir);
+                            strcat(abspath, DIRSEPSTR);
+                            strcat(abspath, dirp->d_name);
                             closedir(dp);
-			    look_for_sep = FALSE;
-                            break;
+			    return strsave(abspath);
                         }
                     }
                 }
@@ -241,8 +239,8 @@ find_prog(char *origpath)
 #else
         if (!realpath(relpath, abspath)) {
 #endif /* __WIN32__ */
-	    /* Cannot determine absolute path to escript. Try the origin.  */
-	    return strsave(origpath);
+	    /* Cannot determine absolute path to escript. Try the relative.  */
+	    return strsave(relpath);
 	} else {
 	    return strsave(abspath);
 	}
@@ -375,10 +373,11 @@ main(int argc, char** argv)
     if (strcmp(basename, "escript") == 0) {
 #endif
 	/*
-	 * Locate all options before the script name.
+	 * Push all options (without the hyphen) before the script name.
 	 */
 	
 	while (argc > 1 && argv[1][0] == '-') {
+	    PUSH(argv[1]+1);
 	    argc--;
 	    argv++;
 	    last_opt = argv;
@@ -403,7 +402,6 @@ main(int argc, char** argv)
 	    scriptname[len-4] = '\0';
 	}
 #endif
-
 	strcat(scriptname, ".escript");
     }
 
@@ -420,7 +418,7 @@ main(int argc, char** argv)
     PUSH3("-run", "escript", "start");
 
     /*
-     * Push all options before the script name. But omit the leading hyphens.
+     * Push all options (without the hyphen) before the script name.
      */
     
     while (first_opt != last_opt) {
@@ -502,7 +500,7 @@ char *make_commandline(char **argv)
     *(--p) = '\0';
 
     if (debug) {
-	printf("Processed command line:%s\n",buff);
+	printf("Processed commandline:%s\n",buff);
     }
     return buff;
 }

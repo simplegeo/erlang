@@ -1,53 +1,40 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2005-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2005-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 
 -module(httpd_request).
 
--include_lib("inets/src/http_lib/http_internal.hrl").
+-include("http_internal.hrl").
 -include("httpd.hrl").
--include("httpd_internal.hrl").
 
--export([
-	 parse/1, 
-	 whole_body/2, 
-	 validate/3, 
-	 update_mod_data/5,
-	 body_data/2
-	]).
+-export([parse/1, whole_body/2, validate/3, update_mod_data/5,
+	 body_data/2]).
 
 %% Callback API - used for example if the header/body is received a
 %% little at a time on a socket. 
--export([
-	 parse_method/1, parse_uri/1, parse_version/1, parse_headers/1,
-	 whole_body/1
-	]).
-
+-export([parse_method/1, parse_uri/1, parse_version/1, parse_headers/1,
+	 whole_body/1]).
 
 %%%=========================================================================
 %%%  Internal application API
 %%%=========================================================================
 parse([Bin, MaxSizes]) ->
-    ?hdrt("parse", [{bin, Bin}, {max_sizes, MaxSizes}]),    
-    parse_method(Bin, [], MaxSizes, []);
-parse(Unknown) ->
-    ?hdrt("parse", [{unknown, Unknown}]),
-    exit({bad_args, Unknown}).
+         parse_method(Bin, [], MaxSizes, []).
 
 %% Functions that may be returned during the decoding process
 %% if the input data is incompleate. 
@@ -81,11 +68,10 @@ body_data(Headers, Body) ->
  	    {binary_to_list(BodyThisReq), Next}
     end.
 
-
 %%-------------------------------------------------------------------------
 %% validate(Method, Uri, Version) -> ok | {error, {bad_request, Reason} |
 %%			     {error, {not_supported, {Method, Uri, Version}}
-%%      Method = "HEAD" | "GET" | "POST" | "TRACE" | "PUT" | "DELETE"
+%%      Method = "HEAD" | "GET" | "POST" | "TRACE"
 %%      Uri = uri()
 %%      Version = "HTTP/N.M"      
 %% Description: Checks that HTTP-request-line is valid.
@@ -97,10 +83,6 @@ validate("GET", Uri, []) -> %% Simple HTTP/0.9
 validate("GET", Uri, "HTTP/0.9") ->
     validate_uri(Uri);
 validate("GET", Uri, "HTTP/1." ++ _N) ->
-    validate_uri(Uri);
-validate("PUT", Uri, "HTTP/1." ++ _N) ->
-    validate_uri(Uri);
-validate("DELETE", Uri, "HTTP/1." ++ _N) ->
     validate_uri(Uri);
 validate("POST", Uri, "HTTP/1." ++ _N) ->
     validate_uri(Uri);
@@ -132,65 +114,30 @@ update_mod_data(ModData, Method, RequestURI, HTTPVersion, Headers)->
 %%% Internal functions
 %%%========================================================================
 parse_method(<<>>, Method, MaxSizes, Result) ->
-    ?hdrt("parse_method - empty bin", 
-	  [{method, Method}, {max_sizes, MaxSizes}, {result, Result}]),    
     {?MODULE, parse_method, [Method, MaxSizes, Result]};
 parse_method(<<?SP, Rest/binary>>, Method, MaxSizes, Result) ->
-    ?hdrt("parse_method - SP begin", 
-	  [{rest,      Rest}, 
-	   {method,    Method}, 
-	   {max_sizes, MaxSizes}, 
-	   {result,    Result}]),    
     parse_uri(Rest, [], 0, MaxSizes,
 	      [string:strip(lists:reverse(Method)) | Result]);
 parse_method(<<Octet, Rest/binary>>, Method, MaxSizes, Result) ->
-    ?hdrt("parse_method", 
-	  [{octet,     Octet}, 
-	   {rest,      Rest}, 
-	   {method,    Method}, 
-	   {max_sizes, MaxSizes}, 
-	   {result,    Result}]),    
     parse_method(Rest, [Octet | Method], MaxSizes, Result).
 
-parse_uri(_, _, CurrSize, {MaxURI, _}, _) 
-  when (CurrSize > MaxURI) andalso (MaxURI =/= nolimit) -> 
-    ?hdrt("parse_uri", 
-	  [{current_size, CurrSize}, 
-	   {max_uri,      MaxURI}]),    
+parse_uri(_, _, CurrSize, {MaxURI, _}, _) when CurrSize > MaxURI,
+ MaxURI =/= nolimit -> 
     %% We do not know the version of the client as it comes after the
     %% uri send the lowest version in the response so that the client
     %% will be able to handle it.
     HttpVersion = "HTTP/0.9", 
     {error, {uri_too_long, MaxURI}, HttpVersion};
 parse_uri(<<>>, URI, CurrSize, MaxSizes, Result) ->
-    ?hdrt("parse_uri - empty bin", 
-	  [{uri,          URI},
-	   {current_size, CurrSize}, 
-	   {max_sz,       MaxSizes}, 
-	   {result,       Result}]),    
     {?MODULE, parse_uri, [URI, CurrSize, MaxSizes, Result]};
 parse_uri(<<?SP, Rest/binary>>, URI, _, MaxSizes, Result) -> 
-    ?hdrt("parse_uri - SP begin", 
-	  [{uri,          URI},
-	   {max_sz,       MaxSizes}, 
-	   {result,       Result}]),    
     parse_version(Rest, [], MaxSizes, 
 		  [string:strip(lists:reverse(URI)) | Result]);
 %% Can happen if it is a simple HTTP/0.9 request e.i "GET /\r\n\r\n"
-parse_uri(<<?CR, _Rest/binary>> = Data, URI, _, MaxSizes, Result) ->
-    ?hdrt("parse_uri - CR begin", 
-	  [{uri,          URI},
-	   {max_sz,       MaxSizes}, 
-	   {result,       Result}]),    
+parse_uri(<<?CR, _Rest/binary>> = Data, URI, _,MaxSizes, Result) ->
     parse_version(Data, [], MaxSizes, 
 		  [string:strip(lists:reverse(URI)) | Result]);
 parse_uri(<<Octet, Rest/binary>>, URI, CurrSize, MaxSizes, Result) ->
-    ?hdrt("parse_uri", 
-	  [{octet,        Octet}, 
-	   {uri,          URI},
-	   {curr_sz,      CurrSize}, 
-	   {max_sz,       MaxSizes}, 
-	   {result,       Result}]),    
     parse_uri(Rest, [Octet | URI], CurrSize + 1, MaxSizes, Result).
 
 parse_version(<<>>, Version, MaxSizes, Result) ->

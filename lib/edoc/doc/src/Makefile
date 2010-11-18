@@ -103,10 +103,11 @@ html: gifs $(HTML_REF_MAN_FILE)
 man: $(MAN3_FILES)
 
 $(XML_REF3_FILES):
-	escript $(DOCGEN)/priv/bin/xml_from_edoc.escript -def vsn $(EDOC_VSN) -i $(ERL_TOP)/lib/edoc/include $(SRC_DIR)/$(@:%.xml=%.erl)
+	docb_gen -def vsn $(EDOC_VSN) -includes $(INC_DIR) \
+		$(SRC_DIR)/$(@:%.xml=%.erl)
 
 $(XML_CHAPTER_FILES):
-	escript $(DOCGEN)/priv/bin/xml_from_edoc.escript -def vsn $(EDOC_VSN) -chapter ../overview.edoc
+	docb_gen -chapter -def vsn $(EDOC_VSN) ../overview.edoc
 
 gifs: $(GIF_FILES:%=$(HTMLDIR)/%)
 

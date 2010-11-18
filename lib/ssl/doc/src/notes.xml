@@ -4,7 +4,7 @@
 <chapter>
   <header>
     <copyright>
-      <year>1999</year><year>2010</year>
+      <year>1999</year><year>2009</year>
       <holder>Ericsson AB. All Rights Reserved.</holder>
     </copyright>
     <legalnotice>
@@ -13,12 +13,12 @@
       compliance with the License. You should have received a copy of the
       Erlang Public License along with this software. If not, it can be
       retrieved online at http://www.erlang.org/.
-
+    
       Software distributed under the License is distributed on an "AS IS"
       basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
       the License for the specific language governing rights and limitations
       under the License.
-
+    
     </legalnotice>
 
     <title>SSL Release Notes</title>
@@ -30,319 +30,6 @@
   </header>
   <p>This document describes the changes made to the SSL application.
     </p>
-
-    <section><title>SSL 4.0.1</title>
-
-    <section><title>Fixed Bugs and Malfunctions</title>
-      <list>
-        <item>
-          <p>
-	    The server now verifies the client certificate verify
-	    message correctly, instead of causing a case-clause.</p>
-          <p>
-	    Own Id: OTP-8721</p>
-        </item>
-        <item>
-          <p>
-	    The client hello message now always include ALL available
-	    cipher suites (or those specified by the ciphers option).
-	    Previous implementation would filter them based on the
-	    client certificate key usage extension (such filtering
-	    only makes sense for the server certificate).</p>
-          <p>
-	    Own Id: OTP-8772</p>
-        </item>
-        <item>
-          <p>
-	    Fixed handling of the option {mode, list} that was broken
-	    for some packet types for instance line.</p>
-          <p>
-	    Own Id: OTP-8785</p>
-        </item>
-        <item>
-          <p>
-	    Empty packets were not delivered to the client.</p>
-          <p>
-	    Own Id: OTP-8790</p>
-        </item>
-        <item>
-	    <p> Building in a source tree without prebuilt platform
-	    independent build results failed on the SSL examples
-	    when: </p> <list><item> cross building. This has been
-	    solved by not building the SSL examples during a cross
-	    build. </item><item> building on Windows. </item></list>
-          <p>
-	    Own Id: OTP-8791</p>
-        </item>
-        <item>
-          <p>
-	    Fixed a handshake error which occurred on some ssl
-	    implementations.</p>
-          <p>
-	    Own Id: OTP-8793</p>
-        </item>
-      </list>
-    </section>
-
-
-    <section><title>Improvements and New Features</title>
-      <list>
-        <item>
-          <p>
-	    Revise the public_key API - Cleaned up and documented the
-	    public_key API to make it useful for general use, also
-	    changed ssl to use the new API.</p>
-          <p>
-	    Own Id: OTP-8722</p>
-        </item>
-        <item>
-          <p>
-	    Added support for inputing certificates and keys directly
-	    in DER format these options will override the pem-file
-	    options if specified.</p>
-          <p>
-	    Own Id: OTP-8723</p>
-        </item>
-        <item>
-          <p>
-	    To gain interoperability ssl will not check for padding
-	    errors when using TLS 1.0. It is first in TLS 1.1 that
-	    checking the padding is an requirement.</p>
-          <p>
-	    Own Id: OTP-8740</p>
-        </item>
-        <item>
-          <p>
-	    Changed the semantics of the verify_fun option in the
-	    ssl-application so that it takes care of both application
-	    handling of path validation errors and verification of
-	    application specific extensions. This means that it is
-	    now possible for the server application in verify_peer
-	    mode to handle path validation errors. This change moved
-	    some functionality earlier in ssl to the public_key
-	    application.</p>
-          <p>
-	    Own Id: OTP-8770</p>
-        </item>
-        <item>
-          <p>
-	    Added the functionality so that the verification fun will
-	    be called when a certificate is considered valid by the
-	    path validation to allow access to each certificate in
-	    the path to the user application. Also try to verify
-	    subject-AltName, if unable to verify it let the
-	    application verify it.</p>
-          <p>
-	    Own Id: OTP-8825</p>
-        </item>
-      </list>
-    </section>
-
-</section>
-
-<section><title>SSL 4.0</title>
-    
-    <section><title>Improvements and New Features</title>
-    <list>
-      <item>
-	<p>
-	  New ssl now support client/server-certificates signed by
-	dsa keys.</p>
-	<p>
-	Own Id: OTP-8587</p>
-      </item>
-      <item>
-	<p>
-	  Ssl has now switched default implementation and removed
-	  deprecated certificate handling. All certificate handling
-	is done by the public_key application.</p>
-	<p>
-	Own Id: OTP-8695</p>
-      </item>
-    </list>
-    </section>
-    
-    </section>
-
-    
-    <section><title>SSL 3.11.1</title>
-    
-    <section><title>Fixed Bugs and Malfunctions</title>
-    <list>
-      <item>
-          <p>
-            Fixed handling of several ssl/tls packets arriving at the
-	    same time. This was broken during a refactoring of the
-            code.</p>
-	    <p>
-	    Own Id: OTP-8679</p>
-      </item>
-      </list>
-    </section>
-    
-
-    <section><title>Improvements and New Features</title>
-    <list>
-        <item>
-          <p>
-            Added missing checks for padding and Mac value. Removed
-            code for export ciphers and DH certificates as we decided
-            not to support them.</p>
-          <p>
-            Own Id: OTP-7047</p>
-        </item>
-        <item>
-          <p>
-            New ssl will no longer return esslerrssl to be backwards
-            compatible with old ssl as this hids infomation from the
-            user. format_error/1 has been updated to support new ssl.</p>
-          <p>
-            *** POTENTIAL INCOMPATIBILITY ***</p>
-          <p>
-            Own Id: OTP-7049</p>
-        </item>
-        <item>
-          <p>
-            New ssl now supports secure renegotiation as described by
-            RFC 5746.</p>
-          <p>
-            Own Id: OTP-8568</p>
-        </item>
-        <item>
-          <p>
-            Alert handling has been improved to better handle
-            unexpected but valid messages and the implementation is
-            also changed to avoid timing related issues that could
-            cause different error messages depending on network
-            latency. Packet handling was sort of broken but would
-            mostly work as expected when socket was in binary mode.
-            This has now been fixed.</p>
-          <p>
-            Own Id: OTP-8588</p>
-        </item>
-      </list>
-    </section>
-    
-</section>
-    
-<section><title>SSL 3.11</title>
-
-    <section><title>Fixed Bugs and Malfunctions</title>
-      <list>
-        <item>
-          <p>
-            Fixes handling of the option fail_if_no_peer_cert and
-            some undocumented options. Thanks to Rory Byrne.</p>
-          <p>
-            Own Id: OTP-8557</p>
-        </item>
-      </list>
-    </section>
-
-    <section><title>Improvements and New Features</title>
-      <list>
-        <item>
-          <p>
-            Support for Diffie-Hellman. ssl-3.11 requires
-            public_key-0.6.</p>
-          <p>
-            Own Id: OTP-7046</p>
-        </item>
-        <item>
-          <p>
-            New ssl now properly handles ssl renegotiation, and
-            initiates a renegotiation if ssl/ltls-sequence numbers
-            comes close to the max value. However RFC-5746 is not yet
-            supported, but will be in an upcoming release.</p>
-          <p>
-            Own Id: OTP-8517</p>
-        </item>
-        <item>
-          <p>
-            When gen_tcp is configured with the {packet,http} option,
-            it automatically switches to expect HTTP Headers after a
-            HTTP Request/Response line has been received. This update
-            fixes ssl to behave in the same way. Thanks to Rory
-            Byrne.</p>
-          <p>
-            Own Id: OTP-8545</p>
-        </item>
-        <item>
-          <p>
-            Ssl now correctly verifies the extended_key_usage
-            extension and also allows the user to verify application
-            specific extensions by supplying an appropriate fun.</p>
-          <p>
-            Own Id: OTP-8554 Aux Id: OTP-8553 </p>
-        </item>
-        <item>
-          <p>
-            Fixed ssl:transport_accept/2 to return properly when
-            socket is closed. Thanks to Rory Byrne.</p>
-          <p>
-            Own Id: OTP-8560</p>
-        </item>
-      </list>
-    </section>
-
-</section>
-
-<section><title>SSL 3.10.9</title>
-
-    <section><title>Fixed Bugs and Malfunctions</title>
-      <list>
-        <item>
-          <p>
-            Fixed a crash in the certificate certification part.</p>
-          <p>
-            Own Id: OTP-8510 Aux Id: seq11525 </p>
-        </item>
-      </list>
-    </section>
-
-</section>
-
-<section><title>SSL 3.10.8</title>
-
-    <section><title>Fixed Bugs and Malfunctions</title>
-      <list>
-        <item>
-            <p><c>ssl:send/2</c> ignored packet option, fix provided
-            by YAMASHINA Hio.</p>
-            <p>Fixed a file cache bug which caused problems when the
-            same file was used for both cert and cacert.</p>
-            <p>Allow <c>ssl:listen/2</c> to be called with option
-            {ssl_imp, old}.</p>
-            <p> Fixed ssl:setopts(Socket, binary) which didn't work
-            for 'new' ssl.</p>.
-          <p>
-            Own Id: OTP-8441</p>
-        </item>
-        <item>
-          <p>
-            Do a controlled shutdown if a non ssl packet arrives as
-            the first packet.</p>
-          <p>
-            Own Id: OTP-8459 Aux Id: seq11505 </p>
-        </item>
-      </list>
-    </section>
-
-
-    <section><title>Improvements and New Features</title>
-      <list>
-        <item>
-            <p>Fixed session reuse (in new_ssl), thanks Wil Tan.</p>
-            <p>Send CA list during Certificate Request (in new_ssl) ,
-            thanks Wil Tan.</p> <p><c>NOTE</c>: SSL (new_ssl)
-            requires public_key-0.5.</p>
-          <p>
-            Own Id: OTP-8372</p>
-        </item>
-      </list>
-    </section>
-
-</section>
 
 <section><title>SSL 3.10.7</title>
 
@@ -928,7 +615,7 @@
       <title>Fixed Bugs and Malfunctions</title>
       <list type="bulleted">
         <item>
-          <p>When a file descriptor was marked for closing, and
+          <p>When a file descriptor was marked for closing, and and
             end-of-file condition had already been detected, the file
             descriptor was never closed.</p>
           <p>Own Id: OTP-5093 Aux Id: seq8806 </p>

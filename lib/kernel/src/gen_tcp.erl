@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %% 
-%% Copyright Ericsson AB 1997-2010. All Rights Reserved.
+%% Copyright Ericsson AB 1997-2009. All Rights Reserved.
 %% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -46,7 +46,7 @@ connect(Address, Port, Opts, Time) ->
     end.
 
 connect1(Address,Port,Opts,Timer) ->
-    Mod = mod(Opts, Address),
+    Mod = mod(Opts),
     case Mod:getaddrs(Address,Timer) of
 	{ok,IPs} ->
 	    case Mod:getserv(Port) of
@@ -73,7 +73,7 @@ try_connect([], _Port, _Opts, _Timer, _Mod, Err) ->
 %% Listen on a tcp port
 %%
 listen(Port, Opts) ->
-    Mod = mod(Opts, undefined),
+    Mod = mod(Opts),
     case Mod:getserv(Port) of
 	{ok,TP} ->
 	    Mod:listen(TP, Opts);
@@ -173,30 +173,20 @@ controlling_process(S, NewOwner) ->
 %% Create a port/socket from a file descriptor 
 %%
 fdopen(Fd, Opts) ->
-    Mod = mod(Opts, undefined),
+    Mod = mod(Opts),
     Mod:fdopen(Fd, Opts).
 
-%% Get the tcp_module, but IPv6 address overrides default IPv4
-mod(Address) ->
-    case inet_db:tcp_module() of
-	inet_tcp when tuple_size(Address) =:= 8 ->
-	    inet6_tcp;
-	Mod ->
-	    Mod
-    end.
+%% Get the tcp_module
+mod() -> inet_db:tcp_module().
 
 %% Get the tcp_module, but option tcp_module|inet|inet6 overrides
-mod([{tcp_module,Mod}|_], _Address) ->
+mod([{tcp_module,Mod}|_]) ->
     Mod;
-mod([inet|_], _Address) ->
+mod([inet|_]) ->
     inet_tcp;
-mod([inet6|_], _Address) ->
+mod([inet6|_]) ->
     inet6_tcp;
-mod([{ip, Address}|Opts], _) ->
-    mod(Opts, Address);
-mod([{ifaddr, Address}|Opts], _) ->
-    mod(Opts, Address);
-mod([_|Opts], Address) ->
-    mod(Opts, Address);
-mod([], Address) ->
-    mod(Address).
+mod([_|Opts]) ->
+    mod(Opts);
+mod([]) ->
+    mod().

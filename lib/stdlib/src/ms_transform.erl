@@ -43,7 +43,6 @@
 -define(ERR_GENREMOTECALL,22).
 -define(ERR_GENBINCONSTRUCT,23).
 -define(ERR_GENDISALLOWEDOP,24).
--define(WARN_SHADOW_VAR,50).
 -define(ERR_GUARDMATCH,?ERR_GENMATCH+?ERROR_BASE_GUARD).
 -define(ERR_BODYMATCH,?ERR_GENMATCH+?ERROR_BASE_BODY).
 -define(ERR_GUARDLOCALCALL,?ERR_GENLOCALCALL+?ERROR_BASE_GUARD).
@@ -64,13 +63,8 @@
 -define(ERR_BODYDISALLOWEDOP,?ERR_GENDISALLOWEDOP+?ERROR_BASE_BODY).
 
 %%
-%% Called by compiler or ets/dbg:fun2ms when errors/warnings occur
+%% Called by compiler or ets/dbg:fun2ms when errors occur
 %%
-format_error({?WARN_SHADOW_VAR,Name}) ->
-    lists:flatten(
-      io_lib:format("variable ~p shadowed in ms_transform fun head",
-		    [Name]));
-
 format_error(?ERR_NOFUN) ->	    
     "Parameter of ets/dbg:fun2ms/1 is not a literal fun";
 format_error(?ERR_ETS_HEAD) ->	    
@@ -188,7 +182,7 @@ format_error(Else) ->
 %%
 transform_from_shell(Dialect, Clauses, BoundEnvironment) ->
     SaveFilename = setup_filename(),
-    case catch ms_clause_list(1,Clauses,Dialect,gb_sets:new()) of
+    case catch ms_clause_list(1,Clauses,Dialect) of
 	{'EXIT',Reason} ->
 	    cleanup_filename(SaveFilename),
 	    exit(Reason);
@@ -213,7 +207,6 @@ transform_from_shell(Dialect, Clauses, BoundEnvironment) ->
 %%
 parse_transform(Forms, _Options) ->
     SaveFilename = setup_filename(),
-    %io:format("Forms: ~p~n",[Forms]),
     case catch forms(Forms) of
 	{'EXIT',Reason} ->
 	    cleanup_filename(SaveFilename),
@@ -222,31 +215,12 @@ parse_transform(Forms, _Options) ->
 	    {error, [{cleanup_filename(SaveFilename),
 		      [{Line, ?MODULE, R}]}], []};
 	Else ->
-	    %io:format("Transformed into: ~p~n",[Else]),
-	    case get_warnings() of
-		[] ->
-		    cleanup_filename(SaveFilename),
-		    Else;
-		WL ->
-		    FName = cleanup_filename(SaveFilename) ,
-		    WList = [ {FName, [{L, ?MODULE, R}]} || {L,R} <- WL ],
-		    {warning, Else, WList}
-	    end
-    end.
-
-get_warnings() ->
-    case get(warnings) of
-	undefined ->
-	    [];
-	Else ->
+	    cleanup_filename(SaveFilename),
 	    Else
     end.
 
-add_warning(Line,R) ->
-    put(warnings,[{Line,R}| get_warnings()]).
-
 setup_filename() ->
-    {erase(filename),erase(records),erase(warnings)}.
+    {erase(filename),erase(records)}.
 
 put_filename(Name) ->
     put(filename,Name).
@@ -261,7 +235,7 @@ get_records() ->
 	Else ->
 	    Else
     end.
-cleanup_filename({Old,OldRec,OldWarnings}) ->
+cleanup_filename({Old,OldRec}) ->
     Ret = case erase(filename) of
 	      undefined ->
 		  "TOP_LEVEL";
@@ -273,12 +247,6 @@ cleanup_filename({Old,OldRec,OldWarnings}) ->
 	    erase(records);
 	Rec ->
 	    put(records,Rec)
-    end,
-    case OldWarnings of
-	undefined ->
-	    erase(warnings);
-	Warn ->
-	    put(warnings,Warn)
     end,
     case Old of
 	undefined ->
@@ -317,77 +285,42 @@ form({function,Line,Name0,Arity0,Clauses0}) ->
 form(AnyOther) ->
     AnyOther.
 function(Name, Arity, Clauses0) ->
-    {Clauses1,_} = clauses(Clauses0,gb_sets:new()),
+    Clauses1 = clauses(Clauses0),
     {Name,Arity,Clauses1}.
-clauses([C0|Cs],Bound) ->
-    {C1,Bound1} = clause(C0,Bound),
-    {C2,Bound2} = clauses(Cs,Bound1),
-    {[C1|C2],Bound2};
-clauses([],Bound) -> {[],Bound}.
-clause({clause,Line,H0,G0,B0},Bound) ->
-    {H1,Bound1} = copy(H0,Bound),
-    {B1,Bound2} = copy(B0,Bound1),
-    {{clause,Line,H1,G0,B1},Bound2}.
+clauses([C0|Cs]) ->
+    C1 = clause(C0),
+    [C1|clauses(Cs)];
+clauses([]) -> [].
+clause({clause,Line,H0,G0,B0}) ->
+    B1 = copy(B0),
+    {clause,Line,H0,G0,B1}.
 
 copy({call,Line,{remote,_Line2,{atom,_Line3,ets},{atom,_Line4,fun2ms}},
-      As0},Bound) ->
-    {transform_call(ets,Line,As0,Bound),Bound};
+      As0}) ->
+    transform_call(ets,Line,As0);
 copy({call,Line,{remote,_Line2,{record_field,_Line3,
                                 {atom,_Line4,''},{atom,_Line5,ets}},
-                 {atom,_Line6,fun2ms}}, As0},Bound) ->
+                 {atom,_Line6,fun2ms}}, As0}) ->
     %% Packages...
-    {transform_call(ets,Line,As0,Bound),Bound};
+    transform_call(ets,Line,As0);
 copy({call,Line,{remote,_Line2,{atom,_Line3,dbg},{atom,_Line4,fun2ms}},
-      As0},Bound) ->
-    {transform_call(dbg,Line,As0,Bound),Bound};
-copy({match,Line,A,B},Bound) ->
-    {B1,Bound1} = copy(B,Bound),
-    {A1,Bound2} = copy(A,Bound),
-    {{match,Line,A1,B1},gb_sets:union(Bound1,Bound2)};
-copy({var,_Line,'_'} = VarDef,Bound) ->
-    {VarDef,Bound};
-copy({var,_Line,Name} = VarDef,Bound) ->
-    Bound1 = gb_sets:add(Name,Bound),
-    {VarDef,Bound1};
-copy({'fun',Line,{clauses,Clauses}},Bound) -> % Dont export bindings from funs
-    {NewClauses,_IgnoredBindings} = copy_list(Clauses,Bound),
-    {{'fun',Line,{clauses,NewClauses}},Bound};
-copy({'case',Line,Of,ClausesList},Bound) -> % Dont export bindings from funs
-    {NewOf,NewBind0} = copy(Of,Bound),
-    {NewClausesList,NewBindings} = copy_case_clauses(ClausesList,NewBind0,[]),
-    {{'case',Line,NewOf,NewClausesList},NewBindings};
-copy(T,Bound) when is_tuple(T) ->
-    {L,Bound1} = copy_list(tuple_to_list(T),Bound),
-    {list_to_tuple(L),Bound1};
-copy(L,Bound) when is_list(L) ->
-    copy_list(L,Bound);
-copy(AnyOther,Bound) ->
-    {AnyOther,Bound}.
+      As0}) ->
+    transform_call(dbg,Line,As0);
+copy(T) when is_tuple(T) ->
+    list_to_tuple(copy_list(tuple_to_list(T)));
+copy(L) when is_list(L) ->
+    copy_list(L);
+copy(AnyOther) ->
+    AnyOther.
 
-copy_case_clauses([],Bound,AddSets) ->
-    ReallyAdded = gb_sets:intersection(AddSets),
-    {[],gb_sets:union(Bound,ReallyAdded)};
-copy_case_clauses([{clause,Line,Match,Guard,Clauses}|T],Bound,AddSets) ->
-    {NewMatch,MatchBinds} = copy(Match,Bound),
-    {NewGuard,GuardBinds} = copy(Guard,MatchBinds), %% Really no new binds
-    {NewClauses,AllBinds} = copy(Clauses,GuardBinds),
-    %% To limit the setsizes, I subtract what I had before the case clause
-    %% and add it in the end
-    AddedBinds = gb_sets:subtract(AllBinds,Bound),
-    {NewTail,ExportedBindings} =
-	copy_case_clauses(T,Bound,[AddedBinds | AddSets]),
-    {[{clause,Line,NewMatch,NewGuard,NewClauses}|NewTail],ExportedBindings}.
+copy_list([H|T]) ->
+    [copy(H)|copy_list(T)];
+copy_list([]) ->
+    [].
 
-copy_list([H|T],Bound) ->
-    {C1,Bound1} = copy(H,Bound),
-    {C2,Bound2} = copy_list(T,Bound1),
-    {[C1|C2],Bound2};
-copy_list([],Bound) ->
-    {[],Bound}.
-
-transform_call(Type,_Line,[{'fun',Line2,{clauses, ClauseList}}],Bound) ->
-    ms_clause_list(Line2, ClauseList,Type,Bound);
-transform_call(_Type,Line,_NoAbstractFun,_) ->
+transform_call(Type,_Line,[{'fun',Line2,{clauses, ClauseList}}]) ->
+    ms_clause_list(Line2, ClauseList,Type);
+transform_call(_Type,Line,_NoAbstractFun) ->
     throw({error,Line,?ERR_NOFUN}).
 
 % Fixup semicolons in guards
@@ -396,19 +329,18 @@ ms_clause_expand({clause, Line, Parameters, Guard = [_,_|_], Body}) ->
 ms_clause_expand(_Other) ->
     false.
 
-ms_clause_list(Line,[H|T],Type,Bound) ->
+ms_clause_list(Line,[H|T],Type) ->
     case ms_clause_expand(H) of
 	NewHead when is_list(NewHead) ->
-	    ms_clause_list(Line,NewHead ++ T, Type, Bound);
+	    ms_clause_list(Line,NewHead ++ T, Type);
 	false ->
-	    {cons, Line, ms_clause(H, Type, Bound),
-	     ms_clause_list(Line, T, Type, Bound)}
+	    {cons, Line, ms_clause(H,Type), ms_clause_list(Line, T,Type)}
     end;
-ms_clause_list(Line,[],_,_) ->
+ms_clause_list(Line,[],_) ->
     {nil,Line}.
-ms_clause({clause, Line, Parameters, Guards, Body},Type,Bound) ->
+ms_clause({clause, Line, Parameters, Guards, Body},Type) ->
     check_type(Line,Parameters,Type),
-    {MSHead,Bindings} = transform_head(Parameters,Bound),
+    {MSHead,Bindings} = transform_head(Parameters),
     MSGuards = transform_guards(Line, Guards, Bindings),
     MSBody = transform_body(Line,Body,Bindings),
     {tuple, Line, [MSHead,MSGuards,MSBody]}.
@@ -695,31 +627,29 @@ tg(Other,B) ->
     Element = io_lib:format("unknown element ~w", [Other]),
     throw({error,unknown,{?ERR_GENELEMENT+B#tgd.eb,Element}}).
 
-transform_head([V],OuterBound) ->
+transform_head([V]) ->
     Bind = cre_bind(),
-    {NewV,NewBind} = toplevel_head_match(V,Bind,OuterBound),
-    th(NewV,NewBind,OuterBound).
+    {NewV,NewBind} = toplevel_head_match(V,Bind),
+    th(NewV,NewBind).
 
 
-toplevel_head_match({match,Line,{var,_,VName},Expr},B,OB) ->
-    warn_var_clash(Line,VName,OB),
+toplevel_head_match({match,_,{var,_,VName},Expr},B) ->
     {Expr,new_bind({VName,'$_'},B)};
-toplevel_head_match({match,Line,Expr,{var,_,VName}},B,OB) ->
-    warn_var_clash(Line,VName,OB),
+toplevel_head_match({match,_,Expr,{var,_,VName}},B) ->
     {Expr,new_bind({VName,'$_'},B)};
-toplevel_head_match(Other,B,_OB) ->
+toplevel_head_match(Other,B) ->
     {Other,B}.
 
-th({record,Line,RName,RFields},B,OB) ->
+th({record,Line,RName,RFields},B) ->
     % youch...
     RDefs = get_records(),
     {KeyList0,NewB} = lists:foldl(fun({record_field,_,{atom,_,Key},Value},
 				     {L,B0}) ->
-					 {NV,B1} = th(Value,B0,OB),
+					 {NV,B1} = th(Value,B0),
 					 {[{Key,NV}|L],B1};
 				    ({record_field,_,{var,_,'_'},Value},
 				     {L,B0}) ->
-					 {NV,B1} = th(Value,B0,OB),
+					 {NV,B1} = th(Value,B0),
 					 {[{{default},NV}|L],B1};
 				    (_,_) ->
 					 throw({error,Line,{?ERR_HEADBADREC,
@@ -762,9 +692,9 @@ th({record,Line,RName,RFields},B,OB) ->
 	_ ->
 	    throw({error,Line,{?ERR_HEADBADREC,RName}})
     end;
-th({match,Line,_,_},_,_) ->
+th({match,Line,_,_},_) -> 
     throw({error,Line,?ERR_HEADMATCH});
-th({atom,Line,A},B,_OB) ->
+th({atom,Line,A},B) ->
     case atom_to_list(A) of
 	[$$|NL] ->
 	    case (catch list_to_integer(NL)) of
@@ -776,11 +706,10 @@ th({atom,Line,A},B,_OB) ->
 	_ ->
 	    {{atom,Line,A},B}
     end;
-th({bin_element,_Line0,{var, Line, A},_,_},_,_) ->
+th({bin_element,_Line0,{var, Line, A},_,_},_) ->
     throw({error,Line,{?ERR_HEADBINMATCH,A}});
 
-th({var,Line,Name},B,OB) ->
-    warn_var_clash(Line,Name,OB),
+th({var,Line,Name},B) ->
     case lkup_bind(Name,B) of
 	undefined ->
 	    NewB = new_bind(Name,B),
@@ -788,23 +717,15 @@ th({var,Line,Name},B,OB) ->
 	Trans ->
 	    {{atom,Line,Trans},B}
     end;
-th([H|T],B,OB) ->
-    {NH,NB} = th(H,B,OB),
-    {NT,NNB} = th(T,NB,OB),
+th([H|T],B) ->
+    {NH,NB} = th(H,B),
+    {NT,NNB} = th(T,NB),
     {[NH|NT],NNB};
-th(T,B,OB) when is_tuple(T) ->
-    {L,NB} = th(tuple_to_list(T),B,OB),
+th(T,B) when is_tuple(T) ->
+    {L,NB} = th(tuple_to_list(T),B),
     {list_to_tuple(L),NB};
-th(Nonstruct,B,_OB) ->
+th(Nonstruct,B) ->
     {Nonstruct,B}.
-
-warn_var_clash(Line,Name,OuterBound) ->
-    case gb_sets:is_member(Name,OuterBound) of
-	true ->
-	    add_warning(Line,{?WARN_SHADOW_VAR,Name});
-	_ ->
-	    ok
-    end.
 
 %% Could be more efficient...
 check_multi_field(_, _, [], _) ->

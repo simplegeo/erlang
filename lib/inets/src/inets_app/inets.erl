@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %% 
-%% Copyright Ericsson AB 2006-2010. All Rights Reserved.
+%% Copyright Ericsson AB 2006-2009. All Rights Reserved.
 %% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -57,7 +57,7 @@ start(Type) ->
 %% Function: start(Service, ServiceConfig [, How]) -> {ok, Pid} | 
 %%                                                {error, Reason}
 %%
-%% Service = - ftpc | tftpd | tftpc | tftp | httpc | httpd
+%% Service = - ftpc | tftpd | httpc | httpd
 %% ServiceConfig = ConfPropList | ConfFile
 %% ConfPropList = [{Property, Value}] according to service 
 %% ConfFile = Path - when service is httpd
@@ -87,7 +87,6 @@ start(Service, ServiceConfig, How) ->
     Module = service_module(Service),
     start_service(Module, ServiceConfig, How).
 
-
 %%--------------------------------------------------------------------
 %% Function: stop() -> ok
 %%
@@ -100,7 +99,7 @@ stop() ->
 %%--------------------------------------------------------------------
 %% Function: stop(Service, Pid) -> ok
 %%
-%% Service - ftpc | ftp | tftpd | tftpc | tftp | httpc | httpd | stand_alone
+%% Service - ftp | tftpd | http | httpd | stand_alone
 %%
 %% Description: Stops a started service of the inets application or takes
 %% down a stand alone "service" gracefully.
@@ -382,7 +381,7 @@ key1search(Key, Vals, Def) ->
 %% Description: Returns a list of supported services
 %%-------------------------------------------------------------------
 service_names() ->
-    [ftpc, tftp, httpc, httpd].
+    [ftpc, tftpd, httpc, httpd].
 
 
 %%-----------------------------------------------------------------
@@ -522,7 +521,9 @@ change_pattern({Mod, Service, Pattern})
 	    catch
 		exit:{Where, Reason} ->
 		    {error, {Where, Reason}}
-	    end
+	    end;
+        _ ->
+            exit({bad_pattern, Pattern})
     end,
     ok.
 
@@ -533,7 +534,7 @@ error_to_exit(Where, {error, Reason}) ->
 
 
 %%-----------------------------------------------------------------
-%% report_event(Severity, Label, Service, Content)
+%% report_event(Serverity, Label, Service, Content)
 %%
 %% Parameters:
 %% Severity -> 0 =< integer() =< 100
@@ -578,8 +579,8 @@ handle_trace({trace_ts, _Who, call,
               {?MODULE, report_event,
                [_Sev, "stop trace", stop_trace, [stop_trace]]},
               Timestamp},
-             {_, standard_io} = Fd) ->
-    (catch io:format(standard_io, "stop trace at ~s~n", [format_timestamp(Timestamp)])),
+             {standard_io, _} = Fd) ->
+    (catch io:format(Fd, "stop trace at ~s~n", [format_timestamp(Timestamp)])),
     Fd;
 handle_trace({trace_ts, _Who, call,
               {?MODULE, report_event,
@@ -725,8 +726,8 @@ call_service(Service, Call, Args) ->
 	
 service_module(tftpd) ->
     tftp;
-service_module(tftpc) ->
-    tftp;
+service_module(httpc) ->
+    http;
 service_module(ftpc) ->
     ftp;
 service_module(Service) ->

@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2008-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2008-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 
@@ -104,7 +104,7 @@ create_win_batch(Title, Menus) ->
     Hlb = 200,
     Listbox = wxListBox:new(Panel, ?wxID_ANY, [{size,{?Wf,Hlb}},
 					       {style,?wxLB_SINGLE}]),
-    wxSizer:add(LeftSz,Listbox,[{proportion,1}, {border,3}]),
+    wxSizer:add(LeftSz,Listbox,[{border, 3}]),
     wxListBox:connect(Listbox, command_listbox_doubleclicked),
     wxListBox:connect(Listbox, right_down),
 
@@ -266,7 +266,8 @@ select(MenuItem, Bool) ->
 add_module(WinInfo, MenuName, Mod) ->
     Win = WinInfo#winInfo.window,
     Modules = WinInfo#winInfo.modules,
-    case lists:keymember(Mod, #moduleInfo.module, Modules) of
+    case lists:keysearch(Mod, #moduleInfo.module, Modules) of
+	{value, _ModInfo} -> WinInfo;
 	false ->
 	    %% Create a menu for the module
 	    Menu = get(MenuName),
@@ -283,9 +284,8 @@ add_module(WinInfo, MenuName, Mod) ->
 	    wxListBox:append(WinInfo#winInfo.listbox, atom_to_list(Mod)),
 	    
 	    ModInfo = #moduleInfo{module=Mod, menubtn={Menu,MenuBtn}},
-	    WinInfo#winInfo{modules=[ModInfo | Modules]};
-	true -> WinInfo
-   end.
+	    WinInfo#winInfo{modules=[ModInfo | Modules]}
+    end.
     
 %%--------------------------------------------------------------------
 %% delete_module(WinInfo, Mod) -> WinInfo
@@ -559,7 +559,8 @@ handle_event(#wx{event=#wxCommand{type=command_checkbox_clicked}},
 handle_event(#wx{event=#wxList{type=command_list_item_selected,
 			       itemIndex=Row}}, WinInfo) ->
     #winInfo{processes=Pids} = WinInfo,
-    #procInfo{pid=Pid} = lists:keyfind(Row, #procInfo.row, Pids),
+    {value, #procInfo{pid=Pid}} = 
+	lists:keysearch(Row, #procInfo.row, Pids),
     {focus, Pid, WinInfo#winInfo{focus=Row}};
 handle_event(#wx{event=#wxList{type=command_list_item_activated}}, 
 	     _WinInfo) ->

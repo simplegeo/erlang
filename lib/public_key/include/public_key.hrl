@@ -1,7 +1,7 @@
 %%
 %% %CopyrightBegin%
 %% 
-%% Copyright Ericsson AB 2008-2010. All Rights Reserved.
+%% Copyright Ericsson AB 2008-2009. All Rights Reserved.
 %% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
@@ -28,15 +28,6 @@
  	  algorithm, 
  	  parameters = asn1_NOVALUE}).
 
--define(DEFAULT_VERIFYFUN,
-	{fun(_,{bad_cert, _} = Reason, _) ->
-		 {fail, Reason};
-	    (_,{extension, _}, UserState) ->
-		 {unknown, UserState};
-	    (_, valid, UserState) ->
-		 {valid, UserState}
-	 end, []}).
-
 -record(path_validation_state, {
 	  valid_policy_tree,
 	  explicit_policy,
@@ -51,7 +42,7 @@
 	  working_public_key_parameters,
 	  working_issuer_name,
 	  max_path_length,
-	  verify_fun,
+	  acc_errors,  %% If verify_none option is set
 	  user_state
 	 }).
 
@@ -67,14 +58,5 @@
 	  cert_status,
 	  interim_reasons_mask
 	 }).
-
-
--type der_encoded()          :: binary().
--type decrypt_der()          :: binary().
--type pki_asn1_type()        ::  'Certificate' | 'RSAPrivateKey' 
-			       | 'DSAPrivateKey' | 'DHParameter'.
--type pem_entry()            :: {pki_asn1_type(), der_encoded() | decrypt_der(),
-				 not_encrypted | {Cipher :: string(), Salt :: binary()}}.
--type asn1_type()            :: atom(). %% see "OTP-PUB-KEY.hrl
 
 -endif. % -ifdef(public_key).

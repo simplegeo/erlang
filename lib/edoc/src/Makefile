@@ -55,8 +55,6 @@ all: $(OBJECTS)
 
 $(OBJECTS): $(HRL_FILES) $(XMERL)/include/xmerl.hrl
 
-docs: 
-
 clean:
 	rm -f $(OBJECTS) edoc_parser.erl
 	rm -f core *~

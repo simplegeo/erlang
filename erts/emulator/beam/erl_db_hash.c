@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- *
- * Copyright Ericsson AB 1998-2010. All Rights Reserved.
- *
+ * 
+ * Copyright Ericsson AB 1998-2009. All Rights Reserved.
+ * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- *
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
+ * 
  * %CopyrightEnd%
  */
 
@@ -623,16 +623,16 @@ int db_create_hash(Process *p, DbTable *tbl)
     erts_smp_atomic_init(&tb->is_resizing, 0);
 #ifdef ERTS_SMP
     if (tb->common.type & DB_FINE_LOCKED) {
-	erts_smp_rwmtx_opt_t rwmtx_opt = ERTS_SMP_RWMTX_OPT_DEFAULT_INITER;
 	int i;
-	if (tb->common.type & DB_FREQ_READ)
-	    rwmtx_opt.type = ERTS_SMP_RWMTX_TYPE_FREQUENT_READ;
 	tb->locks = (DbTableHashFineLocks*) erts_db_alloc_fnf(ERTS_ALC_T_DB_SEG, /* Other type maybe? */ 
 							      (DbTable *) tb,
 							      sizeof(DbTableHashFineLocks));	    	    
 	for (i=0; i<DB_HASH_LOCK_CNT; ++i) {
-	    erts_smp_rwmtx_init_opt_x(&tb->locks->lck_vec[i].lck, &rwmtx_opt,
-				      "db_hash_slot", make_small(i));
+	    #ifdef ERTS_ENABLE_LOCK_COUNT	
+	    erts_rwmtx_init_x(&tb->locks->lck_vec[i].lck, "db_hash_slot", tb->common.the_name); 
+	    #else		
+	    erts_rwmtx_init(&tb->locks->lck_vec[i].lck, "db_hash_slot");
+	    #endif	
 	}
 	/* This important property is needed to guarantee that the buckets
     	 * involved in a grow/shrink operation it protected by the same lock:
@@ -1288,7 +1288,7 @@ static int db_select_continue_hash(Process *p,
 	    (match_res = 
 	     db_prog_match(p,mp,
 			   make_tuple(current->dbterm.tpl),
-			   NULL,0,&dummy),
+			   0,&dummy),
 	     is_value(match_res))) {
 	    if (all_objects) {
 		hp = HAlloc(p, current->dbterm.size + 2);
@@ -1466,7 +1466,7 @@ static int db_select_chunk_hash(Process *p, DbTable *tbl,
 	    if (current->hvalue != INVALID_HASH) {
 		match_res = db_prog_match(p,mpi.mp,
 					  make_tuple(current->dbterm.tpl),
-					  NULL,0,&dummy);
+					  0,&dummy);
 		if (is_value(match_res)) {
 		    if (mpi.all_objects) {
 			hp = HAlloc(p, current->dbterm.size + 2);
@@ -1645,7 +1645,7 @@ static int db_select_count_hash(Process *p,
 	if (current != NULL) {
 	    if (current->hvalue != INVALID_HASH) {
 		if (db_prog_match(p, mpi.mp, make_tuple(current->dbterm.tpl),
-				  NULL,0, &dummy) == am_true) {
+				  0, &dummy) == am_true) {
 		    ++got;
 		}
 		--num_left;
@@ -1796,7 +1796,7 @@ static int db_select_delete_hash(Process *p,
 	    int did_erase = 0;
 	    if ((db_prog_match(p,mpi.mp,
 			       make_tuple((*current)->dbterm.tpl),
-			       NULL,0,&dummy)) == am_true) {
+			       0,&dummy)) == am_true) {
 		if (NFIXED(tb) > fixated_by_me) { /* fixated by others? */
 		    if (slot_ix != last_pseudo_delete) {
 			add_fixed_deletion(tb, slot_ix);
@@ -1908,7 +1908,7 @@ static int db_select_delete_continue_hash(Process *p,
 	else {
 	    int did_erase = 0;
 	    if ((db_prog_match(p,mp,make_tuple((*current)->dbterm.tpl),
-			       NULL,0,&dummy)) == am_true) {
+			       0,&dummy)) == am_true) {
 		if (NFIXED(tb) > fixated_by_me) { /* fixated by others? */
 		    if (slot_ix != last_pseudo_delete) {
 			add_fixed_deletion(tb, slot_ix);
@@ -2009,7 +2009,7 @@ static int db_select_count_continue_hash(Process *p,
 		continue;
 	    }
 	    if (db_prog_match(p, mp, make_tuple(current->dbterm.tpl),
-			      NULL,0,&dummy) == am_true) {
+			      0,&dummy) == am_true) {
 		++got;
 	    }
 	    --num_left;
@@ -2745,7 +2745,6 @@ static void db_finalize_dbterm_hash(DbUpdateHandle* handle)
     ASSERT(&oldp->dbterm == handle->dbterm);
 
     if (handle->mustResize) {
-	ErlOffHeap tmp_offheap;
 	Eterm* top;
 	Eterm copy;
 	DbTerm* newDbTerm;
@@ -2756,15 +2755,18 @@ static void db_finalize_dbterm_hash(DbUpdateHandle* handle)
 	newDbTerm = &newp->dbterm;
     
 	newDbTerm->size = handle->new_size;
-	tmp_offheap.first = NULL;
-	tmp_offheap.overhead = 0;
+	newDbTerm->off_heap.mso = NULL;
+	newDbTerm->off_heap.externals = NULL;
+    #ifndef HYBRID /* FIND ME! */
+	newDbTerm->off_heap.funs = NULL;
+    #endif
+	newDbTerm->off_heap.overhead = 0;
 	
 	/* make a flat copy */
 	top = DBTERM_BUF(newDbTerm);
 	copy = copy_struct(make_tuple(handle->dbterm->tpl),
 			   handle->new_size,
-			   &top, &tmp_offheap);
-	newDbTerm->first_oh = tmp_offheap.first;
+			   &top, &newDbTerm->off_heap);
 	DBTERM_SET_TPL(newDbTerm,tuple_val(copy));
 
 	WUNLOCK_HASH(lck);
@@ -2807,11 +2809,7 @@ void db_foreach_offheap_hash(DbTable *tbl,
     for (i = 0; i < nactive; i++) {
 	list = BUCKET(tb,i);
 	while(list != 0) {
-	    ErlOffHeap tmp_offheap;
-	    tmp_offheap.first = list->dbterm.first_oh;
-	    tmp_offheap.overhead = 0;
-	    (*func)(&tmp_offheap, arg);
-	    list->dbterm.first_oh = tmp_offheap.first;
+	    (*func)(&(list->dbterm.off_heap), arg);
 	    list = list->next;
 	}
     }

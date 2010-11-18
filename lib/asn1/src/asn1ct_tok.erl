@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1997-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1997-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 %%
@@ -21,7 +21,7 @@
 
 %% Tokenize ASN.1 code (input to parser generated with yecc)   
 
--export([get_name/2,tokenise/4, file/1]).
+-export([get_name/2,tokenise/2, file/1]).
 
 
 file(File) ->
@@ -29,8 +29,11 @@ file(File) ->
 	{error, Reason} ->
 	    {error,{File,file:format_error(Reason)}};
 	{ok,Stream} ->
-	    process(Stream,0,[])
+	    process0(Stream)
     end.
+
+process0(Stream) ->
+    process(Stream,0,[]). 
 
 process(Stream,Lno,R) ->
     process(io:get_line(Stream, ''), Stream,Lno+1,R).
@@ -42,128 +45,131 @@ process(eof, Stream,Lno,R) ->
 
 process(L, Stream,Lno,R) when is_list(L) ->
     %%io:format('read:~s',[L]),
-    case catch tokenise(Stream,L,Lno,[]) of
+    case catch tokenise(L,Lno) of
 	{'ERR',Reason} ->
 	    io:format("Tokeniser error on line: ~w ~w~n",[Lno,Reason]),
 	    exit(0);
-	{NewLno,T} ->
+	{multiline_comment,NestingLevel} ->
+	    {RestL,Lno2} = process_skip_multiline_comment(Stream,Lno,NestingLevel),
+	    process(RestL,Stream,Lno2,R);
+	T ->
 	    %%io:format('toks:~w~n',[T]),
-	    process(Stream,NewLno,[T|R])
+	    process(Stream,Lno,[T|R])
     end. 
 
-tokenise(Stream,[H|T],Lno,R) when $a =< H , H =< $z ->
+process_skip_multiline_comment(Stream,Lno,NestingLevel) ->
+    process_skip_multiline_comment(io:get_line(Stream, ''),
+				   Stream, Lno + 1, NestingLevel).
+process_skip_multiline_comment(eof,_Stream,Lno,_NestingLevel) ->
+    io:format("Tokeniser error on line: ~w, premature end of multiline comment~n",[Lno]),
+    exit(0);
+process_skip_multiline_comment(Line,Stream,Lno,NestingLevel) ->
+    case catch skip_multiline_comment(Line,NestingLevel) of
+	{multiline_comment,NestingLevel2} ->
+	    process_skip_multiline_comment(Stream,Lno,NestingLevel2);
+	T ->
+	    {T,Lno}
+    end.
+
+tokenise([H|T],Lno) when $a =< H , H =< $z ->
     {X, T1} = get_name(T, [H]),
-    tokenise(Stream,T1,Lno,[{identifier,Lno, list_to_atom(X)}|R]);
+    [{identifier,Lno, list_to_atom(X)}|tokenise(T1,Lno)];
 
-tokenise(Stream,[$&,H|T],Lno,R) when $A =< H , H =< $Z ->
+tokenise([$&,H|T],Lno) when $A =< H , H =< $Z ->
     {Y, T1} = get_name(T, [H]),
     X = list_to_atom(Y),
-    tokenise(Stream,T1,Lno,[{typefieldreference, Lno, X} | R]);
+    [{typefieldreference, Lno, X} | tokenise(T1, Lno)];
 
-tokenise(Stream,[$&,H|T],Lno,R) when $a =< H , H =< $z ->
+tokenise([$&,H|T],Lno) when $a =< H , H =< $z ->
     {Y, T1} = get_name(T, [H]),
     X = list_to_atom(Y),
-    tokenise(Stream,T1,Lno,[{valuefieldreference, Lno, X} | R]);
+    [{valuefieldreference, Lno, X} | tokenise(T1, Lno)];
 
-tokenise(Stream,[H|T],Lno,R) when $A =< H , H =< $Z ->
+tokenise([H|T],Lno) when $A =< H , H =< $Z ->
     {Y, T1} = get_name(T, [H]),
     X = list_to_atom(Y),
     case reserved_word(X) of
 	true ->
-	    tokenise(Stream,T1,Lno,[{X,Lno}|R]);
+	    [{X,Lno}|tokenise(T1,Lno)];
 	false ->
-	    tokenise(Stream,T1,Lno,[{typereference,Lno,X}|R]);
+	    [{typereference,Lno,X}|tokenise(T1,Lno)];
 	rstrtype ->
-	    tokenise(Stream,T1,Lno,[{restrictedcharacterstringtype,Lno,X}|R])
+	    [{restrictedcharacterstringtype,Lno,X}|tokenise(T1,Lno)]
     end;
 
-tokenise(Stream,[$-,H|T],Lno,R) when $0 =< H , H =< $9 ->
+tokenise([$-,H|T],Lno) when $0 =< H , H =< $9 ->
     {X, T1} = get_number(T, [H]),
-    tokenise(Stream,T1,Lno,[{number,Lno,-1 * list_to_integer(X)}|R]);
+    [{number,Lno,-1 * list_to_integer(X)}|tokenise(T1,Lno)];
 
-tokenise(Stream,[H|T],Lno,R) when $0 =< H , H =< $9 ->
+tokenise([H|T],Lno) when $0 =< H , H =< $9 ->
     {X, T1} = get_number(T, [H]),
-    tokenise(Stream,T1,Lno,[{number,Lno,list_to_integer(X)}|R]);
+    [{number,Lno,list_to_integer(X)}|tokenise(T1,Lno)];
 
-tokenise(Stream,[$-,$-|T],Lno,R) ->
-    tokenise(Stream,skip_comment(T),Lno,R);
+tokenise([$-,$-|T],Lno) ->
+    tokenise(skip_comment(T),Lno);
 
-tokenise(Stream,[$/,$*|T],Lno,R) ->
-    {NewLno,T1} = skip_multiline_comment(Stream,T,Lno,0),
-    tokenise(Stream,T1,NewLno,R);
+tokenise([$/,$*|T],Lno) ->
+    tokenise(skip_multiline_comment(T,0),Lno);
 
-tokenise(Stream,[$:,$:,$=|T],Lno,R) ->
-    tokenise(Stream,T,Lno,[{'::=',Lno}|R]);
+tokenise([$:,$:,$=|T],Lno) ->
+    [{'::=',Lno}|tokenise(T,Lno)];
 
-tokenise(Stream,[$'|T],Lno,R) ->
+tokenise([$'|T],Lno) ->
     case catch collect_quoted(T,Lno,[]) of
          {'ERR',_} ->
              throw({'ERR','bad_quote'});
          {Thing, T1} ->
-             tokenise(Stream,T1,Lno,[Thing|R])
+             [Thing|tokenise(T1,Lno)]
     end;
 
-tokenise(Stream,[$"|T],Lno,R) ->
-    {Str,T1} = collect_string(T,Lno),
-    tokenise(Stream,T1,Lno,[Str|R]);
+tokenise([$"|T],Lno) ->
+    collect_string(T,Lno);
 
-tokenise(Stream,[${|T],Lno,R) ->
-    tokenise(Stream,T,Lno,[{'{',Lno}|R]);
+tokenise([${|T],Lno) ->
+    [{'{',Lno}|tokenise(T,Lno)];
 
-tokenise(Stream,[$}|T],Lno,R) ->
-    tokenise(Stream,T,Lno,[{'}',Lno}|R]);
+tokenise([$}|T],Lno) ->
+    [{'}',Lno}|tokenise(T,Lno)];
 
-%% tokenise(Stream,[$],$]|T],Lno,R) ->
-%%     tokenise(Stream,T,Lno,[{']]',Lno}|R]);
+tokenise([$]|T],Lno) ->
+    [{']',Lno}|tokenise(T,Lno)];
 
-%% Even though x.680 specify '[[' and ']]' as lexical items
-%% it does not work to have them as such since the single [ and ] can
-%% be used beside each other in the SYNTAX OF in x.681
-%% the solution chosen here , i.e. to have them as separate lexical items
-%% will not detect the cases where there is white space between them
-%% which would be an error in the use in ExtensionAdditionGroups
+tokenise([$[|T],Lno) ->
+    [{'[',Lno}|tokenise(T,Lno)];
 
-%% tokenise(Stream,[$[,$[|T],Lno,R) ->
-%%     tokenise(Stream,T,Lno,[{'[[',Lno}|R]);
+tokenise([$,|T],Lno) ->
+    [{',',Lno}|tokenise(T,Lno)];
 
-tokenise(Stream,[$]|T],Lno,R) ->
-    tokenise(Stream,T,Lno,[{']',Lno}|R]);
+tokenise([$(|T],Lno) ->
+    [{'(',Lno}|tokenise(T,Lno)];
+tokenise([$)|T],Lno) ->
+    [{')',Lno}|tokenise(T,Lno)];
 
-tokenise(Stream,[$[|T],Lno,R) ->
-    tokenise(Stream,T,Lno,[{'[',Lno}|R]);
+tokenise([$.,$.,$.|T],Lno) ->
+    [{'...',Lno}|tokenise(T,Lno)];
 
-tokenise(Stream,[$,|T],Lno,R) ->
-    tokenise(Stream,T,Lno,[{',',Lno}|R]);
+tokenise([$.,$.|T],Lno) ->
+    [{'..',Lno}|tokenise(T,Lno)];
 
-tokenise(Stream,[$(|T],Lno,R) ->
-    tokenise(Stream,T,Lno,[{'(',Lno}|R]);
-tokenise(Stream,[$)|T],Lno,R) ->
-    tokenise(Stream,T,Lno,[{')',Lno}|R]);
+tokenise([$.|T],Lno) ->
+    [{'.',Lno}|tokenise(T,Lno)];
+tokenise([$^|T],Lno) ->
+    [{'^',Lno}|tokenise(T,Lno)];
+tokenise([$!|T],Lno) ->
+    [{'!',Lno}|tokenise(T,Lno)];
+tokenise([$||T],Lno) ->
+    [{'|',Lno}|tokenise(T,Lno)];
 
-tokenise(Stream,[$.,$.,$.|T],Lno,R) ->
-    tokenise(Stream,T,Lno,[{'...',Lno}|R]);
 
-tokenise(Stream,[$.,$.|T],Lno,R) ->
-    tokenise(Stream,T,Lno,[{'..',Lno}|R]);
-
-tokenise(Stream,[$.|T],Lno,R) ->
-    tokenise(Stream,T,Lno,[{'.',Lno}|R]);
-tokenise(Stream,[$^|T],Lno,R) ->
-    tokenise(Stream,T,Lno,[{'^',Lno}|R]);
-tokenise(Stream,[$!|T],Lno,R) ->
-    tokenise(Stream,T,Lno,[{'!',Lno}|R]);
-tokenise(Stream,[$||T],Lno,R) ->
-    tokenise(Stream,T,Lno,[{'|',Lno}|R]);
-
-tokenise(Stream,[H|T],Lno,R) ->
+tokenise([H|T],Lno) ->
     case white_space(H) of
 	true ->
-	    tokenise(Stream,T,Lno,R);
+	    tokenise(T,Lno);
 	false ->
-	    tokenise(Stream,T,Lno,[{list_to_atom([H]),Lno}|R])
+	    [{list_to_atom([H]),Lno}|tokenise(T,Lno)]
     end;
-tokenise(_Stream,[],Lno,R) ->
-    {Lno,lists:reverse(R)}.
+tokenise([],_) ->
+    [].
 
 
 collect_string(L,Lno) ->
@@ -175,7 +181,7 @@ collect_string([],_,_) ->
 collect_string([H|T],Lno,Str) ->
     case H of
 	$" ->
-           {{cstring,1,lists:reverse(Str)},T};
+           [{cstring,1,lists:reverse(Str)}|tokenise(T,Lno)];
         Ch ->
            collect_string(T,Lno,[Ch|Str])
     end.
@@ -246,23 +252,17 @@ skip_comment([_|T]) ->
     skip_comment(T).
 
 
-skip_multiline_comment(Stream,[],Lno,Level) ->
-    case io:get_line(Stream,'') of
-	eof ->
-	    io:format("Tokeniser error on line: ~w~n"
-		      "premature end of multiline comment~n",[Lno]),
-	    exit(0);
-	Line ->
-	    skip_multiline_comment(Stream,Line,Lno+1,Level)
-    end;
-skip_multiline_comment(_Stream,[$*,$/|T],Lno,0) ->
-    {Lno,T};
-skip_multiline_comment(Stream,[$*,$/|T],Lno,Level) ->
-    skip_multiline_comment(Stream,T,Lno,Level - 1);
-skip_multiline_comment(Stream,[$/,$*|T],Lno,Level) ->
-    skip_multiline_comment(Stream,T,Lno,Level + 1);
-skip_multiline_comment(Stream,[_|T],Lno,Level) ->
-    skip_multiline_comment(Stream,T,Lno,Level).
+skip_multiline_comment([],L) ->
+    throw({multiline_comment,L});
+skip_multiline_comment([$*,$/|T],0) ->
+    T;
+skip_multiline_comment([$*,$/|T],Level) ->
+    skip_multiline_comment(T,Level - 1);
+skip_multiline_comment([$/,$*|T],Level) ->
+    skip_multiline_comment(T,Level + 1);
+skip_multiline_comment([_|T],Level) ->
+    skip_multiline_comment(T,Level).
+
 
 collect_quoted([$',$B|T],Lno, L) ->
     case check_bin(L) of
@@ -327,7 +327,7 @@ reserved_word('COMPONENTS') -> true;
 reserved_word('CONSTRAINED') -> true;
 reserved_word('CONTAINING') -> true;
 reserved_word('DEFAULT') -> true;
-reserved_word('DEFINED') -> true; % not present in X.680 07/2002
+reserved_word('DEFINED') -> true;
 reserved_word('DEFINITIONS') -> true;
 reserved_word('EMBEDDED') -> true;
 reserved_word('ENCODED') -> true;
@@ -336,7 +336,6 @@ reserved_word('ENUMERATED') -> true;
 reserved_word('EXCEPT') -> true;
 reserved_word('EXPLICIT') -> true;
 reserved_word('EXPORTS') -> true;
-reserved_word('EXTENSIBILITY') -> true;
 reserved_word('EXTERNAL') -> true;
 reserved_word('FALSE') -> true;
 reserved_word('FROM') -> true;
@@ -344,9 +343,9 @@ reserved_word('GeneralizedTime') -> true;
 reserved_word('GeneralString') -> rstrtype;
 reserved_word('GraphicString') -> rstrtype;
 reserved_word('IA5String') -> rstrtype;
+% reserved_word('TYPE-IDENTIFIER') -> true; % impl as predef item
 reserved_word('IDENTIFIER') -> true;
 reserved_word('IMPLICIT') -> true;
-reserved_word('IMPLIED') -> true;
 reserved_word('IMPORTS') -> true;
 reserved_word('INCLUDES') -> true;
 reserved_word('INSTANCE') -> true;
@@ -380,7 +379,6 @@ reserved_word('T61String') -> rstrtype;
 reserved_word('TAGS') -> true;
 reserved_word('TeletexString') -> rstrtype;
 reserved_word('TRUE') -> true;
-%% reserved_word('TYPE-IDENTIFIER') -> true; % impl as predef item
 reserved_word('UNION') -> true;
 reserved_word('UNIQUE') -> true;
 reserved_word('UNIVERSAL') -> true;

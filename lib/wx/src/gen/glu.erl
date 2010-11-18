@@ -1,34 +1,34 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2008-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2008-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 
 %% OPENGL UTILITY API
 
 %% This file is generated DO NOT EDIT
 
-%% @doc  A part of the standard OpenGL Utility api.
+%% @doc  A part of the standard OpenGL Utility api. 
 %% See <a href="http://www.opengl.org/sdk/docs/man/">www.opengl.org</a>
 %%
-%% Booleans are represented by integers 0 and 1.
+%% Booleans are represented by integers 0 and 1. 
 
 %% @type wx_mem(). see wx.erl on memory allocation functions
 %% @type enum().   An integer defined in gl.hrl
 %% @type offset(). An integer which is an offset in an array
-%% @type clamp().  A float clamped between 0.0 - 1.0
+%% @type clamp().  A float clamped between 0.0 - 1.0 
 
 -module(glu).
 -compile(inline).
@@ -60,7 +60,7 @@
   scaleImage/9,sphere/4,unProject/6,unProject4/9]).
 
 
-%% API
+%% API 
 
 %% @spec (Vec3, [Vec3]) -> {Triangles, VertexPos}
 %%  Vec3 = {float(),float(),float()}
@@ -69,8 +69,8 @@
 %% @doc General purpose polygon triangulation.
 %% The first argument is the normal and the second a list of
 %% vertex positions. Returned is a list of indecies of the vertices
-%% and a binary (64bit native float) containing an array of
-%% vertex positions, it starts with the vertices in Vs and
+%% and a binary (64bit native float) containing an array of 
+%% vertex positions, it starts with the vertices in Vs and 
 %% may contain newly created vertices in the end.
 tesselate({Nx,Ny,Nz}, Vs) ->
   wxe_util:call(5000, <<(length(Vs)):32/native,0:32,

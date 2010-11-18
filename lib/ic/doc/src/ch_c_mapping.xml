@@ -4,7 +4,7 @@
 <chapter>
   <header>
     <copyright>
-      <year>1998</year><year>2010</year>
+      <year>1998</year><year>2009</year>
       <holder>Ericsson AB. All Rights Reserved.</holder>
     </copyright>
     <legalnotice>
@@ -13,12 +13,12 @@
       compliance with the License. You should have received a copy of the
       Erlang Public License along with this software. If not, it can be
       retrieved online at http://www.erlang.org/.
-
+    
       Software distributed under the License is distributed on an "AS IS"
       basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
       the License for the specific language governing rights and limitations
       under the License.
-
+    
     </legalnotice>
 
     <title>IDL to C mapping</title>
@@ -770,24 +770,24 @@ CORBA_Environment* oe_env)
         <p>While the <c>erlang::binary</c> idl type has the same C-definition as 
           a generated sequence of octets :</p>
         <code type="none"><![CDATA[
-      module erlang
-      {
+\011  module erlang
+\011  {
 
-      ....
+\011  ....
 
-      // an erlang binary
-      typedef sequence<octet> binary;
-      
-      };
+\011  // an erlang binary
+\011  typedef sequence<octet> binary;
+\011  
+\011  };
         ]]></code>
         <p>it provides a way on sending trasparent  data between C and Erlang.</p>
         <p>The C-definition (ic.h) for an erlang binary is :</p>
         <code type="none">
-      typedef struct {
-      CORBA_unsigned_long _maximum;
-      CORBA_unsigned_long _length;
-      CORBA_octet* _buffer;
-      } erlang_binary;                        /* ERLANG BINARY */
+\011  typedef struct {
+\011  CORBA_unsigned_long _maximum;
+\011  CORBA_unsigned_long _length;
+\011  CORBA_octet* _buffer;
+\011  } erlang_binary;                        /* ERLANG BINARY */
         </code>
         <p>The differences (between <c>erlang::binary</c> and <c><![CDATA[sequence< octet >]]></c>) are :</p>
         <list type="bulleted">
@@ -804,7 +804,7 @@ CORBA_Environment* oe_env)
               octets</p>
           </item>
         </list>
-        <p>The erlang binary IDL type is defined in <c>erlang.idl</c>, while its 
+        <p>The erlang binary IDL type is defined in <c>erlang.idl</c>, while it's 
           C definition is located in the <c>ic.h</c> header file, both in the 
           <c><![CDATA[IC-< vsn >/include]]></c> directory.
           The user will have to include the file <c>erlang.idl</c> in order to use the

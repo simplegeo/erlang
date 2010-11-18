@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1997-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1997-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 
@@ -71,7 +71,7 @@
 %%% ts_erl_config	 Finds out information about the Erlang system,
 %%%			 for instance the location of erl_interface.
 %%%			 This works for either an installed OTP or an Erlang
-%%%			 system running in a git repository/source tree.
+%%%			 system running from Clearcase.
 %%% ts_make		 Interface to run the `make' program on Unix
 %%%			 and other platforms.
 %%% ts_make_erl		 A corrected version of the standar Erlang module
@@ -112,7 +112,7 @@
     "                      Mandatory for remote targets\n"
     "  {master, {MasterHost, MasterCookie}}\n"
     "                    - Master host and cookie for targets which are\n"
-    "                      started as slave nodes.\n"
+    "                      started as slave nodes (i.e. OSE/Delta targets\n"
     "                      erl_boot_server must be started on master before\n"
     "                      test is run.\n"
     "                      Optional, default is controller host and then\n"

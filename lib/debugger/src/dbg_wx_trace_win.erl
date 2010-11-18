@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2008-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2008-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 
@@ -410,11 +410,11 @@ clear_breaks(WinInfo) ->
     clear_breaks(WinInfo, all).
 clear_breaks(WinInfo, Mod) ->
     Remove = if
-		 Mod =:= all -> WinInfo#winInfo.breaks;
+		 Mod==all -> WinInfo#winInfo.breaks;
 		 true ->
 		     lists:filter(fun(#breakInfo{point={Mod2,_L}}) ->
 					  if
-					      Mod2 =:= Mod -> true;
+					      Mod2==Mod -> true;
 					      true -> false
 					  end
 				  end,
@@ -481,8 +481,8 @@ display(#winInfo{window=Win, sb=Sb},Arg) ->
 %% Note: remove_code/2 should not be used for currently shown module.
 %%--------------------------------------------------------------------
 is_shown(WinInfo, Mod) ->
-    case lists:keyfind(Mod, 1, WinInfo#winInfo.editors) of
-	{Mod, Editor} ->
+    case lists:keysearch(Mod, 1, WinInfo#winInfo.editors) of
+	{value, {Mod, Editor}} ->
 	    gs:config(Editor, raise),  %% BUGBUG
 	    {true, WinInfo#winInfo{editor={Mod, Editor}}};
 	false -> false
@@ -494,7 +494,7 @@ show_code(WinInfo = #winInfo{editor={_, Ed}}, Mod, Contents) ->
     
     lists:foreach(fun(BreakInfo) ->
 			  case BreakInfo#breakInfo.point of
-			      {Mod2, Line} when Mod2 =:= Mod ->
+			      {Mod2, Line} when Mod2==Mod ->
 				  Status = BreakInfo#breakInfo.status,
 				  dbg_wx_code:add_break_to_code(Ed, Line,Status);
 			      _Point -> ignore
@@ -540,10 +540,10 @@ select_line(WinInfo, Line) ->
     %% help window, it must be checked that it is correct
     Size = dbg_wx_code:get_no_lines(Ed),
     if
-	Line =:= 0 ->
+	Line==0 ->
 	    dbg_wx_code:goto_line(Ed,1),
 	    WinInfo#winInfo{selected_line=0};
-	Line < Size ->
+	Line<Size ->
 	    dbg_wx_code:goto_line(Ed,Line),
 	    WinInfo#winInfo{selected_line=Line};
 	true ->
@@ -571,7 +571,7 @@ update_bindings(#winInfo{bind=#sub{out=BA}}, Bs) ->
     wx:foldl(fun({Var,Val},Row) ->
 		     wxListCtrl:insertItem(BA, Row, ""), 
 		     wxListCtrl:setItem(BA, Row, 0, dbg_wx_win:to_string(Var)),
-		     wxListCtrl:setItem(BA, Row, 1, dbg_wx_win:to_string("~500P",[Val, 80])),
+		     wxListCtrl:setItem(BA, Row, 1, dbg_wx_win:to_string("~200p",[Val])),
 		     Row+1
 	     end, 0, Bs),
     put(bindings,Bs),
@@ -632,7 +632,7 @@ handle_event(#wx{id=?SASH_CODE, event=#wxSash{dragRect={_X,_Y,_W,H}}}, Wi) ->
 	    Change = CH - H, 
 	    ChangeH = fun(Item) ->
 			      {ItemW, ItemH} = wxSizerItem:getMinSize(Item),
-			      wxSizerItem:setInitSize(Item, ItemW, erlang:max(ItemH+Change,-1))
+			      wxSizerItem:setInitSize(Item, ItemW, max(ItemH+Change,-1))
 		      end,
 	    if Enable ->
 		    {IW, IH} = wxSizer:getMinSize(InfoSzr),
@@ -694,7 +694,7 @@ handle_event(#wx{id=?SASH_TRACE, event=#wxSash{dragRect={_X,_Y,_W,H}}}, Wi) ->
 	true ->  %% Change the Eval and Bindings area
 	    ChangeH = fun(Item) ->
 			      {ItemW, ItemH} = wxSizerItem:getMinSize(Item),
-			      wxSizerItem:setInitSize(Item, ItemW, erlang:max(ItemH+Change,-1))
+			      wxSizerItem:setInitSize(Item, ItemW, max(ItemH+Change,-1))
 		      end,
 	    {IW, IH} = wxSizer:getMinSize(InfoSzr),
 	    [ChangeH(Child) || Child <- wxSizer:getChildren(InfoSzr)],
@@ -764,8 +764,8 @@ handle_event(#wx{event=#wxStyledText{type=stc_doubleclick}},
 	     WinInfo = #winInfo{editor={Mod,Ed}}) ->
     Line = wxStyledTextCtrl:getCurrentLine(Ed),
     Point = {Mod, Line+1},
-    case lists:keymember(Point, #breakInfo.point, WinInfo#winInfo.breaks) of
-	true -> {break, Point, delete};
+    case lists:keysearch(Point, #breakInfo.point,WinInfo#winInfo.breaks) of
+	{value, _BreakInfo} -> {break, Point, delete};
 	false -> {break, Point, add}
     end;
 
@@ -837,7 +837,7 @@ handle_event(#wx{id=?SEARCH_ENTRY, event=#wxCommand{cmdString=Str}},
 
 %% Button area
 handle_event(#wx{id=ID, event=#wxCommand{type=command_button_clicked}},_Wi) ->
-    {Button, _} = lists:keyfind(ID, 2, buttons()),
+    {value, {Button, _}} = lists:keysearch(ID, 2, buttons()),
     Button;
 
 %% Evaluator area
@@ -908,8 +908,8 @@ buttons() ->
      {'Where',?WhereButton}, {'Up',?UpButton}, {'Down',?DownButton}].
 
 is_button(Name) ->
-    case lists:keyfind(Name, 1, buttons()) of
-	{Name, Button} -> {true, Button};
+    case lists:keysearch(Name, 1, buttons()) of
+	{value, {Name, Button}} -> {true, Button};
 	false -> false
     end.
 
@@ -1021,3 +1021,9 @@ helpwin(Type, WinInfo = #winInfo{sg=Sg =#sub{in=Sa}}) ->
 	search   ->  wxWindow:setFocus(Sa#sa.search)
     end,
     Wi.
+
+max(X,Y) when X > Y -> X;
+max(_,Y) -> Y.
+     
+
+   

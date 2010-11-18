@@ -4,7 +4,7 @@
 <chapter>
   <header>
     <copyright>
-      <year>2004</year><year>2010</year>
+      <year>2004</year><year>2009</year>
       <holder>Ericsson AB. All Rights Reserved.</holder>
     </copyright>
     <legalnotice>
@@ -13,12 +13,12 @@
       compliance with the License. You should have received a copy of the
       Erlang Public License along with this software. If not, it can be
       retrieved online at http://www.erlang.org/.
-
+    
       Software distributed under the License is distributed on an "AS IS"
       basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
       the License for the specific language governing rights and limitations
       under the License.
-
+    
     </legalnotice>
 
     <title>Compiler Release Notes</title>
@@ -30,184 +30,6 @@
   </header>
   <p>This document describes the changes made to the Compiler
     application.</p>
-
-<section><title>Compiler 4.7.1</title>
-
-    <section><title>Improvements and New Features</title>
-      <list>
-        <item>
-          <p>
-	    Eliminated warnings for auto-imported BIF clashes.</p>
-          <p>
-	    Own Id: OTP-8840</p>
-        </item>
-      </list>
-    </section>
-
-</section>
-
-<section><title>Compiler 4.7</title>
-
-    <section><title>Fixed Bugs and Malfunctions</title>
-      <list>
-        <item>
-          <p>
-	    Several problems in the inliner have been fixed.</p>
-          <p>
-	    Own Id: OTP-8552</p>
-        </item>
-      </list>
-    </section>
-
-
-    <section><title>Improvements and New Features</title>
-      <list>
-        <item>
-          <p>
-	    The module binary from EEP31 (and EEP9) is implemented.</p>
-          <p>
-	    Own Id: OTP-8217</p>
-        </item>
-        <item>
-	    <p>Local and imported functions now override the
-	    auto-imported BIFs when the names clash. The pre R14
-	    behaviour was that auto-imported BIFs would override
-	    local functions. To avoid that old programs change
-	    behaviour, the following will generate an error:</p>
-	    <list><item><p>Doing a call without explicit module name
-	    to a local function having a name clashing with the name
-	    of an auto-imported BIF that was present (and
-	    auto-imported) before OTP R14A</p></item>
-	    <item><p>Explicitly importing a function having a name
-	    clashing with the name of an autoimported BIF that was
-	    present (and autoimported) before OTP R14A</p></item>
-	    <item><p>Using any form of the old compiler directive
-	    <c>nowarn_bif_clash</c></p></item> </list> <p>If the BIF
-	    was added or auto-imported in OTP R14A or later,
-	    overriding it with an import or a local function will
-	    only result in a warning,</p> <p>To resolve clashes, you
-	    can either use the explicit module name <c>erlang</c> to
-	    call the BIF, or you can remove the auto-import of that
-	    specific BIF by using the new compiler directive
-	    <c>-compile({no_auto_import,[F/A]}).</c>, which makes all
-	    calls to the local or imported function without explicit
-	    module name pass without warnings or errors.</p> <p>The
-	    change makes it possible to add auto-imported BIFs
-	    without breaking or silently changing old code in the
-	    future. However some current code ingeniously utilizing
-	    the old behaviour or the <c>nowarn_bif_clash</c> compiler
-	    directive, might need changing to be accepted by the
-	    compiler.</p>
-          <p>
-	    *** POTENTIAL INCOMPATIBILITY ***</p>
-          <p>
-	    Own Id: OTP-8579</p>
-        </item>
-        <item>
-	    <p>The undocumented, unsupport, and deprecated function
-	    <c>lists:flat_length/1</c> has been removed.</p>
-          <p>
-	    Own Id: OTP-8584</p>
-        </item>
-        <item>
-	    <p>Nested records can now be accessed without
-	    parenthesis. See the Reference Manual for examples.
-	    (Thanks to YAMASHINA Hio and Tuncer Ayaz.)</p>
-          <p>
-	    Own Id: OTP-8597</p>
-        </item>
-        <item>
-	    <p>It is now possible to suppress the warning in code
-	    such as "<c>list_to_integer(S), ok</c>" by assigning the
-	    ignored value "_" like this: "<c>_ = list_to_integer(S),
-	    ok</c>".</p>
-          <p>
-	    Own Id: OTP-8602</p>
-        </item>
-        <item>
-	    <p><c>receive</c> statements that can only read out a
-	    newly created reference are now specially optimized so
-	    that it will execute in constant time regardless of the
-	    number of messages in the receive queue for the process.
-	    That optimization will benefit calls to
-	    <c>gen_server:call()</c>. (See <c>gen:do_call/4</c> for
-	    an example of a receive statement that will be
-	    optimized.)</p>
-          <p>
-	    Own Id: OTP-8623</p>
-        </item>
-        <item>
-	    <p>The compiler optimizes record operations better.</p>
-          <p>
-	    Own Id: OTP-8668</p>
-        </item>
-      </list>
-    </section>
-
-</section>
-
-<section><title>Compiler 4.6.5</title>
-
-    <section><title>Fixed Bugs and Malfunctions</title>
-      <list>
-        <item>
-          <p>
-	    Using complex boolean expressions in ifs could cause the
-	    compiler to either crash or teminate with an internal
-	    error. (Thanks to Simon Cornish.)</p>
-          <p>
-	    Own Id: OTP-8338</p>
-        </item>
-        <item>
-	    <p>Bit string comprehensions can now be used in
-	    parameterized modules. (Thanks to Jebu Ittiachen.)</p>
-          <p>
-	    Own Id: OTP-8447</p>
-        </item>
-      </list>
-    </section>
-
-
-    <section><title>Improvements and New Features</title>
-      <list>
-        <item>
-          <p>
-	    The expected return value for an on_load function has
-	    been changed. (See the section about code loading in the
-	    Reference manual.)</p>
-          <p>
-	    *** POTENTIAL INCOMPATIBILITY ***</p>
-          <p>
-	    Own Id: OTP-8339</p>
-        </item>
-        <item>
-          <p>
-	    In rare circumstances when using garbaging collecting
-	    guard BIFs, the validation pass (beam_validator) would
-	    signal that the code was unsafe, when it in fact was
-	    correct. (Thanks to Kiran Khaladkar.)</p>
-          <p>
-	    Own Id: OTP-8378</p>
-        </item>
-        <item>
-          <p>
-	    The <c>-Werror</c> option for <c>erlc</c> and the
-	    compiler option <c>warnings_as_errors</c> will cause
-	    warnings to be treated as errors. (Thanks to Christopher
-	    Faulet.)</p>
-          <p>
-	    Own Id: OTP-8382</p>
-        </item>
-        <item>
-	    <p>Macros overloading has been implemented. (Thanks to
-	    Christopher Faulet.)</p>
-          <p>
-	    Own Id: OTP-8388</p>
-        </item>
-      </list>
-    </section>
-
-</section>
 
 <section><title>Compiler 4.6.4</title>
 

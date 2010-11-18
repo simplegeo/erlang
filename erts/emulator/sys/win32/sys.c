@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- *
- * Copyright Ericsson AB 1996-2010. All Rights Reserved.
- *
+ * 
+ * Copyright Ericsson AB 1996-2009. All Rights Reserved.
+ * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- *
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
+ * 
  * %CopyrightEnd%
  */
 /*
@@ -33,11 +33,10 @@
 #include "../../drivers/win32/win_con.h"
 
 
-
 void erts_sys_init_float(void);
 
 void erl_start(int, char**);
-void erl_exit(int n, char*, ...);
+void erl_exit(int n, char*, _DOTS_);
 void erl_error(char*, va_list);
 void erl_crash_dump(char*, int, char*, ...);
 
@@ -67,10 +66,10 @@ static void async_read_file(struct async_io* aio, LPVOID buf, DWORD numToRead);
 static int async_write_file(struct async_io* aio, LPVOID buf, DWORD numToWrite);
 static int get_overlapped_result(struct async_io* aio,
 				 LPDWORD pBytesRead, BOOL wait);
-static BOOL CreateChildProcess(char *, HANDLE, HANDLE,
-			       HANDLE, LPHANDLE, BOOL,
-			       LPVOID, LPTSTR, unsigned,
-			       char **, int *);
+static FUNCTION(BOOL, CreateChildProcess, (char *, HANDLE, HANDLE,
+					   HANDLE, LPHANDLE, BOOL,
+					   LPVOID, LPTSTR, unsigned, 
+					   char **, int *));
 static int create_pipe(LPHANDLE, LPHANDLE, BOOL, BOOL);
 static int ApplicationType(const char* originalName, char fullPath[MAX_PATH],
 			   BOOL search_in_path, BOOL handle_quotes,
@@ -93,13 +92,9 @@ static erts_smp_mtx_t sys_driver_data_lock;
 #define APPL_WIN3X 2
 #define APPL_WIN32 3
 
-static int driver_write(long, HANDLE, byte*, int);
+static FUNCTION(int, driver_write, (long, HANDLE, byte*, int));
 static void common_stop(int);
 static int create_file_thread(struct async_io* aio, int mode);
-#ifdef ERTS_SMP
-static void close_active_handles(ErlDrvPort, const HANDLE* handles, int cnt);
-static DWORD WINAPI threaded_handle_closer(LPVOID param);
-#endif
 static DWORD WINAPI threaded_reader(LPVOID param);
 static DWORD WINAPI threaded_writer(LPVOID param);
 static DWORD WINAPI threaded_exiter(LPVOID param);
@@ -137,9 +132,6 @@ static BOOL win_console = FALSE;
 
 static OSVERSIONINFO int_os_version;	/* Version information for Win32. */
 
-#ifdef ERTS_SMP
-static BOOL (WINAPI *fpCancelIoEx)(HANDLE,LPOVERLAPPED);
-#endif
 
 /* This is the system's main function (which may or may not be called "main")
    - do general system-dependent initialization
@@ -193,17 +185,6 @@ erts_sys_misc_mem_sz(void)
     Uint res = (Uint) erts_check_io_size();
     res += (Uint) erts_smp_atomic_read(&sys_misc_mem_sz);
     return res;
-}
-
-/*
- * Reset the terminal to the original settings on exit
- */
-void sys_tty_reset(int exit_code)
-{
-    if (exit_code > 0)
-	ConWaitForExit();
-    else
-	ConNormalExit();
 }
 
 void erl_sys_args(int* argc, char** argv)
@@ -684,50 +665,25 @@ release_driver_data(DriverData* dp)
     erts_smp_mtx_lock(&sys_driver_data_lock);
 
 #ifdef ERTS_SMP
-    if (fpCancelIoEx != NULL) {
-	if (dp->in.thread == (HANDLE) -1 && dp->in.fd != INVALID_HANDLE_VALUE) {
-	    (*fpCancelIoEx)(dp->in.fd, NULL);
-	}
-	if (dp->out.thread == (HANDLE) -1 && dp->out.fd != INVALID_HANDLE_VALUE) {
-	    (*fpCancelIoEx)(dp->out.fd, NULL);
-	}
+    /* This is a workaround for the fact that CancelIo cant cancel
+       requests issued by another thread and that we still cant use
+       CancelIoEx as that's only availabele in Vista etc. */
+    if(dp->in.async_io_active && dp->in.fd != INVALID_HANDLE_VALUE) {
+	CloseHandle(dp->in.fd);
+	dp->in.fd = INVALID_HANDLE_VALUE;
+	DEBUGF(("Waiting for the in event thingie"));
+	WaitForSingleObject(dp->in.ov.hEvent,INFINITE);
+	DEBUGF(("...done\n"));
     }
-    else {
-	/* This is a workaround for the fact that CancelIo cant cancel
-	   requests issued by another thread and that we cant use
-	   CancelIoEx as that's only availabele in Vista etc.
-	   R14: Avoid scheduler deadlock by only wait for 10ms, and then spawn
-	    a thread that will keep waiting in in order to close handles. */
-	HANDLE handles[2];
-	int i = 0;
-	int timeout = 10;
-	if(dp->in.async_io_active && dp->in.fd != INVALID_HANDLE_VALUE) {
-	    CloseHandle(dp->in.fd);
-	    dp->in.fd = INVALID_HANDLE_VALUE;
-	    DEBUGF(("Waiting for the in event thingie"));
-	    if (WaitForSingleObject(dp->in.ov.hEvent,timeout) == WAIT_TIMEOUT) {
-		handles[i++] = dp->in.ov.hEvent;
-		dp->in.ov.hEvent = NULL;
-		timeout = 0;
-	    }
-	    DEBUGF(("...done\n"));
-	}
-	if(dp->out.async_io_active && dp->out.fd != INVALID_HANDLE_VALUE) {
-	    CloseHandle(dp->out.fd);
-	    dp->out.fd = INVALID_HANDLE_VALUE;
-	    DEBUGF(("Waiting for the out event thingie"));
-	    if (WaitForSingleObject(dp->out.ov.hEvent,timeout) == WAIT_TIMEOUT) {
-		handles[i++] = dp->out.ov.hEvent;
-		dp->out.ov.hEvent = NULL;
-	    }
-	    DEBUGF(("...done\n"));
-	}
-	if (i > 0) {
-	    close_active_handles(dp->port_num, handles, i);
-	}
+    if(dp->out.async_io_active && dp->out.fd != INVALID_HANDLE_VALUE) {
+	CloseHandle(dp->out.fd);
+	dp->out.fd = INVALID_HANDLE_VALUE;
+	DEBUGF(("Waiting for the out event thingie"));
+	WaitForSingleObject(dp->out.ov.hEvent,INFINITE);
+	DEBUGF(("...done\n"));
     }
 #else
-	if (dp->in.thread == (HANDLE) -1 && dp->in.fd != INVALID_HANDLE_VALUE) {
+    	if (dp->out.thread == (HANDLE) -1 && dp->in.fd != INVALID_HANDLE_VALUE) {
 	     CancelIo(dp->in.fd); 
 	}
 	if (dp->out.thread == (HANDLE) -1 && dp->out.fd != INVALID_HANDLE_VALUE) {
@@ -769,48 +725,6 @@ release_driver_data(DriverData* dp)
     dp->port_num = PORT_FREE;
     erts_smp_mtx_unlock(&sys_driver_data_lock);
 }
-
-#ifdef ERTS_SMP
-
-struct handles_to_be_closed
-{
-    int cnt;
-    HANDLE handles[2];
-};
-
-static void close_active_handles(ErlDrvPort port_num, const HANDLE* handles, int cnt)
-{
-    DWORD tid;
-    HANDLE thread;
-    int i;
-    struct handles_to_be_closed* htbc = erts_alloc(ERTS_ALC_T_DRV_TAB,
-						   sizeof(struct handles_to_be_closed));
-    htbc->cnt = cnt;
-    for (i=0; i < cnt; ++i) {
-	htbc->handles[i] = handles[i];
-	(void) driver_select(port_num, (ErlDrvEvent)handles[i],
-			     ERL_DRV_USE_NO_CALLBACK, 0);
-    }
-    thread = (HANDLE *) _beginthreadex(NULL, 0, threaded_handle_closer, htbc, 0, &tid);
-    CloseHandle(thread);
-}
-
-
-static DWORD WINAPI
-threaded_handle_closer(LPVOID param)
-{
-    struct handles_to_be_closed* htbc = (struct handles_to_be_closed*) param;
-    int i;
-    DEBUGF(("threaded_handle_closer waiting for %d handles\r\n",htbc->cnt));
-    WaitForMultipleObjects(htbc->cnt, htbc->handles, TRUE, INFINITE);
-    for (i=0; i < htbc->cnt; ++i) {
-	CloseHandle(htbc->handles[i]);
-    }
-    erts_free(ERTS_ALC_T_DRV_TAB, htbc);
-    DEBUGF(("threaded_handle_closer terminating\r\n"));
-    return 0;
-}
-#endif /* ERTS_SMP */
 
 /*
  * Stores input and output file descriptors in the DriverData structure,
@@ -1101,19 +1015,12 @@ static int
 spawn_init()
 {
     int i;
-#ifdef ERTS_SMP
-    HMODULE module = GetModuleHandle("kernel32");
-    fpCancelIoEx = (module != NULL) ?
-	(BOOL (WINAPI *)(HANDLE,LPOVERLAPPED))
-      GetProcAddress(module,"CancelIoEx") : NULL;
-    DEBUGF(("fpCancelIoEx = %p\r\n", fpCancelIoEx));
-#endif
+  
     driver_data = (struct driver_data *)
 	erts_alloc(ERTS_ALC_T_DRV_TAB, max_files * sizeof(struct driver_data));
     erts_smp_atomic_add(&sys_misc_mem_sz, max_files*sizeof(struct driver_data));
     for (i = 0; i < max_files; i++)
 	driver_data[i].port_num = PORT_FREE;
-
     return 0;
 }
 
@@ -2627,6 +2534,7 @@ erts_sys_main_thread(void)
 
 void erts_sys_alloc_init(void)
 {
+    elib_ensure_initialized();
 }
 
 void *erts_sys_alloc(ErtsAlcType_t t, void *x, Uint sz)
@@ -2973,14 +2881,19 @@ check_supported_os_version(void)
 }
 
 #ifdef USE_THREADS
-#ifdef ERTS_ENABLE_LOCK_COUNT
-static void
-thr_create_prepare_child(void *vtcdp)
+static void *ethr_internal_alloc(size_t size)
 {
-    erts_lcnt_thread_setup();
+    return erts_alloc_fnf(ERTS_ALC_T_ETHR_INTERNAL, (Uint) size);
 }
-#endif /* ERTS_ENABLE_LOCK_COUNT */
-#endif /* USE_THREADS */
+static void *ethr_internal_realloc(void *ptr, size_t size)
+{
+    return erts_realloc_fnf(ERTS_ALC_T_ETHR_INTERNAL, ptr, (Uint) size);
+}
+static void ethr_internal_free(void *ptr)
+{
+    erts_free(ERTS_ALC_T_ETHR_INTERNAL, ptr);
+}
+#endif
 
 void
 erts_sys_pre_init(void)
@@ -2991,9 +2904,9 @@ erts_sys_pre_init(void)
 #ifdef USE_THREADS
     {
 	erts_thr_init_data_t eid = ERTS_THR_INIT_DATA_DEF_INITER;
-#ifdef ERTS_ENABLE_LOCK_COUNT
-	eid.thread_create_child_func = thr_create_prepare_child;
-#endif
+	eid.alloc = ethr_internal_alloc;
+	eid.realloc = ethr_internal_realloc;
+	eid.free = ethr_internal_free;
 	erts_thr_init(&eid);
 #ifdef ERTS_ENABLE_LOCK_COUNT
 	erts_lcnt_init();
@@ -3001,7 +2914,14 @@ erts_sys_pre_init(void)
     }
 #endif
     erts_smp_atomic_init(&sys_misc_mem_sz, 0);
+    erts_sys_env_init();
 }
+
+/*
+ * the last two only used for standalone erlang
+ * they should are used by sae_main in beam dll to
+ * enable standalone execution via erl_api-routines
+ */
 
 void noinherit_std_handle(DWORD type)
 {
@@ -3015,8 +2935,6 @@ void noinherit_std_handle(DWORD type)
 void erl_sys_init(void)
 {
     HANDLE handle;
-
-    erts_sys_env_init();
 
     noinherit_std_handle(STD_OUTPUT_HANDLE);
     noinherit_std_handle(STD_INPUT_HANDLE);

@@ -55,7 +55,7 @@ process(File, Opts) ->
 
 	    %% If no target format is specified, assume HTML:
 	    Tos = if
-		      Tos0 =:= [] -> [html];
+		      Tos0==[] -> [html];
 		      true -> Tos0
 		  end,
 
@@ -327,8 +327,12 @@ verify(Tree) -> verify(Tree, [], 1).
 verify({pcdata, Optional, _}, Path, Level) ->
     verify_optional(Optional, Path, Level);
 verify({Tag, Optional, Args}, Path, Level) when is_list(Args) ->
-    verify_optional(Optional, Path, Level)
-	andalso verify_list(Args, [Tag|Path], Level);
+    case verify_optional(Optional, Path, Level) of
+	true ->
+	    verify_list(Args, [Tag|Path], Level);
+	false ->
+	    false
+    end;
 verify(Other, Path, Level) ->
     verify_error(Other, Path, Level).
 
@@ -338,7 +342,12 @@ verify_error(X, Path, Level) ->
     false.
 
 verify_list([H|T], Path, Level) ->
-    verify(H, Path, Level) andalso verify_list(T, Path, Level + 1);
+    case verify(H, Path, Level) of
+	true ->
+	    verify_list(T, Path, Level +1);
+	false ->
+	    false
+    end;
 verify_list([], _, _) ->
     true.
 
@@ -410,7 +419,7 @@ edit1_list(_Tag, [], _Op) ->
 %% Actual transformation of tree structure to desired format.
 transform(From, To, Opts, File, Tree) ->
     Filter = if
-		 To =:= html; To =:= kwic ->
+		 To==html; To==kwic ->
 		     list_to_atom("docb_tr_" ++ atom_to_list(From) ++
 				  [$2|atom_to_list(To)]);
 		 true ->
@@ -418,7 +427,7 @@ transform(From, To, Opts, File, Tree) ->
 				  [$2|atom_to_list(To)])
 	     end,
 
-    case catch Filter:transform(File, Tree, Opts) of
+    case catch apply(Filter, transform, [File, Tree, Opts]) of
 
 	%% R5C
 	{'EXIT', {undef, [{Filter, transform, [File, Tree, Opts]}|_]}}->
@@ -450,9 +459,9 @@ transform(From, To, Opts, File, Tree) ->
 finish_transform(Tree, File, Opts, Filter) ->
     {Str, NewOpts} = pp(Tree, [], 1, Filter, Opts),
     Extension =
-	case catch Filter:extension(NewOpts) of
+	case catch apply(Filter, extension, [NewOpts]) of
 	    {'EXIT', _} ->
-		Filter:extension();
+		apply(Filter, extension, []);
 	    Others ->
 		Others
 	end,
@@ -597,7 +606,7 @@ include_all(Fd) ->
 	eof ->
 	    [];
 	ListOfChars ->
-	    ListOfChars ++ include_all(Fd)
+	    lists:append(ListOfChars, include_all(Fd))
     end.
 
 extract(File, Fd, StartTag, StopTag, State) ->

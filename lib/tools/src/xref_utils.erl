@@ -1,25 +1,23 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2000-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2000-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 -module(xref_utils).
 
-%% Avoid warning for local function error/1 clashing with autoimported BIF.
--compile({no_auto_import,[error/1]}).
 -export([xset/2]).
 
 -export([is_directory/1, file_info/1, fa_to_mfa/2]).
@@ -455,8 +453,7 @@ find_beam(Module) when is_atom(Module) ->
 	non_existing ->
 	    error({no_such_module, Module});
 	preloaded ->
-	    {Module, {_M, _Bin, File}} = 
-                {Module, code:get_object_code(Module)},
+	    {_M, _Bin, File} = code:get_object_code(Module),
 	    {ok, File};
         cover_compiled ->
 	    error({cover_compiled, Module});
@@ -642,22 +639,22 @@ neighbours([], G, Fun, VT, L, _V, Vs) ->
     neighbours(Vs, G, Fun, VT, L).
 
 match_list(L, RExpr) ->
-    {ok, Expr} = re:compile(RExpr),
+    {ok, Expr} = regexp:parse(RExpr),
     filter(fun(E) -> match(E, Expr) end, L).
 
 match_one(VarL, Con, Col) ->
     select_each(VarL, fun(E) -> Con =:= element(Col, E) end).
 
 match_many(VarL, RExpr, Col) ->
-    {ok, Expr} = re:compile(RExpr),    
+    {ok, Expr} = regexp:parse(RExpr),    
     select_each(VarL, fun(E) -> match(element(Col, E), Expr) end).
 
 match(I, Expr) when is_integer(I) ->
     S = integer_to_list(I),
-    {match, [{0,length(S)}]} =:= re:run(S, Expr, [{capture, first}]);
+    {match, 1, length(S)} =:= regexp:first_match(S, Expr);
 match(A, Expr) when is_atom(A) ->
     S = atom_to_list(A),
-    {match, [{0,length(S)}]} =:= re:run(S, Expr, [{capture, first}]).
+    {match, 1, length(S)} =:= regexp:first_match(S, Expr).
 
 select_each([{Mod,Funs} | L], Pred) ->
     case filter(Pred, Funs) of

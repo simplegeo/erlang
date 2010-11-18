@@ -1,19 +1,19 @@
 #
 # %CopyrightBegin%
-#
-# Copyright Ericsson AB 1996-2010. All Rights Reserved.
-#
+# 
+# Copyright Ericsson AB 1996-2009. All Rights Reserved.
+# 
 # The contents of this file are subject to the Erlang Public License,
 # Version 1.1, (the "License"); you may not use this file except in
 # compliance with the License. You should have received a copy of the
 # Erlang Public License along with this software. If not, it can be
 # retrieved online at http://www.erlang.org/.
-#
+# 
 # Software distributed under the License is distributed on an "AS IS"
 # basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 # the License for the specific language governing rights and limitations
 # under the License.
-#
+# 
 # %CopyrightEnd%
 #
 
@@ -65,7 +65,6 @@ atom EXIT='EXIT'
 atom aborted
 atom abs_path
 atom absoluteURI
-atom ac
 atom active
 atom all
 atom all_but_first
@@ -101,15 +100,8 @@ atom band
 atom big
 atom bif_return_trap
 atom binary
-atom binary_bin_to_list_trap
-atom binary_copy_trap
-atom binary_longest_prefix_trap
-atom binary_longest_suffix_trap
-atom binary_match_trap
-atom binary_matches_trap
 atom block
 atom blocked
-atom bm
 atom bnot
 atom bor
 atom bxor
@@ -119,12 +111,10 @@ atom bsl
 atom bsr
 atom bsr_anycrlf
 atom bsr_unicode
-atom build_type
 atom busy_dist_port
 atom busy_port
 atom call
 atom call_count
-atom call_time
 atom caller
 atom capture
 atom case_clause
@@ -266,7 +256,6 @@ atom info
 atom info_msg
 atom initial_call
 atom input
-atom internal
 atom internal_error
 atom internal_status
 atom instruction_counts
@@ -314,7 +303,6 @@ atom messages
 atom meta
 atom meta_match_spec
 atom min_heap_size
-atom min_bin_vheap_size
 atom minor_version
 atom Minus='-'
 atom module
@@ -379,7 +367,6 @@ atom old_heap_size
 atom on_load
 atom open
 atom open_error
-atom opt
 atom or
 atom ordered_set
 atom orelse
@@ -434,7 +421,6 @@ atom raw
 atom re
 atom re_pattern
 atom re_run_trap
-atom read_concurrency
 atom ready_input
 atom ready_output
 atom ready_async
@@ -460,13 +446,11 @@ atom running
 atom running_ports
 atom running_procs
 atom runtime
-atom safe
 atom save_calls
 atom scheduler 
 atom scheduler_id
 atom schedulers_online
 atom scheme
-atom scope
 atom sensitive
 atom sequential_tracer
 atom sequential_trace_token

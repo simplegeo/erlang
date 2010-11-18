@@ -47,9 +47,6 @@
 %% comments. Comments within function definitions or declarations
 %% ("forms") are simply ignored.
 
--spec quick_recomment_forms(erl_syntax:forms(), [erl_comment_scan:comment()]) ->
-        erl_syntax:syntaxTree().
-
 quick_recomment_forms(Tree, Cs) ->
     recomment_forms(Tree, Cs, false).
 
@@ -111,9 +108,6 @@ quick_recomment_forms(Tree, Cs) ->
 %% @see erl_comment_scan
 %% @see recomment_tree/2
 %% @see quick_recomment_forms/2
-
--spec recomment_forms(erl_syntax:forms(), [erl_comment_scan:comment()]) ->
-        erl_syntax:syntaxTree().
 
 recomment_forms(Tree, Cs) ->
     recomment_forms(Tree, Cs, true).
@@ -215,7 +209,7 @@ comment_delta(Text) ->
 %% the source file itself, but have been included by preprocessing. This
 %% way, comments will not be inserted into such parts by mistake.
 
--record(filter, {file = undefined, line = 0 :: integer()}).
+-record(filter, {file = undefined, line = 0}).
 
 filter_forms(Fs) ->
     filter_forms(Fs, false, #filter{}).
@@ -335,9 +329,6 @@ check_file_attr_2(L) ->
 %% see <code>recomment_forms/2</code>.</p>
 %%
 %% @see recomment_forms/2
-
--spec recomment_tree(erl_syntax:syntaxTree(), [erl_comment_scan:comment()]) ->
-        {erl_syntax:syntaxTree(), [erl_comment_scan:comment()]}.
 
 recomment_tree(Tree, Cs) ->
     {Tree1, Cs1} = insert_comments(Cs, build_tree(Tree)),
@@ -486,7 +477,7 @@ build_tree(Node) ->
 	    
 	    %% Include L, while preserving Min =< Max.
 	    tree_node(minpos(L, Min),
-		      erlang:max(L, Max),
+		      max(L, Max),
 		      erl_syntax:type(Node),
 		      erl_syntax:get_attrs(Node),
 		      Subtrees)
@@ -507,7 +498,7 @@ build_list(Ts) ->
 build_list([T | Ts], Min, Max, Ack) ->
     Node = build_tree(T),
     Min1 = minpos(node_min(Node), Min),
-    Max1 = erlang:max(node_max(Node), Max),
+    Max1 = max(node_max(Node), Max),
     build_list(Ts, Min1, Max1, [Node | Ack]);
 build_list([], Min, Max, Ack) ->
     list_node(Min, Max, lists:reverse(Ack)).
@@ -518,7 +509,7 @@ build_list_list(Ls) ->
 build_list_list([L | Ls], Min, Max, Ack) ->
     Node = build_list(L),
     Min1 = minpos(node_min(Node), Min),
-    Max1 = erlang:max(node_max(Node), Max),
+    Max1 = max(node_max(Node), Max),
     build_list_list(Ls, Min1, Max1, [Node | Ack]);
 build_list_list([], Min, Max, Ack) ->
     {lists:reverse(Ack), Min, Max}.
@@ -601,23 +592,23 @@ expand_comment(C) ->
 %% syntax tree for any such tree that can have no subtrees, i.e., such
 %% that `erl_syntax:is_leaf' yields `true'.
 
--record(leaf, {min = 0           :: integer(),
-	       max = 0           :: integer(),
-	       precomments  = [] :: [erl_syntax:syntaxTree()],
-	       postcomments = [] :: [erl_syntax:syntaxTree()],
-	       value             :: erl_syntax:syntaxTree()}).
+-record(leaf, {min = 0,
+	       max = 0,
+	       precomments = [],
+	       postcomments = [],
+	       value}).
 
--record(tree, {min = 0           :: integer(),
-	       max = 0           :: integer(),
-	       type              :: atom(),
-	       attrs             :: erl_syntax:syntaxTreeAttributes(),
-	       precomments  = [] :: [erl_syntax:syntaxTree()],
-	       postcomments = [] :: [erl_syntax:syntaxTree()],
-	       subtrees     = [] :: [erl_syntax:syntaxTree()]}).
+-record(tree, {min = 0,
+	       max = 0,
+	       type,
+	       attrs,
+	       precomments = [],
+	       postcomments = [],
+	       subtrees = []}).
 
--record(list, {min = 0           :: integer(),
-	       max = 0           :: integer(),
-	       subtrees = []     :: [erl_syntax:syntaxTree()]}).
+-record(list, {min = 0,
+	       max = 0,
+	       subtrees = []}).
 
 leaf_node(Min, Max, Value) ->
     #leaf{min = Min,
@@ -722,6 +713,9 @@ tree_node_attrs(#tree{attrs = Attrs}) ->
 %% General utility functions
 
 %% Just the generic "maximum" function
+
+max(X, Y) when X > Y -> X;
+max(_, Y) -> Y.
 
 %% Return the least positive integer of X and Y, or zero if none of them
 %% are positive. (This is necessary for computing minimum source line

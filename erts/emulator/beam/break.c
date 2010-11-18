@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- *
- * Copyright Ericsson AB 1996-2010. All Rights Reserved.
- *
+ * 
+ * Copyright Ericsson AB 1996-2009. All Rights Reserved.
+ * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- *
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
+ * 
  * %CopyrightEnd%
  */
 /* This File contains functions which are called if a user hits ^C */
@@ -37,6 +37,10 @@
 #include "beam_load.h"
 #include "erl_instrument.h"
 #include "erl_bif_timer.h"
+
+#ifdef _OSE_
+#include "time.h"
+#endif
 
 /* Forward declarations -- should really appear somewhere else */
 static void process_killer(void);
@@ -258,10 +262,12 @@ print_process_info(int to, void *to_arg, Process *p)
     }
 
     {
+       long s = 0;
        int frags = 0;
        ErlHeapFragment *m = p->mbuf;
        while (m != NULL) {
 	   frags++;
+	   s += m->size;
 	   m = m->next;
        }
        erts_print(to, to_arg, "Number of heap fragments: %d\n", frags);
@@ -321,7 +327,7 @@ print_process_info(int to, void *to_arg, Process *p)
                (unsigned)(OLD_HEND(p) - OLD_HEAP(p)) );
     erts_print(to, to_arg, "Heap unused: %bpu\n", (p->hend - p->htop));
     erts_print(to, to_arg, "OldHeap unused: %bpu\n",
-	       (OLD_HEAP(p) == NULL) ? 0 : (OLD_HEND(p) - OLD_HTOP(p)) );
+	       (OLD_HEAP(p) == NULL) ? 0 : (OLD_HEND(p) - OLD_HEAP(p)) );
 
     if (garbing) {
 	print_garb_info(to, to_arg, p);
@@ -375,7 +381,7 @@ loaded(int to, void *to_arg)
     int i;
     int old = 0;
     int cur = 0;
-    BeamInstr* code;
+    Eterm* code;
 
     /*
      * Calculate and print totals.
@@ -611,29 +617,29 @@ static void
 bin_check(void)
 {
     Process  *rp;
-    struct erl_off_heap_header* hdr;
-    int i, printed = 0;
+    ProcBin *bp;
+    int i, printed;
 
     for (i=0; i < erts_max_processes; i++) {
 	if ((rp = process_tab[i]) == NULL)
 	    continue;
-	for (hdr = rp->off_heap.first; hdr; hdr = hdr->next) {
-	    if (hdr->thing_word == HEADER_PROC_BIN) {
-		ProcBin *bp = (ProcBin*) hdr;
-		if (!printed) {
-		    erts_printf("Process %T holding binary data \n", rp->id);
-		    printed = 1;
-		}
-		erts_printf("0x%08lx orig_size: %ld, norefs = %ld\n",
-			    (unsigned long)bp->val, 
-			    (long)bp->val->orig_size, 
-			    erts_smp_atomic_read(&bp->val->refc));
+	if (!(bp = rp->off_heap.mso))
+	    continue;
+	printed = 0;
+	while (bp) {
+	    if (printed == 0) {
+		erts_printf("Process %T holding binary data \n", rp->id);
+		printed = 1;
 	    }
+	    erts_printf("0x%08lx orig_size: %ld, norefs = %ld\n",
+		       (unsigned long)bp->val, 
+		       (long)bp->val->orig_size, 
+		       erts_smp_atomic_read(&bp->val->refc));
+
+	    bp = bp->next;
 	}
-	if (printed) {
+	if (printed == 1)
 	    erts_printf("--------------------------------------\n");
-	    printed = 0;
-	}
     }
     /* db_bin_check() has to be rewritten for the AVL trees... */
     /*db_bin_check();*/ 
@@ -697,8 +703,6 @@ erl_crash_dump_v(char *file, int line, char* fmt, va_list args)
     erts_fdprintf(fd, "System version: ");
     erts_print_system_version(fd, NULL, NULL);
     erts_fdprintf(fd, "%s\n", "Compiled: " ERLANG_COMPILE_DATE);
-    erts_fdprintf(fd, "Taints: ");
-    erts_print_nif_taints(fd, NULL);
     erts_fdprintf(fd, "Atoms: %d\n", atom_table_size());
     info(fd, NULL); /* General system info */
     if (process_tab != NULL)  /* XXX true at init */

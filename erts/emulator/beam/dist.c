@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- *
- * Copyright Ericsson AB 1996-2010. All Rights Reserved.
- *
+ * 
+ * Copyright Ericsson AB 1996-2009. All Rights Reserved.
+ * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- *
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
+ * 
  * %CopyrightEnd%
  */
 
@@ -228,7 +228,6 @@ int is_node_name_atom(Eterm a)
 
 typedef struct {
     DistEntry *dep;
-    Eterm *lhp;
 } NetExitsContext;
 
 /* 
@@ -254,9 +253,8 @@ static void doit_monitor_net_exits(ErtsMonitor *mon, void *vnecp)
 	    erts_destroy_monitor(rmon);
 	}
     } else {
-	DeclareTmpHeapNoproc(lhp,3);
+	Eterm lhp[3];
 	Eterm watched;
-	UseTmpHeapNoproc(3);
 	ASSERT(mon->type == MON_TARGET);
 	rmon = erts_remove_monitor(&(rp->monitors),mon->ref);
 	/* ASSERT(rmon != NULL); can happen during process exit */
@@ -273,7 +271,6 @@ static void doit_monitor_net_exits(ErtsMonitor *mon, void *vnecp)
 				       watched, am_noconnection);
 	    erts_destroy_monitor(rmon);
 	}
-	UnUseTmpHeapNoproc(3);
     }
     erts_smp_proc_unlock(rp, rp_locks);
  done:
@@ -635,27 +632,19 @@ static void clear_dist_entry(DistEntry *dep)
 int
 erts_dsig_send_link(ErtsDSigData *dsdp, Eterm local, Eterm remote)
 {
-    DeclareTmpHeapNoproc(ctl_heap,4);
+    Eterm ctl_heap[4];
     Eterm ctl = TUPLE3(&ctl_heap[0], make_small(DOP_LINK), local, remote);
-    int res;
-    UseTmpHeapNoproc(4);
 
-    res = dsig_send(dsdp, ctl, THE_NON_VALUE, 0);
-    UnUseTmpHeapNoproc(4);
-    return res;
+    return dsig_send(dsdp, ctl, THE_NON_VALUE, 0);
 }
 
 int
 erts_dsig_send_unlink(ErtsDSigData *dsdp, Eterm local, Eterm remote)
 {
-    DeclareTmpHeapNoproc(ctl_heap,4);
+    Eterm ctl_heap[4];
     Eterm ctl = TUPLE3(&ctl_heap[0], make_small(DOP_UNLINK), local, remote);
-    int res;
 
-    UseTmpHeapNoproc(4);
-    res = dsig_send(dsdp, ctl, THE_NON_VALUE, 0);
-    UnUseTmpHeapNoproc(4);
-    return res;
+    return dsig_send(dsdp, ctl, THE_NON_VALUE, 0);
 }
 
 
@@ -667,10 +656,7 @@ erts_dsig_send_m_exit(ErtsDSigData *dsdp, Eterm watcher, Eterm watched,
 			  Eterm ref, Eterm reason)
 {
     Eterm ctl;
-    DeclareTmpHeapNoproc(ctl_heap,6);
-    int res;
-
-    UseTmpHeapNoproc(6);
+    Eterm ctl_heap[6];
 
     ctl = TUPLE5(&ctl_heap[0], make_small(DOP_MONITOR_P_EXIT),
 		 watched, watcher, ref, reason);
@@ -681,9 +667,7 @@ erts_dsig_send_m_exit(ErtsDSigData *dsdp, Eterm watcher, Eterm watched,
     erts_smp_de_links_unlock(dsdp->dep);
 #endif
 
-    res = dsig_send(dsdp, ctl, THE_NON_VALUE, 1);
-    UnUseTmpHeapNoproc(6);
-    return res;
+    return dsig_send(dsdp, ctl, THE_NON_VALUE, 1);
 }
 
 /* We want to monitor a process (named or unnamed) on another node, we send:
@@ -694,17 +678,13 @@ erts_dsig_send_monitor(ErtsDSigData *dsdp, Eterm watcher, Eterm watched,
 		       Eterm ref)
 {
     Eterm ctl;
-    DeclareTmpHeapNoproc(ctl_heap,5);
-    int res;
+    Eterm ctl_heap[5];
 
-    UseTmpHeapNoproc(5);
     ctl = TUPLE4(&ctl_heap[0],
 		 make_small(DOP_MONITOR_P),
 		 watcher, watched, ref);
 
-    res = dsig_send(dsdp, ctl, THE_NON_VALUE, 0);
-    UnUseTmpHeapNoproc(5);
-    return res;
+    return dsig_send(dsdp, ctl, THE_NON_VALUE, 0);
 }
 
 /* A local process monitoring a remote one wants to stop monitoring, either 
@@ -716,29 +696,23 @@ erts_dsig_send_demonitor(ErtsDSigData *dsdp, Eterm watcher,
 			 Eterm watched, Eterm ref, int force)
 {
     Eterm ctl;
-    DeclareTmpHeapNoproc(ctl_heap,5);
-    int res;
+    Eterm ctl_heap[5];
 
-    UseTmpHeapNoproc(5);
     ctl = TUPLE4(&ctl_heap[0],
 		 make_small(DOP_DEMONITOR_P),
 		 watcher, watched, ref);
 
-    res = dsig_send(dsdp, ctl, THE_NON_VALUE, force);
-    UnUseTmpHeapNoproc(5);
-    return res;
+    return dsig_send(dsdp, ctl, THE_NON_VALUE, force);
 }
 
 int
 erts_dsig_send_msg(ErtsDSigData *dsdp, Eterm remote, Eterm message)
 {
     Eterm ctl;
-    DeclareTmpHeapNoproc(ctl_heap,5);
+    Eterm ctl_heap[5];
     Eterm token = NIL;
     Process *sender = dsdp->proc;
-    int res;
 
-    UseTmpHeapNoproc(5);
     if (SEQ_TRACE_TOKEN(sender) != NIL) {
 	seq_trace_update_send(sender);
 	token = SEQ_TRACE_TOKEN(sender);
@@ -750,21 +724,17 @@ erts_dsig_send_msg(ErtsDSigData *dsdp, Eterm remote, Eterm message)
 		     make_small(DOP_SEND_TT), am_Cookie, remote, token);
     else
 	ctl = TUPLE3(&ctl_heap[0], make_small(DOP_SEND), am_Cookie, remote);
-    res = dsig_send(dsdp, ctl, message, 0);
-    UnUseTmpHeapNoproc(5);
-    return res;
+    return dsig_send(dsdp, ctl, message, 0);
 }
 
 int
 erts_dsig_send_reg_msg(ErtsDSigData *dsdp, Eterm remote_name, Eterm message)
 {
     Eterm ctl;
-    DeclareTmpHeapNoproc(ctl_heap,6);
+    Eterm ctl_heap[6];
     Eterm token = NIL;
     Process *sender = dsdp->proc;
-    int res;
 
-    UseTmpHeapNoproc(6);
     if (SEQ_TRACE_TOKEN(sender) != NIL) {
 	seq_trace_update_send(sender);
 	token = SEQ_TRACE_TOKEN(sender);
@@ -777,9 +747,7 @@ erts_dsig_send_reg_msg(ErtsDSigData *dsdp, Eterm remote_name, Eterm message)
     else
 	ctl = TUPLE4(&ctl_heap[0], make_small(DOP_REG_SEND),
 		     sender->id, am_Cookie, remote_name);
-    res = dsig_send(dsdp, ctl, message, 0);
-    UnUseTmpHeapNoproc(6);
-    return res;
+    return dsig_send(dsdp, ctl, message, 0);
 }
 
 /* local has died, deliver the exit signal to remote */
@@ -788,10 +756,8 @@ erts_dsig_send_exit_tt(ErtsDSigData *dsdp, Eterm local, Eterm remote,
 		       Eterm reason, Eterm token)
 {
     Eterm ctl;
-    DeclareTmpHeapNoproc(ctl_heap,6);
-    int res;
+    Eterm ctl_heap[6];
 
-    UseTmpHeapNoproc(6);
     if (token != NIL) {	
 	seq_trace_update_send(dsdp->proc);
 	seq_trace_output_exit(token, reason, SEQ_TRACE_SEND, remote, local);
@@ -801,58 +767,38 @@ erts_dsig_send_exit_tt(ErtsDSigData *dsdp, Eterm local, Eterm remote,
 	ctl = TUPLE4(&ctl_heap[0], make_small(DOP_EXIT), local, remote, reason);
     }
     /* forced, i.e ignore busy */
-    res = dsig_send(dsdp, ctl, THE_NON_VALUE, 1);
-    UnUseTmpHeapNoproc(6);
-    return res;
+    return dsig_send(dsdp, ctl, THE_NON_VALUE, 1);
 }
 
 int
 erts_dsig_send_exit(ErtsDSigData *dsdp, Eterm local, Eterm remote, Eterm reason)
 {
-    DeclareTmpHeapNoproc(ctl_heap,5);
-    int res;
-    Eterm ctl;
-
-    UseTmpHeapNoproc(5);
-    ctl = TUPLE4(&ctl_heap[0],
-		 make_small(DOP_EXIT), local, remote, reason);
+    Eterm ctl_heap[5];
+    Eterm ctl = TUPLE4(&ctl_heap[0],
+		       make_small(DOP_EXIT), local, remote, reason);
     /* forced, i.e ignore busy */
-    res =  dsig_send(dsdp, ctl, THE_NON_VALUE, 1);
-    UnUseTmpHeapNoproc(5);
-    return res;
+    return dsig_send(dsdp, ctl, THE_NON_VALUE, 1);
 }
 
 int
 erts_dsig_send_exit2(ErtsDSigData *dsdp, Eterm local, Eterm remote, Eterm reason)
 {
-    DeclareTmpHeapNoproc(ctl_heap,5);
-    int res;
-    Eterm ctl;
+    Eterm ctl_heap[5];
+    Eterm ctl = TUPLE4(&ctl_heap[0],
+		       make_small(DOP_EXIT2), local, remote, reason);
 
-    UseTmpHeapNoproc(5);
-    ctl = TUPLE4(&ctl_heap[0],
-		 make_small(DOP_EXIT2), local, remote, reason);
-
-    res = dsig_send(dsdp, ctl, THE_NON_VALUE, 0);
-    UnUseTmpHeapNoproc(5);
-    return res;
+    return dsig_send(dsdp, ctl, THE_NON_VALUE, 0);
 }
 
 
 int
 erts_dsig_send_group_leader(ErtsDSigData *dsdp, Eterm leader, Eterm remote)
 {
-    DeclareTmpHeapNoproc(ctl_heap,4);
-    int res;
-    Eterm ctl;
+    Eterm ctl_heap[4];
+    Eterm ctl = TUPLE3(&ctl_heap[0],
+		       make_small(DOP_GROUP_LEADER), leader, remote);
 
-    UseTmpHeapNoproc(4);
-    ctl = TUPLE3(&ctl_heap[0],
-		 make_small(DOP_GROUP_LEADER), leader, remote);
-
-    res = dsig_send(dsdp, ctl, THE_NON_VALUE, 0);
-    UnUseTmpHeapNoproc(4);
-    return res;
+    return dsig_send(dsdp, ctl, THE_NON_VALUE, 0);
 }
 
 #if defined(PURIFY)
@@ -886,7 +832,6 @@ erts_dsig_send_group_leader(ErtsDSigData *dsdp, Eterm leader, Eterm remote)
 **
 **   assert  hlen == 0 !!!
 */
-
 int erts_net_message(Port *prt,
 		     DistEntry *dep,
 		     byte *hbuf,
@@ -894,7 +839,6 @@ int erts_net_message(Port *prt,
 		     byte *buf,
 		     int len)
 {
-#define DIST_CTL_DEFAULT_SIZE 64
     ErtsDistExternal ede;
     byte *t;
     Sint ctl_len;
@@ -906,7 +850,7 @@ int erts_net_message(Port *prt,
     Eterm *tuple;
     Eterm reason;
     Process* rp;
-    DeclareTmpHeapNoproc(ctl_default,DIST_CTL_DEFAULT_SIZE);
+    Eterm ctl_default[64];
     Eterm* ctl = ctl_default;
     ErlOffHeap off_heap;
     Eterm* hp;
@@ -920,25 +864,24 @@ int erts_net_message(Port *prt,
     int orig_len = len;
 #endif
 
-    UseTmpHeapNoproc(DIST_CTL_DEFAULT_SIZE);
     /* Thanks to Luke Gorrie */
-    off_heap.first = NULL;
+    off_heap.mso = NULL;
+#ifndef HYBRID /* FIND ME! */
+    off_heap.funs = NULL;
+#endif
     off_heap.overhead = 0;
+    off_heap.externals = NULL;
 
     ERTS_SMP_CHK_NO_PROC_LOCKS;
 
     ERTS_SMP_LC_ASSERT(erts_lc_is_port_locked(prt));
 
-    if (!erts_is_alive) {
-	UnUseTmpHeapNoproc(DIST_CTL_DEFAULT_SIZE);
+    if (!erts_is_alive)
 	return 0;
-    }
     if (hlen > 0)
 	goto data_error;
-    if (len == 0) {  /* HANDLE TICK !!! */
-	UnUseTmpHeapNoproc(DIST_CTL_DEFAULT_SIZE);
+    if (len == 0)  /* HANDLE TICK !!! */
 	return 0;
-    }
 
 #ifdef ERTS_RAW_DIST_MSG_DBG
     erts_fprintf(stderr, "<< ");
@@ -979,8 +922,7 @@ int erts_net_message(Port *prt,
 	goto data_error;
     }
     orig_ctl_len = ctl_len;
-
-    if (ctl_len > DIST_CTL_DEFAULT_SIZE) {
+    if (ctl_len > sizeof(ctl_default)/sizeof(ctl_default[0])) {
 	ctl = erts_alloc(ERTS_ALC_T_DCTRL_BUF, ctl_len * sizeof(Eterm));
     }
     hp = ctl;
@@ -1260,7 +1202,7 @@ int erts_net_message(Port *prt,
 	   {DOP_MONITOR_P_EXIT, Remote pid or name, Local pid, ref, reason} */
 	   
 
-	DeclareTmpHeapNoproc(lhp,3);
+	Eterm lhp[3];
 	Eterm sysname;
 	ErtsProcLocks rp_locks = ERTS_PROC_LOCKS_MSG_SEND|ERTS_PROC_LOCK_LINK;
 
@@ -1295,7 +1237,6 @@ int erts_net_message(Port *prt,
 	    erts_smp_proc_unlock(rp, rp_locks);
 	    break;
 	}
-	UseTmpHeapNoproc(3);
 	
 	watched = (is_not_nil(mon->name)
 		   ? TUPLE2(&lhp[0], mon->name, sysname)
@@ -1305,7 +1246,6 @@ int erts_net_message(Port *prt,
 				   ref, am_process, watched, reason);
 	erts_smp_proc_unlock(rp, rp_locks);
 	erts_destroy_monitor(mon);
-	UnUseTmpHeapNoproc(3);
 	break;
     }
 
@@ -1430,24 +1370,38 @@ int erts_net_message(Port *prt,
 	}
     }
 
-    erts_cleanup_offheap(&off_heap);
+    if (off_heap.mso) {
+	erts_cleanup_mso(off_heap.mso);
+    }
+    if (off_heap.externals) {
+	erts_cleanup_externals(off_heap.externals);
+    }
 #ifndef HYBRID /* FIND ME! */
+    if (off_heap.funs) {
+	erts_cleanup_funs(off_heap.funs);
+    }
     if (ctl != ctl_default) {
 	erts_free(ERTS_ALC_T_DCTRL_BUF, (void *) ctl);
     }
 #endif
-    UnUseTmpHeapNoproc(DIST_CTL_DEFAULT_SIZE);
     ERTS_SMP_CHK_NO_PROC_LOCKS;
     return 0;
 
  data_error:
-    erts_cleanup_offheap(&off_heap);
+    if (off_heap.mso) {
+	erts_cleanup_mso(off_heap.mso);
+    }
+    if (off_heap.externals) {
+	erts_cleanup_externals(off_heap.externals);
+    }
 #ifndef HYBRID /* FIND ME! */
+    if (off_heap.funs) {
+	erts_cleanup_funs(off_heap.funs);
+    }
     if (ctl != ctl_default) {
 	erts_free(ERTS_ALC_T_DCTRL_BUF, (void *) ctl);
     }
 #endif
-    UnUseTmpHeapNoproc(DIST_CTL_DEFAULT_SIZE);
     erts_do_exit_port(prt, dep->cid, am_killed);
     ERTS_SMP_CHK_NO_PROC_LOCKS;
     return -1;
@@ -1600,9 +1554,9 @@ dsig_send(ErtsDSigData *dsdp, Eterm ctl, Eterm msg, int force_busy)
 	 */
 
 	data_size >>= (10-4);
-#if defined(ARCH_64) && !HALFWORD_HEAP
+#if defined(ARCH_64)
 	data_size &= 0x003fffffffffffff;
-#elif defined(ARCH_32) || HALFWORD_HEAP
+#elif defined(ARCH_32)
 	data_size &= 0x003fffff;
 #else
 #       error "Ohh come on ... !?!"
@@ -1686,9 +1640,9 @@ dist_port_commandv(Port *prt, ErtsDistOutputBuf *obuf)
 }
 
 
-#if defined(ARCH_64) && !HALFWORD_HEAP
+#if defined(ARCH_64)
 #define ERTS_PORT_REDS_MASK__ 0x003fffffffffffffL
-#elif defined(ARCH_32) || HALFWORD_HEAP
+#elif defined(ARCH_32)
 #define ERTS_PORT_REDS_MASK__ 0x003fffff
 #else
 #  error "Ohh come on ... !?!"
@@ -2593,15 +2547,12 @@ BIF_RETTYPE nodes_1(BIF_ALIST_1)
     int visible = 0;
     int hidden = 0;
     int this = 0;
-    DeclareTmpHeap(buf,2,BIF_P); /* For one cons-cell */
+    Uint  buf[2]; /* For one cons-cell */
     DistEntry *dep;
     Eterm arg_list = BIF_ARG_1;
 #ifdef DEBUG
     Eterm* endp;
 #endif
-
-    UseTmpHeap(2,BIF_P);
-
     if (is_atom(BIF_ARG_1))
       arg_list = CONS(buf, BIF_ARG_1, NIL);
 
@@ -2612,14 +2563,13 @@ BIF_RETTYPE nodes_1(BIF_ALIST_1)
       case am_known:     visible = hidden = not_connected = this = 1; break;
       case am_this:      this = 1;                                    break;
       case am_connected: visible = hidden = 1;                        break;
-      default:           goto error;                                  break;
+      default:           BIF_ERROR(BIF_P, BADARG);                    break;
       }
       arg_list = CDR(list_val(arg_list));
     }
 
-    if (is_not_nil(arg_list)) {
-	goto error;
-    }
+    if (is_not_nil(arg_list))
+      BIF_ERROR(BIF_P, BADARG);
 
     length = 0;
 
@@ -2641,7 +2591,7 @@ BIF_RETTYPE nodes_1(BIF_ALIST_1)
 
     if (length == 0) {
 	erts_smp_rwmtx_rwunlock(&erts_dist_table_rwmtx);
-	goto done;
+	BIF_RET(result);
     }
 
     hp = HAlloc(BIF_P, 2*length);
@@ -2670,14 +2620,7 @@ BIF_RETTYPE nodes_1(BIF_ALIST_1)
     }
     ASSERT(endp == hp);
     erts_smp_rwmtx_rwunlock(&erts_dist_table_rwmtx);
-
-done:
-    UnUseTmpHeap(2,BIF_P);
     BIF_RET(result);
-
-error:
-    UnUseTmpHeap(2,BIF_P);
-    BIF_ERROR(BIF_P,BADARG);
 }
 
 /**********************************************************************/

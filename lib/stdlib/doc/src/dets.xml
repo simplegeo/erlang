@@ -109,7 +109,7 @@ bool() = true | false
 file() = string()
 int() = integer() >= 0
 keypos() = integer() >= 1
-name() = atom() | reference()
+name() = atom() | ref()
 no_slots() = integer() >= 0 | default
 object() = tuple()
 object_cont() = tuple()
@@ -759,7 +759,7 @@ ok
       <fsummary>Open an existing Dets table.</fsummary>
       <type>
         <v>FileName = file()</v>
-        <v>Reference = reference()</v>
+        <v>Reference = ref()</v>
       </type>
       <desc>
         <p>Opens an existing table. If the table has not been properly

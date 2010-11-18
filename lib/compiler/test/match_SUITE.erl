@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2004-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2004-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 -module(match_SUITE).
@@ -21,14 +21,14 @@
 -export([all/1,
 	 pmatch/1,mixed/1,aliases/1,match_in_call/1,
 	 untuplify/1,shortcut_boolean/1,letify_guard/1,
-	 selectify/1,underscore/1]).
+	 selectify/1]).
 	 
 -include("test_server.hrl").
 
 all(suite) ->
     test_lib:recompile(?MODULE),
     [pmatch,mixed,aliases,match_in_call,untuplify,shortcut_boolean,
-     letify_guard,selectify,underscore].
+     letify_guard,selectify].
 
 pmatch(Config) when is_list(Config) ->
     ?line ok = doit(1),
@@ -112,12 +112,6 @@ aliases(Config) when is_list(Config) ->
     ?line {42,42,42,42} = multiple_aliases_1(42),
     ?line {7,7,7} = multiple_aliases_2(7),
     ?line {{a,b},{a,b},{a,b}} = multiple_aliases_3({a,b}),
-
-    %% Lists/literals.
-    ?line {a,b} = list_alias1([a,b]),
-    ?line {a,b} = list_alias2([a,b]),
-    ?line {a,b} = list_alias3([a,b]),
-
     ok.
 
 str_alias(V) ->
@@ -211,15 +205,6 @@ multiple_aliases_2((A=B)=(A=C)) ->
 
 multiple_aliases_3((A={_,_}=B)={_,_}=C) ->
     {A,B,C}.
-
-list_alias1([a,b]=[X,Y]) ->
-    {X,Y}.
-
-list_alias2([X,Y]=[a,b]) ->
-    {X,Y}.
-
-list_alias3([X,b]=[a,Y]) ->
-    {X,Y}.
 
 %% OTP-7018.
 
@@ -366,17 +351,5 @@ sel_same_value2(V) when V =:= 42; V =:= 43 ->
     integer43;
 sel_same_value2(_) ->
     error.
-
-underscore(Config) when is_list(Config) ->
-    case Config of
-	[] ->
-	    %% Assignment to _ at the end of a construct.
-	    _ = length(Config);
-	[_|_] ->
-	    %% Assignment to _ at the end of a construct.
-	    _ = list_to_tuple(Config)
-    end,
-    _ = is_list(Config),
-    ok.
 
 id(I) -> I.

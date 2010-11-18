@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- *
- * Copyright Ericsson AB 2001-2010. All Rights Reserved.
- *
+ * 
+ * Copyright Ericsson AB 2001-2009. All Rights Reserved.
+ * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- *
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
+ * 
  * %CopyrightEnd%
  */
 
@@ -93,8 +93,7 @@ void erts_fp_check_init_error(volatile unsigned long *fpexnp)
     char buf[64];
     snprintf(buf, sizeof buf, "ERTS_FP_CHECK_INIT at %p: detected unhandled FPE at %p\r\n",
 	     __builtin_return_address(0), (void*)*fpexnp);
-    if (write(2, buf, strlen(buf)) <= 0)
-	erl_exit(ERTS_ABORT_EXIT, "%s", buf);
+    write(2, buf, strlen(buf));
     *fpexnp = 0;
 #if defined(__i386__) || defined(__x86_64__)
     erts_restore_fpu();
@@ -476,7 +475,7 @@ static int mask_fpe(void)
 
 #endif
 
-#if (defined(__linux__) && (defined(__i386__) || defined(__x86_64__) || defined(__sparc__) || defined(__powerpc__))) || (defined(__DARWIN__) && (defined(__i386__) || defined(__x86_64__) || defined(__ppc__))) || (defined(__FreeBSD__) && (defined(__x86_64__) || defined(__i386__))) || ((defined(__NetBSD__) || defined(__OpenBSD__)) && defined(__x86_64__)) || (defined(__sun__) && defined(__x86_64__))
+#if (defined(__linux__) && (defined(__i386__) || defined(__x86_64__) || defined(__sparc__) || defined(__powerpc__))) || (defined(__DARWIN__) && (defined(__i386__) || defined(__x86_64__) || defined(__ppc__))) || (defined(__FreeBSD__) && (defined(__x86_64__) || defined(__i386__))) || (defined(__OpenBSD__) && defined(__x86_64__)) || (defined(__sun__) && defined(__x86_64__))
 
 #if defined(__linux__) && defined(__i386__)
 #if !defined(X86_FXSR_MAGIC)
@@ -519,10 +518,6 @@ static int mask_fpe(void)
 #define mc_pc(mc)	((mc)->mc_rip)
 #elif defined(__FreeBSD__) && defined(__i386__)
 #define mc_pc(mc)	((mc)->mc_eip)
-#elif defined(__NetBSD__) && defined(__x86_64__)
-#define mc_pc(mc)	((mc)->__gregs[_REG_RIP])
-#elif defined(__NetBSD__) && defined(__i386__)
-#define mc_pc(mc)	((mc)->__gregs[_REG_EIP])
 #elif defined(__OpenBSD__) && defined(__x86_64__)
 #define mc_pc(mc)	((mc)->sc_rip)
 #elif defined(__sun__) && defined(__x86_64__)
@@ -612,23 +607,6 @@ static void fpe_sig_action(int sig, siginfo_t *si, void *puc)
 	envxmm->en_sw &= ~0xFF;
     } else {
 	struct env87 *env87 = &savefpu->sv_87.sv_env;
-	env87->en_sw &= ~0xFF;
-    }
-#elif defined(__NetBSD__) && defined(__x86_64__)
-    mcontext_t *mc = &uc->uc_mcontext;
-    struct fxsave64 *fxsave = (struct fxsave64 *)&mc->__fpregs;
-    pc = mc_pc(mc);
-    fxsave->fx_mxcsr = 0x1F80;
-    fxsave->fx_fsw &= ~0xFF;
-#elif defined(__NetBSD__) && defined(__i386__)
-    mcontext_t *mc = &uc->uc_mcontext;
-    pc = mc_pc(mc);
-    if (uc->uc_flags & _UC_FXSAVE) {
-	struct envxmm *envxmm = (struct envxmm *)&mc->__fpregs;
-	envxmm->en_mxcsr = 0x1F80;
-	envxmm->en_sw &= ~0xFF;
-    } else {
-	struct env87 *env87 = (struct env87 *)&mc->__fpregs;
 	env87->en_sw &= ~0xFF;
     }
 #elif defined(__OpenBSD__) && defined(__x86_64__)
@@ -820,17 +798,8 @@ sys_chars_to_double(char* buf, double* fp)
     }
 
 #ifdef NO_FPE_SIGNALS
-    if (errno == ERANGE) {
-	if (*fp == HUGE_VAL || *fp == -HUGE_VAL) {
-	    /* overflow, should give error */
-	    return -1;
-	} else if (t == s && *fp == 0.0) {
-	    /* This should give 0.0 - OTP-7178 */
-	    errno = 0;
-
-	} else if (*fp == 0.0) {
-	    return -1;
-	}
+    if (errno == ERANGE && (*fp == 0.0 || *fp == HUGE_VAL || *fp == -HUGE_VAL)) {
+	return -1;
     }
 #endif
     return 0;
@@ -840,9 +809,7 @@ int
 matherr(struct exception *exc)
 {
 #if !defined(NO_FPE_SIGNALS)
-    volatile unsigned long *fpexnp = erts_get_current_fp_exception();
-    if (fpexnp != NULL)
-	*fpexnp = (unsigned long)__builtin_return_address(0);
+    set_current_fp_exception((unsigned long)__builtin_return_address(0));
 #endif
     return 1;
 }

@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- *
- * Copyright Ericsson AB 1999-2010. All Rights Reserved.
- *
+ * 
+ * Copyright Ericsson AB 1999-2009. All Rights Reserved.
+ * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- *
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
+ * 
  * %CopyrightEnd%
  */
 
@@ -48,10 +48,6 @@
 #  define SIZEOF_LONG_LONG_SAVED__ SIZEOF_LONG_LONG
 #  undef SIZEOF_LONG_LONG
 #endif
-#ifdef HALFWORD_HEAP_EMULATOR
-#  define HALFWORD_HEAP_EMULATOR_SAVED__ HALFWORD_HEAP_EMULATOR
-#  undef HALFWORD_HEAP_EMULATOR
-#endif
 #include "erl_int_sizes_config.h"
 #if defined(SIZEOF_CHAR_SAVED__) && SIZEOF_CHAR_SAVED__ != SIZEOF_CHAR
 #  error SIZEOF_CHAR mismatch
@@ -68,13 +64,6 @@
 #if defined(SIZEOF_LONG_LONG_SAVED__) && SIZEOF_LONG_LONG_SAVED__ != SIZEOF_LONG_LONG
 #  error SIZEOF_LONG_LONG mismatch
 #endif
-
-/* This is OK to override by the NIF/driver implementor */
-#if defined(HALFWORD_HEAP_EMULATOR_SAVED__) && !defined(HALFWORD_HEAP_EMULATOR)
-#define HALFWORD_HEAP_EMULATOR HALFWORD_HEAP_EMULATOR_SAVED__
-#endif
-
-#include "erl_drv_nif.h"
 
 #include <stdlib.h>
 
@@ -127,7 +116,7 @@ typedef struct {
 
 #define ERL_DRV_EXTENDED_MARKER		(0xfeeeeeed)
 #define ERL_DRV_EXTENDED_MAJOR_VERSION	1
-#define ERL_DRV_EXTENDED_MINOR_VERSION	5
+#define ERL_DRV_EXTENDED_MINOR_VERSION	4
 
 /*
  * The emulator will refuse to load a driver with different major
@@ -206,6 +195,22 @@ typedef struct {
     unsigned char data[sizeof(void *)*4];
 } ErlDrvMonitor;
 
+
+/*
+ * System info
+ */
+
+typedef struct {
+    int driver_major_version;
+    int driver_minor_version;
+    char *erts_version;
+    char *otp_release;
+    int thread_support;
+    int smp_support;
+    int async_threads;
+    int scheduler_threads;
+}  ErlDrvSysInfo;
+
 typedef struct {
     unsigned long megasecs;
     unsigned long secs;
@@ -250,6 +255,9 @@ typedef struct ErlDrvCond_ ErlDrvCond;
 typedef struct ErlDrvRWLock_ ErlDrvRWLock;
 typedef int ErlDrvTSDKey;
 
+typedef struct {
+    int suggested_stack_size;
+} ErlDrvThreadOpts;
 
 /*
  * 

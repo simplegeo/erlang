@@ -66,7 +66,6 @@ dir__defaults() ->
 %% @equiv dir("")
 
 -spec dir() -> 'ok'.
-
 dir() ->
     dir("").
 
@@ -75,7 +74,6 @@ dir() ->
 %% @equiv dir(Dir, [])
 
 -spec dir(file:filename()) -> 'ok'.
-
 dir(Dir) ->
     dir(Dir, []).
 
@@ -132,7 +130,6 @@ dir(Dir) ->
 	      options              :: options()}).
 
 -spec dir(file:filename(), options()) -> 'ok'.
-
 dir(Dir, Opts) ->
     Opts1 = Opts ++ dir__defaults(),
     Env = #dir{follow_links = proplists:get_bool(follow_links, Opts1),
@@ -215,7 +212,6 @@ default_printer() ->
 %% @equiv file(Name, [])
 
 -spec file(file:filename()) -> 'ok'.
-
 file(Name) ->
     file(Name, []).
 
@@ -279,7 +275,6 @@ file(Name) ->
 %% @see module/2
 
 -spec file(file:filename(), options()) -> 'ok'.
-
 file(Name, Opts) ->
     Parent = self(),
     Child = spawn_link(fun () -> file_1(Parent, Name, Opts) end),
@@ -483,11 +478,10 @@ backup_file_1(Name, Opts) ->
             throw(R)
     end.
 
+
 %% =====================================================================
 %% @spec module(Forms) -> syntaxTree()
 %% @equiv module(Forms, [])
-
--spec module(erl_syntax:forms()) -> erl_syntax:syntaxTree().
 
 module(Forms) ->
     module(Forms, []).
@@ -615,8 +609,6 @@ module(Forms) ->
 %%
 %% </dl>
 
--spec module(erl_syntax:forms(), [term()]) -> erl_syntax:syntaxTree().
-
 module(Forms, Opts) when is_list(Forms) ->
     module(erl_syntax:form_list(Forms), Opts);
 module(Forms, Opts) ->
@@ -676,8 +668,11 @@ analyze_forms(Forms, File) ->
             throw(R)
     end.
 
--spec get_module_name([erl_syntax_lib:info_pair()], string()) -> atom().
+%% XXX: The following should be imported from erl_syntax_lib
+-type key()       :: atom().
+-type info_pair() :: {key(), any()}.
 
+-spec get_module_name([info_pair()], string()) -> atom().
 get_module_name(List, File) ->
     case lists:keyfind(module, 1, List) of
         {module, M} ->
@@ -696,8 +691,7 @@ get_module_attributes(List) ->
             []
     end.
 
--spec get_module_exports([erl_syntax_lib:info_pair()]) -> [{atom(), arity()}].
-
+-spec get_module_exports([info_pair()]) -> [{atom(), byte()}].
 get_module_exports(List) ->
     case lists:keyfind(exports, 1, List) of
         {exports, Es} ->
@@ -706,8 +700,7 @@ get_module_exports(List) ->
             []
     end.
 
--spec get_module_imports([erl_syntax_lib:info_pair()]) -> [{atom(), atom()}].
-
+-spec get_module_imports([info_pair()]) -> [{atom(), atom()}].
 get_module_imports(List) ->
     case lists:keyfind(imports, 1, List) of
         {imports, Is} ->
@@ -721,7 +714,6 @@ compile_attrs(As) ->
                   || {compile, T} <- As]).
 
 -spec flatten_imports([{atom(), [atom()]}]) -> [{atom(), atom()}].
-
 flatten_imports(Is) ->
     [{F, M} || {M, Fs} <- Is, F <- Fs].
 
@@ -744,8 +736,7 @@ check_imports(Is, Opts, File) ->
     end.
 
 -spec check_imports_1([{atom(), atom()}]) -> boolean().
-
-check_imports_1([{F, M1}, {F, M2} | _Is]) when M1 =/= M2 ->
+check_imports_1([{F1, M1}, {F2, M2} | _Is]) when F1 =:= F2, M1 =/= M2 ->
     false;
 check_imports_1([_ | Is]) ->
     check_imports_1(Is);
@@ -1638,7 +1629,6 @@ rename_remote_call(F, St) ->
     end.
 
 -spec rename_remote_call_1(mfa()) -> {atom(), atom()} | 'false'.
-
 rename_remote_call_1({dict, dict_to_list, 1}) -> {dict, to_list};
 rename_remote_call_1({dict, list_to_dict, 1}) -> {dict, from_list};
 rename_remote_call_1({erl_eval, arg_list, 2}) -> {erl_eval, expr_list};
@@ -1672,8 +1662,7 @@ rename_remote_call_1({string, index, 2}) -> {string, str};
 rename_remote_call_1({unix, cmd, 1}) -> {os, cmd};
 rename_remote_call_1(_) -> false.
 
--spec rewrite_guard_test(atom(), arity()) -> atom().
-
+-spec rewrite_guard_test(atom(), byte()) -> atom().
 rewrite_guard_test(atom, 1) -> is_atom;
 rewrite_guard_test(binary, 1) -> is_binary;
 rewrite_guard_test(constant, 1) -> is_constant;
@@ -1691,8 +1680,7 @@ rewrite_guard_test(record, 2) -> is_record;
 rewrite_guard_test(record, 3) -> is_record;
 rewrite_guard_test(N, _A) -> N.
 
--spec reverse_guard_test(atom(), arity()) -> atom().
-
+-spec reverse_guard_test(atom(), byte()) -> atom().
 reverse_guard_test(is_atom, 1) -> atom;
 reverse_guard_test(is_binary, 1) -> binary;
 reverse_guard_test(is_constant, 1) -> constant;

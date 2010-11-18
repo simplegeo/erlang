@@ -1,20 +1,19 @@
-/*
- * %CopyrightBegin%
- *
- * Copyright Ericsson AB 2007-2010. All Rights Reserved.
- *
- * The contents of this file are subject to the Erlang Public License,
+/* ``The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
- * retrieved online at http://www.erlang.org/.
- *
+ * retrieved via the world wide web at http://www.erlang.org/.
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
- * %CopyrightEnd%
+ * 
+ * The Initial Developer of the Original Code is Ericsson Utvecklings AB.
+ * Portions created by Ericsson are Copyright 1999, Ericsson Utvecklings
+ * AB. All Rights Reserved.''
+ * 
+ *     $Id$
  */
 
 /*
@@ -29,7 +28,7 @@
  */
 
 #ifndef UNIX
-#if !defined(__WIN32__) && !defined(VXWORKS)
+#if !defined(__WIN32__) && !defined(_OSE_) && !defined(VXWORKS)
 #define UNIX 1
 #endif
 #endif
@@ -78,7 +77,6 @@ typedef struct {
     int ofd;
     int outstanding_async_task;
     long async_task;
-    ErlDrvPDL pdl;
 #ifdef HAVE_POLL_H
     struct erl_drv_event_data event_data;
 #endif
@@ -146,7 +144,6 @@ start(ErlDrvPort port, char *command)
     ddp->ofd = -1;
     ddp->outstanding_async_task = 0;
     ddp->async_task = -1;
-    ddp->pdl = driver_pdl_create(port);
 #ifdef HAVE_POLL_H
     ddp->event_data.events = (short) 0;
     ddp->event_data.revents = (short) 0;
@@ -220,9 +217,8 @@ static int control(ErlDrvData drv_data,
 	res_str = "error: command not supported";
 	goto done;
     }
-    driver_pdl_lock(ddp->pdl);
+
     driver_enq(ddp->port, "!", 1);
-    driver_pdl_unlock(ddp->pdl);
     ddp->test = (IOQExitTest) command;
     res_str = "ok";
 
@@ -337,11 +333,8 @@ static void ready_input(ErlDrvData drv_data, ErlDrvEvent event)
 	ddp->ifd = -1;
 	if (ddp->test == IOQ_EXIT_READY_INPUT_ASYNC)
 	    do_driver_async(ddp);
-	else {
-	    driver_pdl_lock(ddp->pdl);
+	else
 	    driver_deq(ddp->port, 1);
-	    driver_pdl_unlock(ddp->pdl);
-	}
     }
 #endif
 }
@@ -359,11 +352,8 @@ static void ready_output(ErlDrvData drv_data, ErlDrvEvent event)
 	ddp->ofd = -1;
 	if (ddp->test == IOQ_EXIT_READY_OUTPUT_ASYNC)
 	    do_driver_async(ddp);
-	else {
-	    driver_pdl_lock(ddp->pdl);
+	else
 	    driver_deq(ddp->port, 1);
-	    driver_pdl_unlock(ddp->pdl);
-	}
     }
 #endif
 }
@@ -376,11 +366,8 @@ static void timeout(ErlDrvData drv_data)
 
     if (ddp->test == IOQ_EXIT_TIMEOUT_ASYNC)
 	do_driver_async(ddp);
-    else {
-	driver_pdl_lock(ddp->pdl);
+    else
 	driver_deq(ddp->port, 1);
-	driver_pdl_unlock(ddp->pdl);
-    }
 }
 
 static void ready_async(ErlDrvData drv_data, ErlDrvThreadData thread_data)
@@ -390,9 +377,7 @@ static void ready_async(ErlDrvData drv_data, ErlDrvThreadData thread_data)
     PRINTF(("ready_async(%p, %p) called\r\n", drv_data, thread_data));
 
     if (drv_data == (ErlDrvData) thread_data) {
-	driver_pdl_lock(ddp->pdl);
 	driver_deq(ddp->port, 1);
-	driver_pdl_unlock(ddp->pdl);
 	ddp->outstanding_async_task = 0;
     }
 }
@@ -412,11 +397,8 @@ static void event(ErlDrvData drv_data,
 	ddp->ofd = -1;
 	if (ddp->test == IOQ_EXIT_EVENT_ASYNC)
 	    do_driver_async(ddp);
-	else {
-	    driver_pdl_lock(ddp->pdl);
+	else
 	    driver_deq(ddp->port, 1);
-	    driver_pdl_unlock(ddp->pdl);
-	}
     }
 #endif
 }

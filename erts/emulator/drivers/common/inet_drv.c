@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- *
- * Copyright Ericsson AB 1997-2010. All Rights Reserved.
- *
+ * 
+ * Copyright Ericsson AB 1997-2009. All Rights Reserved.
+ * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- *
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
+ * 
  * %CopyrightEnd%
  */
 
@@ -41,40 +41,21 @@
 #define STRINGIFY_1(b) IDENTITY(#b)
 #define STRINGIFY(a) STRINGIFY_1(a)
 
+#ifndef _OSE_
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
 #ifdef HAVE_SYS_UIO_H
 #include <sys/uio.h>
 #endif
+#endif
 
-#ifdef HAVE_NET_IF_DL_H
-#include <net/if_dl.h>
-#endif
-#ifdef HAVE_IFADDRS_H
-#include <ifaddrs.h>
-#endif
 
 /* All platforms fail on malloc errors. */
 #define FATAL_MALLOC
 
 
 #include "erl_driver.h"
-
-/* The IS_SOCKET_ERROR macro below is used for portability reasons. While
-   POSIX specifies that errors from socket-related system calls should be
-   indicated with a -1 return value, some users have experienced non-Windows
-   OS kernels that return negative values other than -1. While one can argue
-   that such kernels are technically broken, comparing against values less
-   than 0 covers their out-of-spec return values without imposing incorrect
-   semantics on systems that manage to correctly return -1 for errors, thus
-   increasing Erlang's portability.
-*/
-#ifdef __WIN32__
-#define IS_SOCKET_ERROR(val) ((val) == SOCKET_ERROR)
-#else
-#define IS_SOCKET_ERROR(val) ((val) < 0)
-#endif
 
 #ifdef __WIN32__
 #define  STRNCASECMP strncasecmp
@@ -205,8 +186,18 @@ static unsigned long one_value = 1;
 #include <netdb.h>
 #endif
 
+#ifndef _OSE_
 #include <sys/socket.h>
 #include <netinet/in.h>
+#else
+/* datatypes and macros from Solaris socket.h */
+struct  linger {
+        int     l_onoff;                /* option on/off */
+        int     l_linger;               /* linger time */
+};
+#define SO_OOBINLINE    0x0100          /* leave received OOB data in line */
+#define SO_LINGER       0x0080          /* linger on close if data present */
+#endif
 
 #ifdef VXWORKS
 #include <rpc/rpctypes.h>
@@ -215,10 +206,12 @@ static unsigned long one_value = 1;
 #include <rpc/types.h>
 #endif
 
+#ifndef _OSE_
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
+#endif
 
-#if (!defined(VXWORKS))
+#if (!defined(VXWORKS) && !defined(_OSE_))
 #include <sys/param.h>
 #ifdef HAVE_ARPA_NAMESER_H
 #include <arpa/nameser.h>
@@ -233,11 +226,33 @@ static unsigned long one_value = 1;
 #include <sys/ioctl.h>
 #endif
 
+#ifndef _OSE_
 #include <net/if.h>
+#else
+#define IFF_MULTICAST 0x00000800
+#endif
+
+#ifdef _OSE_
+#include "inet.h"
+#include "ineterr.h"
+#include "ose_inet_drv.h"
+#include "nameser.h" 
+#include "resolv.h"
+#define SET_ASYNC(s) setsockopt((s), SOL_SOCKET, SO_OSEEVENT, (&(s)), sizeof(int))
+
+extern void select_release(void);
+
+#endif /* _OSE_ */
+
+/* Solaris headers, only to be used with SFK */
+#ifdef _OSE_SFK_
+#include <ctype.h>
+#include <string.h>
+#endif
 
 /* SCTP support -- currently for UNIX platforms only: */
 #undef HAVE_SCTP
-#if (!defined(VXWORKS) && !defined(__WIN32__) && defined(HAVE_SCTP_H))
+#if (!defined(VXWORKS) && !defined(_OSE_) && !defined(__WIN32__) && defined(HAVE_SCTP_H))
 
 #include <netinet/sctp.h>
 
@@ -300,7 +315,7 @@ static int (*p_sctp_bindx)(int sd, struct sockaddr *addrs,
 #define DEBUGF(X) printf X
 #endif
 
-#if !defined(HAVE_STRNCASECMP)
+#if !defined(__WIN32__) && !defined(HAVE_STRNCASECMP)
 #define STRNCASECMP my_strncasecmp
 
 static int my_strncasecmp(const char *s1, const char *s2, size_t n)
@@ -320,7 +335,6 @@ static int my_strncasecmp(const char *s1, const char *s2, size_t n)
 #define INVALID_SOCKET -1
 #define INVALID_EVENT  -1
 #define SOCKET_ERROR   -1
-
 #define SOCKET int
 #define HANDLE long int
 #define FD_READ    ERL_DRV_READ
@@ -348,6 +362,20 @@ static int my_strncasecmp(const char *s1, const char *s2, size_t n)
 #define sock_htons(x)               htons((x))
 #define sock_htonl(x)               htonl((x))
 
+#ifdef _OSE_
+#define sock_accept(s, addr, len)   ose_inet_accept((s), (addr), (len))
+#define sock_send(s,buf,len,flag)   ose_inet_send((s),(buf),(len),(flag))
+#define sock_sendto(s,buf,blen,flag,addr,alen) \
+                ose_inet_sendto((s),(buf),(blen),(flag),(addr),(alen))
+#define sock_sendv(s, vec, size, np, flag) \
+		(*(np) = ose_inet_sendv((s), (SysIOVec*)(vec), (size)))
+#define sock_open(af, type, proto)  ose_inet_socket((af), (type), (proto))
+#define sock_close(s)               ose_inet_close((s))
+#define sock_hostname(buf, len)     ose_gethostname((buf), (len))
+#define sock_getservbyname(name,proto) ose_getservbyname((name), (proto))
+#define sock_getservbyport(port,proto) ose_getservbyport((port), (proto))
+
+#else
 #define sock_accept(s, addr, len)   accept((s), (addr), (len))
 #define sock_send(s,buf,len,flag)   send((s),(buf),(len),(flag))
 #define sock_sendto(s,buf,blen,flag,addr,alen) \
@@ -363,6 +391,7 @@ static int my_strncasecmp(const char *s1, const char *s2, size_t n)
 #define sock_hostname(buf, len)     gethostname((buf), (len))
 #define sock_getservbyname(name,proto) getservbyname((name), (proto))
 #define sock_getservbyport(port,proto) getservbyport((port), (proto))
+#endif /* _OSE_ */
 
 #define sock_recv(s,buf,len,flag)   recv((s),(buf),(len),(flag))
 #define sock_recvfrom(s,buf,blen,flag,addr,alen) \
@@ -373,8 +402,13 @@ static int my_strncasecmp(const char *s1, const char *s2, size_t n)
 #define sock_create_event(d)        ((d)->s) /* return file descriptor */
 #define sock_close_event(e)                  /* do nothing */
 
+#ifdef _OSE_
+#define inet_driver_select(port, e, mode, on) \
+                                    ose_inet_select(port, e, mode, on)
+#else
 #define inet_driver_select(port, e, mode, on) \
                                     driver_select(port, e, mode | (on?ERL_DRV_USE:0), on)
+#endif /* _OSE_ */
 
 #define sock_select(d, flags, onoff) do { \
         (d)->event_mask = (onoff) ? \
@@ -1051,7 +1085,7 @@ struct erl_drv_entry inet_driver_entry =
 };
 
 /* XXX: is this a driver interface function ??? */
-void erl_exit(int n, char*, ...);
+extern void erl_exit(int n, char*, _DOTS_);
 
 /*
  * Malloc wrapper,
@@ -1171,8 +1205,8 @@ static void *realloc_wrapper(void *current, size_t size){
     /* For AssocID, 4 bytes should be enough -- checked by "init": */
 #   define GET_ASSOC_ID		get_int32
 #   define ASSOC_ID_LEN		4
-#   define LOAD_ASSOC_ID        LOAD_UINT
-#   define LOAD_ASSOC_ID_CNT    LOAD_UINT_CNT
+#   define LOAD_ASSOC_ID	LOAD_INT
+#   define LOAD_ASSOC_ID_CNT	LOAD_INT_CNT
 #   define SCTP_ANC_BUFF_SIZE   INET_DEF_BUFFER/2 /* XXX: not very good... */
 #endif
 
@@ -2174,7 +2208,7 @@ static int http_error_inetdrv(void* arg, const char* buf, int len)
   ErlDrvTermData spec[19];
 
   if (desc->inet.active == INET_PASSIVE) {
-    /* {inet_async,S,Ref,{ok,{http_error,Line}}} */
+    /* {inet_async,S,Ref,{error,{http_error,Line}}} */
     int req;
     int aid;
     ErlDrvTermData caller;
@@ -2184,7 +2218,7 @@ static int http_error_inetdrv(void* arg, const char* buf, int len)
     i = LOAD_ATOM(spec, i,  am_inet_async);
     i = LOAD_PORT(spec, i,  desc->inet.dport);
     i = LOAD_INT(spec, i,   aid);
-    i = LOAD_ATOM(spec, i,  am_ok);
+    i = LOAD_ATOM(spec, i,  am_error);
     i = LOAD_ATOM(spec, i,  am_http_error);
     i = http_load_string(desc, spec, i, buf, len);
     i = LOAD_TUPLE(spec, i, 2);
@@ -3446,9 +3480,13 @@ static int inet_init()
     INIT_ATOM(scheme);
 
     /* add TCP, UDP and SCTP drivers */
+#ifdef _OSE_
+    add_ose_tcp_drv_entry(&tcp_inet_driver_entry);
+    add_ose_udp_drv_entry(&udp_inet_driver_entry);
+#else
     add_driver_entry(&tcp_inet_driver_entry);
     add_driver_entry(&udp_inet_driver_entry);
-#ifdef HAVE_SCTP
+#  ifdef HAVE_SCTP
     /* Check the size of SCTP AssocID -- currently both this driver and the
        Erlang part require 32 bit: */
     ASSERT(sizeof(sctp_assoc_t)==ASSOC_ID_LEN);
@@ -3463,8 +3501,8 @@ static int inet_init()
 	    add_driver_entry(&sctp_inet_driver_entry);
 	}
     }
-#endif
-
+#  endif
+#endif /* _OSE_ */
     /* remove the dummy inet driver */
     remove_driver_entry(&inet_driver_entry);
     return 0;
@@ -3706,7 +3744,7 @@ static int inet_ctl_fdopen(inet_descriptor* desc, int domain, int type,
     unsigned int sz = sizeof(name);
 
     /* check that it is a socket and that the socket is bound */
-    if (IS_SOCKET_ERROR(sock_name(s, (struct sockaddr*) &name, &sz)))
+    if (sock_name(s, (struct sockaddr*) &name, &sz) == SOCKET_ERROR)
 	return ctl_error(sock_errno(), rbuf, rsize);
     desc->s = s;
     if ((desc->event = sock_create_event(desc)) == INVALID_EVENT)
@@ -3718,7 +3756,7 @@ static int inet_ctl_fdopen(inet_descriptor* desc, int domain, int type,
     desc->state = INET_STATE_BOUND; /* assume bound */
     if (type == SOCK_STREAM) { /* check if connected */
 	sz = sizeof(name);
-	if (!IS_SOCKET_ERROR(sock_peer(s, (struct sockaddr*) &name, &sz)))
+	if (sock_peer(s, (struct sockaddr*) &name, &sz) != SOCKET_ERROR)
 	    desc->state = INET_STATE_CONNECTED;
     }
 
@@ -3911,7 +3949,7 @@ static int inet_ctl_ifget(inet_descriptor* desc, char* buf, int len,
     INTERFACE_INFO* ifp;
     long namaddr;
 
-    if ((len == 0) || ((namlen = get_int8(buf)) > len))
+    if ((len == 0) || ((namlen = buf[0]) > len))
 	goto error;
     if (parse_addr(buf+1, namlen, &namaddr) < 0)
 	goto error;
@@ -4095,10 +4133,6 @@ static int inet_ctl_getiflist(inet_descriptor* desc, char** rbuf, int rsize)
 }
 
 
-/* FIXME: temporary hack */
-#ifndef IFHWADDRLEN
-#define IFHWADDRLEN 6
-#endif
 
 static int inet_ctl_ifget(inet_descriptor* desc, char* buf, int len,
 			  char** rbuf, int rsize)
@@ -4109,11 +4143,11 @@ static int inet_ctl_ifget(inet_descriptor* desc, char* buf, int len,
     struct ifreq ifreq;
     int namlen;
 
-    if ((len == 0) || ((namlen = get_int8(buf)) > len))
+    if ((len == 0) || ((namlen = buf[0]) > len))
 	goto error;
     sys_memset(ifreq.ifr_name, '\0', IFNAMSIZ);
     sys_memcpy(ifreq.ifr_name, buf+1, 
-	       (namlen >= IFNAMSIZ) ? IFNAMSIZ-1 : namlen);
+	       (namlen > IFNAMSIZ) ? IFNAMSIZ : namlen);
     buf += (namlen+1);
     len -= (namlen+1);
     sptr = sbuf;
@@ -4138,32 +4172,6 @@ static int inet_ctl_ifget(inet_descriptor* desc, char* buf, int len,
 	    /* raw memcpy (fix include autoconf later) */
 	    sys_memcpy(sptr, (char*)(&ifreq.ifr_hwaddr.sa_data), IFHWADDRLEN);
 	    sptr += IFHWADDRLEN;
-#elif defined(HAVE_GETIFADDRS)
-        struct ifaddrs *ifa, *ifp;
-        int found = 0;
-
-        if (getifaddrs(&ifa) == -1)
-        goto error;
-
-        for (ifp = ifa; ifp; ifp = ifp->ifa_next) {
-        if ((ifp->ifa_addr->sa_family == AF_LINK) &&
-        (sys_strcmp(ifp->ifa_name, ifreq.ifr_name) == 0)) {
-            found = 1;
-            break;
-        }
-        }
-
-        if (found == 0) {
-            freeifaddrs(ifa);
-            break;
-        }
-
-        buf_check(sptr, s_end, 1+IFHWADDRLEN);
-        *sptr++ = INET_IFOPT_HWADDR;
-        sys_memcpy(sptr, ((struct sockaddr_dl *)ifp->ifa_addr)->sdl_data +
-            ((struct sockaddr_dl *)ifp->ifa_addr)->sdl_nlen, IFHWADDRLEN);
-        freeifaddrs(ifa);
-        sptr += IFHWADDRLEN;
 #endif
 	    break;
 	}
@@ -4276,6 +4284,10 @@ static int inet_ctl_ifget(inet_descriptor* desc, char* buf, int len,
     return ctl_error(EINVAL, rbuf, rsize);
 }
 
+/* FIXME: temporary hack */
+#ifndef IFHWADDRLEN
+#define IFHWADDRLEN 6
+#endif
 
 static int inet_ctl_ifset(inet_descriptor* desc, char* buf, int len,
 			  char** rbuf, int rsize)
@@ -4284,11 +4296,11 @@ static int inet_ctl_ifset(inet_descriptor* desc, char* buf, int len,
     int namlen;
     char* b_end = buf + len;
 
-    if ((len == 0) || ((namlen = get_int8(buf)) > len))
+    if ((len == 0) || ((namlen = buf[0]) > len))
 	goto error;
     sys_memset(ifreq.ifr_name, '\0', IFNAMSIZ);
     sys_memcpy(ifreq.ifr_name, buf+1, 
-	       (namlen >= IFNAMSIZ) ? IFNAMSIZ-1 : namlen);
+	       (namlen > IFNAMSIZ) ? IFNAMSIZ : namlen);
     buf += (namlen+1);
     len -= (namlen+1);
 
@@ -5064,8 +5076,8 @@ static int sctp_set_opts(inet_descriptor* desc, char* ptr, int len)
 	}
 	case INET_OPT_LINGER:
 	{
-	    CHKLEN(curr, 2*4);
-	    arg.lin.l_onoff  = get_int32 (curr);  curr += 4;
+	    CHKLEN(curr, ASSOC_ID_LEN + 2 + 4);
+	    arg.lin.l_onoff  = get_int16 (curr);  curr += 2;
 	    arg.lin.l_linger = get_int32 (curr);  curr += 4;
 
 	    proto   = SOL_SOCKET;
@@ -5675,8 +5687,8 @@ static int inet_fill_opts(inet_descriptor* desc,
 		    buf += arg_sz;
 		    len -= arg_sz;
 		}
-		if (IS_SOCKET_ERROR(sock_getopt(desc->s,proto,type,
-						arg_ptr,&arg_sz))) {
+		if (sock_getopt(desc->s,proto,type,arg_ptr,&arg_sz) == 
+		    SOCKET_ERROR) {
 		    TRUNCATE_TO(0,ptr); 
 		    continue;
 		}
@@ -5693,7 +5705,7 @@ static int inet_fill_opts(inet_descriptor* desc,
 	    RETURN_ERROR();
 	}
 	/* We have 5 bytes allocated to ptr */
-	if (IS_SOCKET_ERROR(sock_getopt(desc->s,proto,type,arg_ptr,&arg_sz))) {
+	if (sock_getopt(desc->s,proto,type,arg_ptr,&arg_sz) == SOCKET_ERROR) {
 	    TRUNCATE_TO(0,ptr);
 	    continue;
 	}
@@ -6225,10 +6237,6 @@ static int sctp_fill_opts(inet_descriptor* desc, char* buf, int buflen,
 	    struct       sctp_sndrcvinfo sri;
 	    unsigned int sz  = sizeof(sri);
 	    
-	    if (buflen < ASSOC_ID_LEN) RETURN_ERROR(spec, -EINVAL);
-	    sri.sinfo_assoc_id = GET_ASSOC_ID(buf);
-	    buf += ASSOC_ID_LEN;
-	    buflen -= ASSOC_ID_LEN;
 	    if (sock_getopt(desc->s, IPPROTO_SCTP, SCTP_DEFAULT_SEND_PARAM,
 			    &sri, &sz) < 0) continue;
 	    /* Fill in the response: */
@@ -6763,7 +6771,7 @@ static int inet_ctl(inet_descriptor* desc, int cmd, char* buf, int len,
 	if (len != 0)
 	    return ctl_error(EINVAL, rbuf, rsize);
 
-	if (IS_SOCKET_ERROR(sock_hostname(tbuf, MAXHOSTNAMELEN)))
+	if (sock_hostname(tbuf, MAXHOSTNAMELEN) == SOCKET_ERROR)
 	    return ctl_error(sock_errno(), rbuf, rsize);
 	return ctl_reply(INET_REP_OK, tbuf, strlen(tbuf), rbuf, rsize);
     }
@@ -6780,7 +6788,7 @@ static int inet_ctl(inet_descriptor* desc, int cmd, char* buf, int len,
 	    return ctl_error(ENOTCONN, rbuf, rsize);
 	if ((ptr = desc->peer_ptr) == NULL) {
 	    ptr = &peer;
-	    if (IS_SOCKET_ERROR(sock_peer(desc->s, (struct sockaddr*)ptr,&sz)))
+	    if (sock_peer(desc->s, (struct sockaddr*)ptr,&sz) == SOCKET_ERROR)
 		return ctl_error(sock_errno(), rbuf, rsize);
 	}
 	if (inet_get_address(desc->sfamily, tbuf, ptr, &sz) < 0)
@@ -6817,7 +6825,7 @@ static int inet_ctl(inet_descriptor* desc, int cmd, char* buf, int len,
 
 	if ((ptr = desc->name_ptr) == NULL) {
 	    ptr = &name;
-	    if (IS_SOCKET_ERROR(sock_name(desc->s, (struct sockaddr*)ptr, &sz)))
+	    if (sock_name(desc->s, (struct sockaddr*)ptr, &sz) == SOCKET_ERROR)
 		return ctl_error(sock_errno(), rbuf, rsize);
 	}
 	if (inet_get_address(desc->sfamily, tbuf, ptr, &sz) < 0)
@@ -6856,7 +6864,7 @@ static int inet_ctl(inet_descriptor* desc, int cmd, char* buf, int len,
 	if (inet_set_address(desc->sfamily, &local, buf, &len) == NULL)
 	    return ctl_error(EINVAL, rbuf, rsize);
 
-	if (IS_SOCKET_ERROR(sock_bind(desc->s,(struct sockaddr*) &local, len)))
+	if (sock_bind(desc->s,(struct sockaddr*) &local, len) == SOCKET_ERROR)
 	    return ctl_error(sock_errno(), rbuf, rsize);
 
 	desc->state = INET_STATE_BOUND;
@@ -6883,13 +6891,13 @@ static int inet_ctl(inet_descriptor* desc, int cmd, char* buf, int len,
 
 	if (len < 2)
 	    return ctl_error(EINVAL, rbuf, rsize);
-	n = get_int8(buf); buf++; len--;
+	n = buf[0]; buf++; len--;
 	if (n >= len) /* the = sign makes the test inklude next length byte */
 	    return ctl_error(EINVAL, rbuf, rsize);
 	memcpy(namebuf, buf, n);
 	namebuf[n] = '\0';
 	len -= n; buf += n;
-	n = get_int8(buf); buf++; len--;
+	n = buf[0]; buf++; len--;
 	if (n > len)
 	    return ctl_error(EINVAL, rbuf, rsize);
 	memcpy(protobuf, buf, n);
@@ -6912,7 +6920,7 @@ static int inet_ctl(inet_descriptor* desc, int cmd, char* buf, int len,
 	port = get_int16(buf);
 	port = sock_htons(port);
 	buf += 2;
-	n = get_int8(buf); buf++; len -= 3;
+	n = buf[0]; buf++; len -= 3;
 	if (n > len)
 	    return ctl_error(EINVAL, rbuf, rsize);
 	memcpy(protobuf, buf, n);
@@ -7289,7 +7297,7 @@ static int tcp_inet_ctl(ErlDrvData e, unsigned int cmd, char* buf, int len,
 	if (len != 2)
 	    return ctl_error(EINVAL, rbuf, rsize);
 	backlog = get_int16(buf);
-	if (IS_SOCKET_ERROR(sock_listen(desc->inet.s, backlog)))
+	if (sock_listen(desc->inet.s, backlog) == SOCKET_ERROR)
 	    return ctl_error(sock_errno(), rbuf, rsize);
 	desc->inet.state = TCP_STATE_LISTEN;
 	return ctl_reply(INET_REP_OK, NULL, 0, rbuf, rsize);
@@ -7323,7 +7331,7 @@ static int tcp_inet_ctl(ErlDrvData e, unsigned int cmd, char* buf, int len,
 	
 	code = sock_connect(desc->inet.s, 
 			    (struct sockaddr*) &desc->inet.remote, len);
-	if (IS_SOCKET_ERROR(code) &&
+	if ((code == SOCKET_ERROR) && 
 		((sock_errno() == ERRNO_BLOCK) ||  /* Winsock2 */
 		 (sock_errno() == EINPROGRESS))) {	/* Unix & OSE!! */
           sock_select(INETP(desc), FD_CONNECT, 1);
@@ -7510,6 +7518,7 @@ static int tcp_inet_ctl(ErlDrvData e, unsigned int cmd, char* buf, int len,
 	    tcp_deliver(desc, 0);
 	return ctl_reply(INET_REP_OK, NULL, 0, rbuf, rsize);
     }
+#ifndef _OSE_
     case TCP_REQ_SHUTDOWN: {
 	int how;
 	DEBUGF(("tcp_inet_ctl(%ld): FDOPEN\r\n", (long)desc->inet.port)); 
@@ -7526,6 +7535,7 @@ static int tcp_inet_ctl(ErlDrvData e, unsigned int cmd, char* buf, int len,
 	    return ctl_error(sock_errno(), rbuf, rsize);
 	}
     }
+#endif
     default:
 	DEBUGF(("tcp_inet_ctl(%ld): %u\r\n", (long)desc->inet.port, cmd)); 
 	return inet_ctl(INETP(desc), cmd, buf, len, rbuf, rsize);
@@ -7999,7 +8009,7 @@ static int tcp_recv(tcp_descriptor* desc, int request_len)
 
     n = sock_recv(desc->inet.s, desc->i_ptr, nread, 0);
 
-    if (IS_SOCKET_ERROR(n)) {
+    if (n == SOCKET_ERROR) {
 	int err = sock_errno();
 	if (err == ECONNRESET) {
 	    DEBUGF((" => detected close (connreset)\r\n"));
@@ -8501,8 +8511,8 @@ static int tcp_sendv(tcp_descriptor* desc, ErlIOVec* ev)
 		(long)desc->inet.port, desc->inet.s, h_len, len));
 	if (desc->tcp_add_flags & TCP_ADDF_DELAY_SEND) {
 	    n = 0;
-	} else if (IS_SOCKET_ERROR(sock_sendv(desc->inet.s, ev->iov,
-					      vsize, &n, 0))) {
+	} else if (sock_sendv(desc->inet.s, ev->iov, vsize, &n, 0) 
+		   == SOCKET_ERROR) {
 	    if ((sock_errno() != ERRNO_BLOCK) && (sock_errno() != EINTR)) {
 		int err = sock_errno();
 		DEBUGF(("tcp_sendv(%ld): s=%d, "
@@ -8595,7 +8605,7 @@ static int tcp_send(tcp_descriptor* desc, char* ptr, int len)
 	if (desc->tcp_add_flags & TCP_ADDF_DELAY_SEND) {
 	    sock_send(desc->inet.s, buf, 0, 0);
 	    n = 0;
-	} else 	if (IS_SOCKET_ERROR(sock_sendv(desc->inet.s,iov,2,&n,0))) {
+	} else 	if (sock_sendv(desc->inet.s,iov,2,&n,0) == SOCKET_ERROR) {
 	    if ((sock_errno() != ERRNO_BLOCK) && (sock_errno() != EINTR)) {
 		int err = sock_errno();
 		DEBUGF(("tcp_send(%ld): s=%d,sock_sendv(size=2) errno = %d\r\n",
@@ -8668,7 +8678,7 @@ static int tcp_inet_output(tcp_descriptor* desc, HANDLE event)
 	    int code = sock_peer(desc->inet.s,
 				 (struct sockaddr*) &desc->inet.remote, &sz);
 
-	    if (IS_SOCKET_ERROR(code)) {
+	    if (code == SOCKET_ERROR) {
 		desc->inet.state = TCP_STATE_BOUND;  /* restore state */
 		ret =  async_error(INETP(desc), sock_errno());
 		goto done;
@@ -8709,7 +8719,7 @@ static int tcp_inet_output(tcp_descriptor* desc, HANDLE event)
 	    vsize = vsize > MAX_VSIZE ? MAX_VSIZE : vsize;
 	    DEBUGF(("tcp_inet_output(%ld): s=%d, About to send %d items\r\n", 
 		    (long)desc->inet.port, desc->inet.s, vsize));
-	    if (IS_SOCKET_ERROR(sock_sendv(desc->inet.s, iov, vsize, &n, 0))) {
+	    if (sock_sendv(desc->inet.s, iov, vsize, &n, 0)==SOCKET_ERROR) {
 		if ((sock_errno() != ERRNO_BLOCK) && (sock_errno() != EINTR)) {
 		    DEBUGF(("tcp_inet_output(%ld): sock_sendv(%d) errno = %d\r\n",
 			    (long)desc->inet.port, vsize, sock_errno()));
@@ -8978,7 +8988,7 @@ static int packet_inet_ctl(ErlDrvData e, unsigned int cmd, char* buf, int len,
 	    sock_select(desc, FD_CONNECT, 1);
 	    code = sock_connect(desc->s, &remote.sa, len);
 
-	    if (IS_SOCKET_ERROR(code) && (sock_errno() == EINPROGRESS)) {
+	    if ((code == SOCKET_ERROR) && (sock_errno() == EINPROGRESS)) {
 		/* XXX: Unix only -- WinSock would have a different cond! */
 		desc->state = SCTP_STATE_CONNECTING;
 		if (timeout != INET_INFINITY)
@@ -9018,7 +9028,7 @@ static int packet_inet_ctl(ErlDrvData e, unsigned int cmd, char* buf, int len,
 	    
 	    code = sock_connect(desc->s,
 				(struct sockaddr*) &desc->remote, len);
-	    if (IS_SOCKET_ERROR(code)) {
+	    if (code == SOCKET_ERROR) {
 		sock_connect(desc->s, (struct sockaddr*) NULL, 0);
 		desc->state &= ~INET_F_ACTIVE;
 		return ctl_error(sock_errno(), rbuf, rsize);
@@ -9052,7 +9062,7 @@ static int packet_inet_ctl(ErlDrvData e, unsigned int cmd, char* buf, int len,
 		return ctl_error(EINVAL, rbuf, rsize);
 	    flag = get_int8(buf);
 
-	    if (IS_SOCKET_ERROR(sock_listen(desc->s, flag)))
+	    if (sock_listen(desc->s, flag) == SOCKET_ERROR)
 		return ctl_error(sock_errno(), rbuf, rsize);
 
 	    desc->state = SCTP_STATE_LISTEN;   /* XXX: not used? */
@@ -9257,7 +9267,7 @@ static void packet_inet_command(ErlDrvData e, char* buf, int len)
  check_result_code:
     /* "code" analysis is the same for both SCTP and UDP cases above: */
 #endif
-    if (IS_SOCKET_ERROR(code)) {
+    if (code == SOCKET_ERROR) {
 	int err = sock_errno();
 	inet_reply_error(desc, err);
     }
@@ -9356,7 +9366,7 @@ static int packet_inet_input(udp_descriptor* udesc, HANDLE event)
     check_result:
 #endif
 	/* Analyse the result: */
-	if (IS_SOCKET_ERROR(n)
+	if (n == SOCKET_ERROR
 #ifdef HAVE_SCTP
 	    || (short_recv = (IS_SCTP(desc) && !(mhdr.msg_flags & MSG_EOR)))
 	    /* NB: here we check for EOR not being set -- this is an error as
@@ -9369,13 +9379,11 @@ static int packet_inet_input(udp_descriptor* udesc, HANDLE event)
 	    if (err != ERRNO_BLOCK) {
 		if (!desc->active) {
 #ifdef HAVE_SCTP
-		    if (short_recv) {
+		    if (short_recv)
 			async_error_am(desc, am_short_recv);
-		    } else {
-			async_error(desc, err);
-		    }
+		    else
 #else
-		    async_error(desc, err);
+			async_error(desc, err);
 #endif
 		    driver_cancel_timer(desc->port);
 		    sock_select(desc,FD_READ,0);
@@ -9473,7 +9481,7 @@ static int packet_inet_output(udp_descriptor* udesc, HANDLE event)
 	    int code = sock_peer(desc->s,
 				 (struct sockaddr*) &desc->remote, &sz);
 
-	    if (IS_SOCKET_ERROR(code)) {
+	    if (code == SOCKET_ERROR) {
 		desc->state = PACKET_STATE_BOUND;  /* restore state */
 		ret =  async_error(desc, sock_errno());
 		goto done;
@@ -9914,26 +9922,23 @@ int erts_sock_connect(erts_sock_t socket, byte *ip_addr, int len, Uint16 port)
     if (!inet_set_address(AF_INET, &addr, buf, &blen))
 	return 0;
 
-    if (IS_SOCKET_ERROR(sock_connect(s,
+    if (SOCKET_ERROR == sock_connect(s,
 				     (struct sockaddr *) &addr,
-				     sizeof(struct sockaddr_in))))
+				     sizeof(struct sockaddr_in)))
 	return 0;
     return 1;
 }
 
 Sint erts_sock_send(erts_sock_t socket, const void *buf, Sint len)
 {
-    Sint result = (Sint) sock_send((SOCKET) socket, buf, (size_t) len, 0);
-    if (IS_SOCKET_ERROR(result))
-	return SOCKET_ERROR;
-    return result;
+    return (Sint) sock_send((SOCKET) socket, buf, (size_t) len, 0);
 }
 
 
 int erts_sock_gethostname(char *buf, int bufsz)
 {
-    if (IS_SOCKET_ERROR(sock_hostname(buf, bufsz)))
-	return SOCKET_ERROR;
+    if (sock_hostname(buf, bufsz) == SOCKET_ERROR)
+	return -1;
     return 0;
 }
 

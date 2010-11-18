@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 -module(timer).
@@ -22,7 +22,7 @@
 	 send_after/3, send_after/2,
 	 exit_after/3, exit_after/2, kill_after/2, kill_after/1,
 	 apply_interval/4, send_interval/3, send_interval/2,
-	 cancel/1, sleep/1, tc/2, tc/3, now_diff/2,
+	 cancel/1, sleep/1, tc/3, now_diff/2,
 	 seconds/1, minutes/1, hours/1, hms/3]).
 
 -export([start_link/0, start/0, 
@@ -41,54 +41,54 @@
 %%
 %% Time is in milliseconds.
 %%
--opaque tref()    :: {integer(), reference()}.
+-opaque tref()    :: any().
 -type time()      :: non_neg_integer().
 -type timestamp() :: {non_neg_integer(), non_neg_integer(), non_neg_integer()}.
 
 %%
 %% Interface functions
 %%
--spec apply_after(time(), atom(), atom(), [term()]) -> {'ok', tref()} | {'error', term()}.
+-spec apply_after(time(), atom(), atom(), [_]) -> {'ok', tref()} | {'error', _}.
 apply_after(Time, M, F, A) ->
     req(apply_after, {Time, {M, F, A}}).
 
--spec send_after(time(), pid() | atom(), term()) -> {'ok', tref()} | {'error', term()}.
+-spec send_after(time(), pid() | atom(), term()) -> {'ok', tref()} | {'error', _}.
 send_after(Time, Pid, Message) ->
     req(apply_after, {Time, {?MODULE, send, [Pid, Message]}}).
 
--spec send_after(time(), term()) -> {'ok', tref()} | {'error', term()}.
+-spec send_after(time(), _) -> {'ok', tref()} | {'error', _}.
 send_after(Time, Message) ->
     send_after(Time, self(), Message).
 
--spec exit_after(time(), pid() | atom(), term()) -> {'ok', tref()} | {'error', term()}.
+-spec exit_after(time(), pid() | atom(), _) -> {'ok', tref()} | {'error', _}.
 exit_after(Time, Pid, Reason) ->
     req(apply_after, {Time, {erlang, exit, [Pid, Reason]}}).
 
--spec exit_after(time(), term()) -> {'ok', tref()} | {'error', term()}.
+-spec exit_after(time(), term()) -> {'ok', tref()} | {'error', _}.
 exit_after(Time, Reason) ->
     exit_after(Time, self(), Reason).
 
--spec kill_after(time(), pid() | atom()) -> {'ok', tref()} | {'error', term()}.
+-spec kill_after(time(), pid() | atom()) -> {'ok', tref()} | {'error', _}.
 kill_after(Time, Pid) ->
     exit_after(Time, Pid, kill).
 
--spec kill_after(time()) -> {'ok', tref()} | {'error', term()}.
+-spec kill_after(time()) -> {'ok', tref()} | {'error', _}.
 kill_after(Time) ->
     exit_after(Time, self(), kill).
 
--spec apply_interval(time(), atom(), atom(), [term()]) -> {'ok', tref()} | {'error', term()}.
+-spec apply_interval(time(), atom(), atom(), [_]) -> {'ok', tref()} | {'error', _}.
 apply_interval(Time, M, F, A) ->
     req(apply_interval, {Time, self(), {M, F, A}}).
 
--spec send_interval(time(), pid() | atom(), term()) -> {'ok', tref()} | {'error', term()}.
+-spec send_interval(time(), pid() | atom(), term()) -> {'ok', tref()} | {'error', _}.
 send_interval(Time, Pid, Message) ->
     req(apply_interval, {Time, Pid, {?MODULE, send, [Pid, Message]}}).
 
--spec send_interval(time(), term()) -> {'ok', tref()} | {'error', term()}.
+-spec send_interval(time(), term()) -> {'ok', tref()} | {'error', _}.
 send_interval(Time, Message) ->
     send_interval(Time, self(), Message).
 
--spec cancel(tref()) -> {'ok', 'cancel'} | {'error', term()}.
+-spec cancel(tref()) -> {'ok', 'cancel'} | {'error', _}.
 cancel(BRef) ->
     req(cancel, BRef).
 
@@ -98,21 +98,10 @@ sleep(T) ->
     after T -> ok
     end.
 
-
-%%
-%% Measure the execution time (in microseconds) for Fun(Args).
-%%
--spec tc(function(), [_]) -> {time(), term()}.
-tc(F, A) ->
-    Before = erlang:now(),
-    Val = (catch apply(F, A)),
-    After = erlang:now(),
-    {now_diff(After, Before), Val}.
-
 %%
 %% Measure the execution time (in microseconds) for an MFA.
 %%
--spec tc(atom(), atom(), [term()]) -> {time(), term()}.
+-spec tc(atom(), atom(), [_]) -> {time(), term()}.
 tc(M, F, A) ->
     Before = erlang:now(),
     Val = (catch apply(M, F, A)),
@@ -152,7 +141,7 @@ hms(H, M, S) ->
 start() ->
     ensure_started().
 
--spec start_link() -> {'ok', pid()} | {'error', term()}.
+-spec start_link() -> {'ok', pid()} | {'error', _}.
 start_link() ->
     gen_server:start_link({local, timer_server}, ?MODULE, [], []).    
 
@@ -163,7 +152,6 @@ init([]) ->
     ?INTERVAL_TAB = ets:new(?INTERVAL_TAB, [named_table,protected]),
     {ok, [], infinity}.
 
--spec ensure_started() -> 'ok'.
 ensure_started() ->
     case whereis(timer_server) of
 	undefined -> 
@@ -187,10 +175,6 @@ req(Req, Arg) ->
 %%
 %% Time and Timeout is in milliseconds. Started is in microseconds.
 %%
--type timers() :: term(). % XXX: refine?
-
--spec handle_call(term(), term(), timers()) ->
-        {'reply', term(), timers(), timeout()} | {'noreply', timers(), timeout()}.
 handle_call({apply_after, {Time, Op}, Started}, _From, _Ts) 
   when is_integer(Time), Time >= 0 ->
     BRef = {Started + 1000*Time, make_ref()},
@@ -210,7 +194,7 @@ handle_call({apply_interval, {Time, To, MFA}, Started}, _From, _Ts)
 	    Interval = Time*1000,
 	    BRef2 = {Started + Interval, Ref},
 	    Timer = {BRef2, {repeat, Interval, Pid}, MFA},
-	    ets:insert(?INTERVAL_TAB, {BRef1,BRef2,Pid}),
+	    ets:insert(?INTERVAL_TAB,{BRef1,BRef2,Pid}),
 	    ets:insert(?TIMER_TAB, Timer),
 	    Timeout = timer_timeout(SysTime),
 	    {reply, {ok, BRef1}, [], Timeout};
@@ -218,7 +202,7 @@ handle_call({apply_interval, {Time, To, MFA}, Started}, _From, _Ts)
 	    {reply, {error, badarg}, [], next_timeout()}
     end;
 handle_call({cancel, BRef = {_Time, Ref}, _}, _From, Ts) 
-  when is_reference(Ref) ->
+                                           when is_reference(Ref) ->
     delete_ref(BRef),
     {reply, {ok, cancel}, Ts, next_timeout()};
 handle_call({cancel, _BRef, _}, _From, Ts) ->
@@ -230,7 +214,6 @@ handle_call({apply_interval, _, _}, _From, Ts) ->
 handle_call(_Else, _From, Ts) ->		  % Catch anything else
     {noreply, Ts, next_timeout()}.
 
--spec handle_info(term(), timers()) -> {'noreply', timers(), timeout()}.
 handle_info(timeout, Ts) ->                       % Handle timeouts 
     Timeout = timer_timeout(system_time()),
     {noreply, Ts, Timeout};
@@ -240,21 +223,19 @@ handle_info({'EXIT',  Pid, _Reason}, Ts) ->       % Oops, someone died
 handle_info(_OtherMsg, Ts) ->                     % Other Msg's
     {noreply, Ts, next_timeout()}.
 
--spec handle_cast(term(), timers()) -> {'noreply', timers(), timeout()}.
 handle_cast(_Req, Ts) ->                          % Not predicted but handled
     {noreply, Ts, next_timeout()}.
 
--spec terminate(term(), _State) -> 'ok'.
+-spec terminate(_, _) -> 'ok'.
 terminate(_Reason, _State) ->
     ok.
 
--spec code_change(term(), State, term()) -> {'ok', State}.
 code_change(_OldVsn, State, _Extra) ->
     %% According to the man for gen server no timer can be set here.
     {ok, State}.				
 
 %% 
-%% timer_timeout(SysTime)
+%% timer_timeout(Timers, SysTime)
 %%
 %% Apply and remove already timed-out timers. A timer is a tuple
 %% {Time, BRef, Op, MFA}, where Time is in microseconds.
@@ -298,13 +279,12 @@ delete_ref(BRef = {interval, _}) ->
 	    ok
     end;
 delete_ref(BRef) ->
-    ets:delete(?TIMER_TAB, BRef).
+    ets:delete(?TIMER_TAB,BRef).
 
 %%
 %% pid_delete
 %%
 
--spec pid_delete(pid()) -> 'ok'.
 pid_delete(Pid) ->
     IntervalTimerList = 
 	ets:select(?INTERVAL_TAB,
@@ -312,14 +292,13 @@ pid_delete(Pid) ->
 		     [{'==','$1',Pid}],
 		     ['$_']}]),
     lists:foreach(fun({IntKey, TimerKey, _ }) ->
-			  ets:delete(?INTERVAL_TAB, IntKey),
-			  ets:delete(?TIMER_TAB, TimerKey)
+			  ets:delete(?INTERVAL_TAB,IntKey),
+			  ets:delete(?TIMER_TAB,TimerKey) 
 		  end, IntervalTimerList).
 
 %% Calculate time to the next timeout. Returned timeout must fit in a 
 %% small int.
 
--spec next_timeout() -> timeout().
 next_timeout() ->
     case ets:first(?TIMER_TAB) of
 	'$end_of_table' -> 
@@ -379,7 +358,7 @@ get_pid(_) ->
 
 get_status() ->
     Info1 = ets:info(?TIMER_TAB),
-    {size,TotalNumTimers} = lists:keyfind(size, 1, Info1),
+    {value,{size,TotalNumTimers}} = lists:keysearch(size, 1, Info1),
     Info2 = ets:info(?INTERVAL_TAB),
-    {size,NumIntervalTimers} = lists:keyfind(size, 1, Info2),
+    {value,{size,NumIntervalTimers}} = lists:keysearch(size, 1, Info2),
     {{?TIMER_TAB,TotalNumTimers},{?INTERVAL_TAB,NumIntervalTimers}}.

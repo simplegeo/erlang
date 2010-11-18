@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- *
- * Copyright Ericsson AB 1996-2010. All Rights Reserved.
- *
+ * 
+ * Copyright Ericsson AB 1996-2009. All Rights Reserved.
+ * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- *
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
+ * 
  * %CopyrightEnd%
  */
 
@@ -125,7 +125,7 @@ do {						\
 #define ERTS_BIF_PREP_TRAP0(Ret, Trap, Proc)		\
 do {							\
     (Proc)->arity = 0;					\
-    *((UWord *) (UWord) ((Proc)->def_arg_reg + 3)) = (UWord) ((Trap)->address);	\
+    (Proc)->def_arg_reg[3] = (Eterm) (Trap->address);	\
     (Proc)->freason = TRAP;				\
     (Ret) = THE_NON_VALUE;				\
 } while (0)
@@ -134,8 +134,7 @@ do {							\
 do {							\
     (Proc)->arity = 1;					\
     (Proc)->def_arg_reg[0] = (Eterm) (A0);		\
-    *((UWord *) (UWord) ((Proc)->def_arg_reg + 3)) = (UWord) ((Trap)->address);	\
-    (Proc)->def_arg_reg[3] = (UWord) ((Trap)->address);	\
+    (Proc)->def_arg_reg[3] = (Eterm) ((Trap)->address);	\
     (Proc)->freason = TRAP;				\
     (Ret) = THE_NON_VALUE;				\
 } while (0)
@@ -145,8 +144,7 @@ do {							\
     (Proc)->arity = 2;					\
     (Proc)->def_arg_reg[0] = (Eterm) (A0);		\
     (Proc)->def_arg_reg[1] = (Eterm) (A1);		\
-    *((UWord *) (UWord) ((Proc)->def_arg_reg + 3)) = (UWord) ((Trap)->address);	\
-    (Proc)->def_arg_reg[3] = (UWord) ((Trap)->address);	\
+    (Proc)->def_arg_reg[3] = (Eterm) ((Trap)->address);	\
     (Proc)->freason = TRAP;				\
     (Ret) = THE_NON_VALUE;				\
 } while (0)
@@ -157,15 +155,14 @@ do {							\
     (Proc)->def_arg_reg[0] = (Eterm) (A0);		\
     (Proc)->def_arg_reg[1] = (Eterm) (A1);		\
     (Proc)->def_arg_reg[2] = (Eterm) (A2);		\
-    *((UWord *) (UWord) ((Proc)->def_arg_reg + 3)) = (UWord) ((Trap)->address);	\
-    (Proc)->def_arg_reg[3] = (UWord) ((Trap)->address);	\
+    (Proc)->def_arg_reg[3] = (Eterm) ((Trap)->address);	\
     (Proc)->freason = TRAP;				\
     (Ret) = THE_NON_VALUE;				\
 } while (0)
 
 #define BIF_TRAP0(p, Trap_) do {			\
       (p)->arity = 0;					\
-      *((UWord *) (UWord) ((p)->def_arg_reg + 3)) = (UWord) ((Trap_)->address);	\
+      (p)->def_arg_reg[3] = (Eterm) ((Trap_)->address);	\
       (p)->freason = TRAP;				\
       return THE_NON_VALUE;				\
  } while(0)
@@ -173,7 +170,7 @@ do {							\
 #define BIF_TRAP1(Trap_, p, A0) do {			\
       (p)->arity = 1;					\
       (p)->def_arg_reg[0] = (A0);			\
-      *((UWord *) (UWord) ((p)->def_arg_reg + 3)) = (UWord) ((Trap_)->address);	\
+      (p)->def_arg_reg[3] = (Eterm) ((Trap_)->address);	\
       (p)->freason = TRAP;				\
       return THE_NON_VALUE;				\
  } while(0)
@@ -182,7 +179,7 @@ do {							\
       (p)->arity = 2;					\
       (p)->def_arg_reg[0] = (A0);			\
       (p)->def_arg_reg[1] = (A1);			\
-      *((UWord *) (UWord) ((p)->def_arg_reg + 3)) = (UWord) ((Trap_)->address);	\
+      (p)->def_arg_reg[3] = (Eterm) ((Trap_)->address);	\
       (p)->freason = TRAP;				\
       return THE_NON_VALUE;				\
  } while(0)
@@ -192,14 +189,14 @@ do {							\
       (p)->def_arg_reg[0] = (A0);			\
       (p)->def_arg_reg[1] = (A1);			\
       (p)->def_arg_reg[2] = (A2);			\
-      *((UWord *) (UWord) ((p)->def_arg_reg + 3)) = (UWord) ((Trap_)->address);	\
+      (p)->def_arg_reg[3] = (Eterm) ((Trap_)->address);	\
       (p)->freason = TRAP;				\
       return THE_NON_VALUE;				\
  } while(0)
 
 #define BIF_TRAP_CODE_PTR_0(p, Code_) do {		\
       (p)->arity = 0;					\
-      *((UWord *) (UWord) ((p)->def_arg_reg + 3)) = (UWord) (Code_);	\
+      (p)->def_arg_reg[3] = (Eterm) (Code_);		\
       (p)->freason = TRAP;				\
       return THE_NON_VALUE;				\
  } while(0)

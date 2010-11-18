@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2008-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2008-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 %%
@@ -527,10 +527,9 @@ handle_info({Protocol, Socket, Data}, Statename,
     %% Implementations SHOULD decrypt the length after receiving the
     %% first 8 (or cipher block size, whichever is larger) bytes of a
     %% packet. (RFC 4253: Section 6 - Binary Packet Protocol)
-    case size(EncData0) + size(Data) >= erlang:max(8, BlockSize) of
+    case size(EncData0) + size(Data) >= max(8, BlockSize) of
 	true ->
 	    {Ssh, SshPacketLen, DecData, EncData} = 
-
 		ssh_transport:decrypt_first_block(<<EncData0/binary, 
 						   Data/binary>>, Ssh0),
 	     case SshPacketLen > ?SSH_MAX_PACKET_SIZE of
@@ -738,8 +737,7 @@ next_packet(#state{decoded_data_buffer = <<>>,
 	    State) when Buff =/= <<>> andalso size(Buff) >= 8 ->
     %% More data from the next packet has been received
     %% Fake a socket-recive message so that the data will be processed
-    inet:setopts(Socket, [{active, once}]),
-    self() ! {Protocol, Socket, <<>>},
+    self() ! {Protocol, Socket, <<>>} ,
     State;
 
 next_packet(#state{socket = Socket} = State) ->
@@ -757,6 +755,11 @@ after_new_keys(#state{renegotiate = false,
 after_new_keys(#state{renegotiate = false,  
 		      ssh_params = #ssh{role = server}} = State) ->
     {userauth, State}.
+
+max(N, M) when N > M ->
+    N;
+max(_, M) ->
+    M.
 
 handle_ssh_packet_data(RemainingSshPacketLen, DecData, EncData, StateName, 
 		       State) ->

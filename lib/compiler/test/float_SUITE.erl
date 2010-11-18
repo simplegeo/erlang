@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2002-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2002-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 -module(float_SUITE).
@@ -41,7 +41,7 @@ float_sub(A)->
 float_mul(0, _, _)->
     ok;
 float_mul(Iter, A, B) when is_float(A), is_float(B) ->
-    _ = A*B,
+    A*B,
     float_mul(Iter-1, A, B).
 
 %% Thanks to Mikael Pettersson and Tobias Lindahl (HiPE).
@@ -82,14 +82,6 @@ bad_negate(X, Y) when is_float(X) ->
     Y1 = -Y,					%BIF call.
     {X2, Y1}.
 
-%% Some math functions are not implemented on all platforms.
--define(OPTIONAL(Expected, Expr),
-	try
-	    Expected = Expr
-	catch
-	    error:undef -> ok
-	end).
-
 math_functions(Config) when is_list(Config) ->
     %% Mostly silly coverage.
     ?line 0.0 = math:tan(0),
@@ -101,14 +93,6 @@ math_functions(Config) when is_list(Config) ->
     ?line -1.0 = math:cos(math:pi()),
     ?line 1.0 = math:exp(0),
     ?line 1.0 = math:pow(math:pi(), 0),
-    ?line 0.0 = math:log(1),
-    ?line 0.0 = math:asin(0),
-    ?line 0.0 = math:acos(1),
-    ?line ?OPTIONAL(0.0, math:asinh(0)),
-    ?line ?OPTIONAL(0.0, math:acosh(1)),
-    ?line ?OPTIONAL(0.0, math:atanh(0)),
-    ?line ?OPTIONAL(0.0, math:erf(0)),
-    ?line ?OPTIONAL(1.0, math:erfc(0)),
 
     ?line 0.0 = math:tan(id(0)),
     ?line 0.0 = math:atan2(id(0), 1),
@@ -117,14 +101,6 @@ math_functions(Config) when is_list(Config) ->
     ?line 0.0 = math:tanh(id(0)),
     ?line 1.0 = math:log10(id(10)),
     ?line 1.0 = math:exp(id(0)),
-    ?line 0.0 = math:log(id(1)),
-    ?line 0.0 = math:asin(id(0)),
-    ?line 0.0 = math:acos(id(1)),
-    ?line ?OPTIONAL(0.0, math:asinh(id(0))),
-    ?line ?OPTIONAL(0.0, math:acosh(id(1))),
-    ?line ?OPTIONAL(0.0, math:atanh(id(0))),
-    ?line ?OPTIONAL(0.0, math:erf(id(0))),
-    ?line ?OPTIONAL(1.0, math:erfc(id(0))),
 
     %% Only for coverage (of beam_type.erl).
     ?line {'EXIT',{undef,_}} = (catch math:fnurfla(0)),

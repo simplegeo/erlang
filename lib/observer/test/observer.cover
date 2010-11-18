@@ -1,2 +1,0 @@
-{exclude,[multitrace]}.
-{include,[observer_backend]}.

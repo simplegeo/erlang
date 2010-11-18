@@ -33,7 +33,7 @@
 	 exports = []		    :: [{label(), arity(), label()}],
 	 locals = []		    :: [{label(), arity(), label()}],
 	 imports = gb_trees:empty() :: gb_tree(),      	%{{M,F,A},Index}
-	 strings = <<>>		    :: binary(),	%String pool
+	 strings = []		    :: [string()],	%String pool
 	 lambdas = [],				%[{...}]
 	 literals = dict:new()	    :: dict(),	%Format: {Literal,Number}
 	 next_atom = 1		    :: pos_integer(),
@@ -119,11 +119,10 @@ import(Mod0, Name0, Arity, #asm{imports=Imp0,next_import=NextIndex}=D0)
 
 string(Str, Dict) when is_list(Str) ->
     #asm{strings=Strings,string_offset=NextOffset} = Dict,
-    StrBin = list_to_binary(Str),
-    case old_string(StrBin, Strings) of
+    case old_string(Str, Strings) of
 	none ->
-	    NewDict = Dict#asm{strings = <<Strings/binary,StrBin/binary>>,
-			       string_offset=NextOffset+byte_size(StrBin)},
+	    NewDict = Dict#asm{strings=Strings++Str,
+			       string_offset=NextOffset+length(Str)},
 	    {NextOffset,NewDict};
 	Offset when is_integer(Offset) ->
 	    {NextOffset-Offset,Dict}
@@ -188,7 +187,7 @@ import_table(#asm{imports=Imp,next_import=NumImports}) ->
     ImpTab = [MFA || {MFA,_} <- Sorted],
     {NumImports,ImpTab}.
 
--spec string_table(bdict()) -> {non_neg_integer(), binary()}.
+-spec string_table(bdict()) -> {non_neg_integer(), [string()]}.
 
 string_table(#asm{strings=Strings,string_offset=Size}) ->
     {Size,Strings}.
@@ -218,12 +217,15 @@ literal_table(#asm{literals=Tab,next_literal=NumLiterals}) ->
 my_term_to_binary(Term) ->
     term_to_binary(Term, [{minor_version,1}]).
 
-%% Search for binary string Str in the binary string pool Pool.
+%% Search for string Str in the string pool Pool.
 %%    old_string(Str, Pool) -> none | Index
--spec old_string(binary(), binary()) -> 'none' | pos_integer().
+-spec old_string(string(), [string()]) -> 'none' | pos_integer().
 
-old_string(Str, Pool) ->
-    case binary:match(Pool, Str) of
-        nomatch -> none;
-        {Start,_Length} -> byte_size(Pool) - Start
-    end.
+old_string([C|Str]=Str0, [C|Pool]) ->
+    case lists:prefix(Str, Pool) of
+	true -> length(Pool)+1;
+	false -> old_string(Str0, Pool)
+    end;
+old_string([_|_]=Str, [_|Pool]) ->
+    old_string(Str, Pool);
+old_string([_|_], []) -> none.

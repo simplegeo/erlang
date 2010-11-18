@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 -module(user).
@@ -25,6 +25,9 @@
 -export([interfaces/1]).
 
 -define(NAME, user).
+
+%% Internal exports
+-export([server/1, server/2]).
 
 %% Defines for control ops
 -define(CTRL_OP_GET_WINSIZE,100).
@@ -40,7 +43,7 @@ start([Mod,Fun|Args]) ->
     %% Mod,Fun,Args should return a pid. That process is supposed to act
     %% as the io port.
     Pid = apply(Mod, Fun, Args),  % This better work!
-    Id = spawn(fun() -> server(Pid) end),
+    Id = spawn(?MODULE, server, [Pid]),
     register(?NAME, Id),
     Id.
 
@@ -49,8 +52,8 @@ start_out() ->
     start_port([out,binary]).
 
 start_port(PortSettings) ->
-    Id = spawn(fun() -> server({fd,0,1}, PortSettings) end),
-    register(?NAME, Id),
+    Id = spawn(?MODULE,server,[{fd,0,1},PortSettings]),
+    register(?NAME,Id),
     Id.
 
 %% Return the pid of the shell process.
@@ -68,6 +71,7 @@ interfaces(User) ->
 	_ ->
 	    []
     end.
+
 
 server(Pid) when is_pid(Pid) ->
     process_flag(trap_exit, true),
@@ -100,7 +104,7 @@ catch_loop(Port, Shell, Q) ->
 	new_shell ->
 	    exit(Shell, kill),
 	    catch_loop(Port, start_new_shell());
-	{unknown_exit,{Shell,Reason},_} ->		 % shell has exited
+	{unknown_exit,{Shell,Reason},_} ->			% shell has exited
 	    case Reason of
 		normal ->
 		    put_chars("*** ", Port, []);
@@ -168,7 +172,7 @@ server_loop(Port, Q) ->
 
 get_fd_geometry(Port) ->
     case (catch port_control(Port,?CTRL_OP_GET_WINSIZE,[])) of
-	List when length(List) =:= 8 ->
+	List when is_list(List), length(List) =:= 8 -> 
 	    <<W:32/native,H:32/native>> = list_to_binary(List),
 	    {W,H};
 	_ ->
@@ -369,7 +373,12 @@ do_setopts(Opts, _Port, Q) ->
     end.
 
 getopts(_Port,Q) ->
-    Bin = {binary, get(read_mode) =:= binary},
+    Bin = {binary, case get(read_mode) of
+		       binary ->
+			   true;
+		       _ ->
+			   false
+		   end},
     Uni = {encoding, case get(unicode) of
 		       true ->
 			   unicode;
@@ -689,11 +698,7 @@ get_chars_more(State, M, F, Xa, Port, Q, Fmt) ->
 prompt(_Port, '') -> ok;
 
 prompt(Port, Prompt) ->
-    put_port(wrap_characters_to_binary(io_lib:format_prompt(Prompt),unicode,
-				       case get(unicode) of 
-					   true -> unicode;
-					   _ -> latin1
-				       end), Port).
+    put_port(io_lib:format_prompt(Prompt), Port).
 
 %% Convert error code to make it look as before
 err_func(io_lib, get_until, {_,F,_}) ->

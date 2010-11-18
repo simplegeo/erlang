@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- *
- * Copyright Ericsson AB 2006-2010. All Rights Reserved.
- *
+ * 
+ * Copyright Ericsson AB 2006-2009. All Rights Reserved.
+ * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- *
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
+ * 
  * %CopyrightEnd%
  */
 
@@ -314,38 +314,10 @@ double_to_integer(Process* p, double x)
     return res;
 }
 
-/********************************************************************************
- * binary_part guards. The actual implementation is in erl_bif_binary.c
- ********************************************************************************/
-BIF_RETTYPE binary_part_3(BIF_ALIST_3)
-{
-    return erts_binary_part(BIF_P,BIF_ARG_1,BIF_ARG_2, BIF_ARG_3);
-}
-
-BIF_RETTYPE binary_part_2(BIF_ALIST_2)
-{
-    Eterm *tp;
-    if (is_not_tuple(BIF_ARG_2)) {
-	goto badarg;
-    }
-    tp = tuple_val(BIF_ARG_2);
-    if (arityval(*tp) != 2) {
-	goto badarg;
-    }
-    return erts_binary_part(BIF_P,BIF_ARG_1,tp[1], tp[2]);
- badarg:
-   BIF_ERROR(BIF_P,BADARG);
-}
-
-
 /*
  * The following code is used when a guard that may build on the
  * heap is called directly. They must not use HAlloc(), but must
  * do a garbage collection if there is insufficient heap space.
- *
- * Important note: All error checking MUST be done before doing
- * a garbage collection. The compiler assumes that all registers
- * are still valid if a guard BIF generates an exception.
  */
 
 #define ERTS_NEED_GC(p, need) ((HEAP_LIMIT((p)) - HEAP_TOP((p))) <= (need))
@@ -653,17 +625,4 @@ gc_double_to_integer(Process* p, double x, Eterm* reg, Uint live)
 	*hp = make_pos_bignum_header(sz-1);
     }
     return res;
-}
-
-/********************************************************************************
- * binary_part guards. The actual implementation is in erl_bif_binary.c
- ********************************************************************************/
-Eterm erts_gc_binary_part_3(Process* p, Eterm* reg, Uint live)
-{
-    return erts_gc_binary_part(p,reg,live,0);
-}
-
-Eterm erts_gc_binary_part_2(Process* p, Eterm* reg, Uint live)
-{
-    return erts_gc_binary_part(p,reg,live,1);
 }

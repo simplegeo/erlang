@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 
@@ -62,7 +62,6 @@
          list2cs/1,
          lock_schema/0,
          merge_schema/0,
-         merge_schema/1,
          move_table/3,
          opt_create_dir/2,
          prepare_commit/3,
@@ -2651,16 +2650,10 @@ make_dump_tables([]) ->
 
 %% Merge the local schema with the schema on other nodes
 merge_schema() ->
-    schema_transaction(fun() -> do_merge_schema([]) end).
+    schema_transaction(fun() -> do_merge_schema() end).
 
-merge_schema(UserFun) ->
-    schema_transaction(fun() -> UserFun(fun(Arg) -> do_merge_schema(Arg) end) end).
-
-
-do_merge_schema(LockTabs0) ->
+do_merge_schema() ->
     {_Mod, Tid, Ts} = get_tid_ts_and_lock(schema, write),
-    LockTabs = [{T, tab_to_nodes(T)} || T <- LockTabs0],
-    [get_tid_ts_and_lock(T,write) || {T,_} <- LockTabs],
     Connected = val(recover_nodes),
     Running = val({current, db_nodes}),
     Store = Ts#tidstore.store,
@@ -2672,12 +2665,9 @@ do_merge_schema(LockTabs0) ->
 	    mnesia:abort({bad_commit, {missing_lock, Miss}})
     end,
     case Connected -- Running of
-	[Node | _] = OtherNodes ->
+	[Node | _] ->
 	    %% Time for a schema merging party!
 	    mnesia_locker:wlock_no_exist(Tid, Store, schema, [Node]),
-            [mnesia_locker:wlock_no_exist(
-               Tid, Store, T, mnesia_lib:intersect(Ns, OtherNodes))
-             || {T,Ns} <- LockTabs],
 	    case rpc:call(Node, mnesia_controller, get_cstructs, []) of
 		{cstructs, Cstructs, RemoteRunning1} ->
 		    LockedAlready = Running ++ [Node],
@@ -2691,9 +2681,6 @@ do_merge_schema(LockTabs0) ->
 		    end,
 		    NeedsLock = RemoteRunning -- LockedAlready,
 		    mnesia_locker:wlock_no_exist(Tid, Store, schema, NeedsLock),
-                    [mnesia_locker:wlock_no_exist(Tid, Store, T,
-                                                  mnesia_lib:intersect(Ns,NeedsLock))
-                     || {T,Ns} <- LockTabs],
 		    {value, SchemaCs} =
 			lists:keysearch(schema, #cstruct.name, Cstructs),
 
@@ -2726,10 +2713,6 @@ do_merge_schema(LockTabs0) ->
 	    %% No more nodes to merge schema with
 	    not_merged
     end.
-
-tab_to_nodes(Tab) when is_atom(Tab) ->
-    Cs = val({Tab, cstruct}),
-    mnesia_lib:cs_to_nodes(Cs).
 
 make_merge_schema(Node, [Cs | Cstructs]) ->
     Ops = do_make_merge_schema(Node, Cs),

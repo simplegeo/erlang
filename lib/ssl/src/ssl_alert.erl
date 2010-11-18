@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2007-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2007-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 
@@ -32,87 +32,76 @@
 
 -export([alert_txt/1, reason_code/2]).
 
-%%====================================================================
-%% Internal application API
-%%====================================================================
-%%--------------------------------------------------------------------
--spec reason_code(#alert{}, client | server) -> closed | esslconnect |
-						esslaccept | string().
-%%
-%% Description: Returns the error reason that will be returned to the
-%% user.
-%%--------------------------------------------------------------------
-
 reason_code(#alert{description = ?CLOSE_NOTIFY}, _) ->
     closed;
 reason_code(#alert{description = ?HANDSHAKE_FAILURE}, client) ->
     esslconnect;
 reason_code(#alert{description = ?HANDSHAKE_FAILURE}, server) ->
     esslaccept;
+reason_code(#alert{description = ?CERTIFICATE_EXPIRED}, _) ->
+    epeercertexpired;
+reason_code(#alert{level = ?FATAL}, _) ->
+    esslerrssl;
 reason_code(#alert{description = Description}, _) ->
     description_txt(Description).
-
-%%--------------------------------------------------------------------
--spec alert_txt(#alert{}) -> string().
-%%
-%% Description: Returns the error string for given alert.
-%%--------------------------------------------------------------------
 
 alert_txt(#alert{level = Level, description = Description, where = {Mod,Line}}) ->
     Mod ++ ":" ++ integer_to_list(Line) ++ ":" ++ 
 	level_txt(Level) ++" "++ description_txt(Description).
 
-%%--------------------------------------------------------------------
-%%% Internal functions
-%%--------------------------------------------------------------------
 level_txt(?WARNING) ->
     "Warning:";
 level_txt(?FATAL) ->
     "Fatal error:".
 
 description_txt(?CLOSE_NOTIFY) ->
-    "close notify";
+    "close_notify";
 description_txt(?UNEXPECTED_MESSAGE) ->
-    "unexpected message";
+    "unexpected_message";
 description_txt(?BAD_RECORD_MAC) ->
-    "bad record mac";
+    "bad_record_mac";
 description_txt(?DECRYPTION_FAILED) ->
-    "decryption failed";
+    "decryption_failed";
 description_txt(?RECORD_OVERFLOW) ->
-    "record overflow";
+    "record_overflow";
 description_txt(?DECOMPRESSION_FAILURE) ->
-    "decompression failure";
+    "decompression_failure";
 description_txt(?HANDSHAKE_FAILURE) ->
-    "handshake failure";
+    "handshake_failure";
 description_txt(?BAD_CERTIFICATE) ->
-    "bad certificate";
+    "bad_certificate";
 description_txt(?UNSUPPORTED_CERTIFICATE) ->
-    "unsupported certificate";
+    "unsupported_certificate";
 description_txt(?CERTIFICATE_REVOKED) ->
-    "certificate revoked";
+    "certificate_revoked";
 description_txt(?CERTIFICATE_EXPIRED) ->
-    "certificate expired";
+    "certificate_expired";
 description_txt(?CERTIFICATE_UNKNOWN) ->
-    "certificate unknown";
+    "certificate_unknown";
 description_txt(?ILLEGAL_PARAMETER) ->
-    "illegal parameter";
+    "illegal_parameter";
 description_txt(?UNKNOWN_CA) ->
-    "unknown ca";
+    "unknown_ca";
 description_txt(?ACCESS_DENIED) ->
-    "access denied";
+    "access_denied";
 description_txt(?DECODE_ERROR) ->
-    "decode error";
+    "decode_error";
 description_txt(?DECRYPT_ERROR) ->
-    "decrypt error";
+    "decrypt_error";
 description_txt(?EXPORT_RESTRICTION) ->
-    "export restriction";
+    "export_restriction";
 description_txt(?PROTOCOL_VERSION) ->
-    "protocol version";
+    "protocol_version";
 description_txt(?INSUFFICIENT_SECURITY) ->
-    "insufficient security";
+    "insufficient_security";
 description_txt(?INTERNAL_ERROR) ->
-    "internal error";
+    "internal_error";
 description_txt(?USER_CANCELED) ->
-    "user canceled";
+    "user_canceled";
 description_txt(?NO_RENEGOTIATION) ->
-    "no renegotiation".
+    "no_renegotiation".
+
+
+
+
+

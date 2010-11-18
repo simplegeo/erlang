@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 -module(edlin).
@@ -24,12 +24,13 @@
 -export([init/0,start/1,edit_line/2,prefix_arg/1]).
 -export([erase_line/1,erase_inp/1,redraw_line/1]).
 -export([length_before/1,length_after/1,prompt/1]).
--export([current_line/1]).
 %%-export([expand/1]).
 
 -export([edit_line1/2]).
 
 -import(lists, [reverse/1, reverse/2]).
+
+%-import([nthtail/2, keysearch/3, prefix/2]).
 
 -export([over_word/3]).
 
@@ -280,32 +281,12 @@ do_op(_, Bef, Aft, Rs) ->
 %%  Step over word/non-word characters pushing the stepped over ones on
 %%  the stack.
 
-
-over_word(Cs, Stack, N) ->
-    L = length([1 || $\' <- Cs]),
-    case L rem 2 of
-	0 ->
-	    over_word1(Cs, Stack, N);
-	1 ->
-	    until_quote(Cs, Stack, N)
-    end.
-
-until_quote([$\'|Cs], Stack, N) ->
-    {Cs, [$\'|Stack], N+1};
-until_quote([C|Cs], Stack, N) ->
-    until_quote(Cs, [C|Stack], N+1).
-
-over_word1([$\'=C|Cs], Stack, N) ->
-    until_quote(Cs, [C|Stack], N+1);
-over_word1(Cs, Stack, N) ->
-    over_word2(Cs, Stack, N).
-
-over_word2([C|Cs], Stack, N) ->
+over_word([C|Cs], Stack, N) ->
     case word_char(C) of
-	true -> over_word2(Cs, [C|Stack], N+1);
+	true -> over_word(Cs, [C|Stack], N+1);
 	false -> {[C|Cs],Stack,N}
     end;
-over_word2([], Stack, N) when is_integer(N) ->
+over_word([], Stack, N) when is_integer(N) ->
     {[],Stack,N}.
 
 over_non_word([C|Cs], Stack, N) ->
@@ -422,7 +403,6 @@ over_paren_auto([], _, _, _) ->
 %% length_before(Line)
 %% length_after(Line)
 %% prompt(Line)
-%% current_line(Line)
 %%  Various functions for accessing bits of a line.
 
 erase_line({line,Pbs,{Bef,Aft},_}) ->
@@ -448,9 +428,6 @@ length_after({line,_,{_Bef,Aft},_}) ->
 
 prompt({line,Pbs,_,_}) ->
     Pbs.
-
-current_line({line,_,{Bef, Aft},_}) ->
-    reverse(Bef, Aft ++ "\n").
 
 %% %% expand(CurrentBefore) ->
 %% %%	{yes,Expansion} | no
@@ -479,8 +456,8 @@ current_line({line,_,{Bef, Aft},_}) ->
 %%     case erlang:module_loaded(Mod) of
 %% 	true ->
 %% 	    L = apply(Mod, module_info, []),
-%% 	    case lists:keyfind(exports, 1, L) of
-%% 		{_, Exports} ->
+%% 	    case keysearch(exports, 1, L) of
+%% 		{value, {_, Exports}} ->
 %% 		    match(FuncPrefix, Exports, "(");
 %% 		_ ->
 %% 		    no
@@ -496,7 +473,7 @@ current_line({line,_,{Bef, Aft},_}) ->
 %% 	    print_matches(Matches),
 %% 	    no;
 %% 	{partial, Str} ->
-%% 	    case lists:nthtail(length(Prefix), Str) of
+%% 	    case nthtail(length(Prefix), Str) of
 %% 		[] ->
 %% 		    print_matches(Matches),
 %% 		    {yes, []};
@@ -504,7 +481,7 @@ current_line({line,_,{Bef, Aft},_}) ->
 %% 		    {yes, Remain}
 %% 	    end;
 %% 	{complete, Str} ->
-%% 	    {yes, lists:nthtail(length(Prefix), Str) ++ Extra};
+%% 	    {yes, nthtail(length(Prefix), Str) ++ Extra};
 %% 	no ->
 %% 	    no
 %%     end.

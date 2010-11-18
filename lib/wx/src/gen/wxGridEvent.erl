@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2008-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2008-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %% This file is generated DO NOT EDIT
 
@@ -22,7 +22,7 @@
 %% <dd><em>grid_cell_left_click</em>, <em>grid_cell_right_click</em>, <em>grid_cell_left_dclick</em>, <em>grid_cell_right_dclick</em>, <em>grid_label_left_click</em>, <em>grid_label_right_click</em>, <em>grid_label_left_dclick</em>, <em>grid_label_right_dclick</em>, <em>grid_row_size</em>, <em>grid_col_size</em>, <em>grid_range_select</em>, <em>grid_cell_change</em>, <em>grid_select_cell</em>, <em>grid_editor_shown</em>, <em>grid_editor_hidden</em>, <em>grid_editor_created</em>, <em>grid_cell_begin_drag</em></dd></dl>
 %% See also the message variant {@link wxEvtHandler:wxGrid(). #wxGrid{}} event record type.
 %%
-%% <p>This class is derived (and can use functions) from:
+%% <p>This class is derived (and can use functions) from: 
 %% <br />{@link wxNotifyEvent}
 %% <br />{@link wxCommandEvent}
 %% <br />{@link wxEvent}
@@ -104,14 +104,14 @@ shiftDown(#wx_ref{type=ThisT,ref=ThisRef}) ->
   wxe_util:call(?wxGridEvent_ShiftDown,
   <<ThisRef:32/?UI>>).
 
- %% From wxNotifyEvent
+ %% From wxNotifyEvent 
 %% @hidden
 veto(This) -> wxNotifyEvent:veto(This).
 %% @hidden
 isAllowed(This) -> wxNotifyEvent:isAllowed(This).
 %% @hidden
 allow(This) -> wxNotifyEvent:allow(This).
- %% From wxCommandEvent
+ %% From wxCommandEvent 
 %% @hidden
 setString(This,S) -> wxCommandEvent:setString(This,S).
 %% @hidden
@@ -130,7 +130,7 @@ getInt(This) -> wxCommandEvent:getInt(This).
 getExtraLong(This) -> wxCommandEvent:getExtraLong(This).
 %% @hidden
 getClientData(This) -> wxCommandEvent:getClientData(This).
- %% From wxEvent
+ %% From wxEvent 
 %% @hidden
 stopPropagation(This) -> wxEvent:stopPropagation(This).
 %% @hidden

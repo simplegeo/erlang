@@ -283,16 +283,16 @@ rule([term|_], {_, [ID], _}, Opts) ->
 			    ID,
 			    "</strong></em> "]}, Opts};
 		TermList ->
-		    case lists:keyfind(ID, 1, TermList) of
+		    case lists:keysearch(ID, 1, TermList) of
 			false ->
 			    {{drop, ["<em><strong>", ID,
 				    "</strong></em> "]},
 			     Opts};
-			{ID, Name, _Description, _Resp} ->
+			{value, {ID, Name, _Description, _Resp}} ->
 			    {{drop, ["<em><strong>", Name,
 				     "</strong></em> "]},
 			     Opts};
-			{ID, Name, _Description} ->
+			{value, {ID, Name, _Description}} ->
 			    {{drop, [ "<em><strong>", Name,
 				      "</strong></em> "]},
 			     Opts}
@@ -306,16 +306,16 @@ rule([term|_], {_, [ID], _}, Opts) ->
 		TermList ->
 		    PartApplication =
 			docb_util:lookup_option(part_application, Opts),
-		    case lists:keyfind(ID, 1, TermList) of
+		    case lists:keysearch(ID, 1, TermList) of
 			false ->
 			    {{drop, ["<a href=\"", PartApplication,
 				    "_term.html#", ID, "\">", ID,
 				    "</a> "]}, Opts};
-			{ID, Name, _Description, _Resp} ->
+			{value, {ID, Name, _Description, _Resp}} ->
 			    {{drop, ["<a href=\"", PartApplication,
 				    "_term.html#", ID, "\">", Name,
 				    "</a> "]}, Opts};
-			{ID, Name, _Description} ->
+			{value, {ID, Name, _Description}} ->
 			    {{drop, ["<a href=\"", PartApplication,
 				    "_term.html#", ID, "\">", Name,
 				    "</a> "]}, Opts}
@@ -331,16 +331,17 @@ rule([cite|_], {_, [ID], _}, Opts) ->
 		    {{drop, ["<em><strong>", ID, "</strong></em> "]},
 		     Opts};
 		CiteList ->
-		    case lists:keyfind(ID, 1, CiteList) of
+		    case lists:keysearch(ID, 1, CiteList) of
 			false ->
 			    {{drop,
 			      ["<em><strong>", ID, "</strong></em> "]},
 			     Opts};
-			{ID, Name, _Description, _Resp} ->
+	
+		{value, {ID, Name, _Description, _Resp}} ->
 			    {{drop, ["<em><strong>", Name,
 				     "</strong></em> "]},
 			     Opts};
-			{ID, Name, _Description} ->
+			{value, {ID, Name, _Description}} ->
 			    {{drop, ["<em><strong>", Name,
 				     "</strong></em> "]},
 			     Opts}
@@ -354,18 +355,18 @@ rule([cite|_], {_, [ID], _}, Opts) ->
 		CiteList ->
 		    PartApp =
 			docb_util:lookup_option(part_application, Opts),
-		    case lists:keyfind(ID, 1, CiteList) of
+		    case lists:keysearch(ID, 1, CiteList) of
 			false ->
 			    {{drop, ["<a href=\"", PartApp,
 				     "_cite.html#", ID, "\">", ID,
 				     "</a> "]},
 			     Opts};
-			{ID, Name, _Description, _Resp} ->
+			{value, {ID, Name, _Description, _Resp}} ->
 			    {{drop, ["<a href=\"", PartApp,
 				    "_cite.html#", ID, "\">", Name,
 				     "</a> "]},
 			     Opts};
-			{ID, Name, _Description} ->
+			{value, {ID, Name, _Description}} ->
 			    {{drop, ["<a href=\"", PartApp,
 				    "_cite.html#", ID, "\">", Name,
 				     "</a> "]},
@@ -375,7 +376,7 @@ rule([cite|_], {_, [ID], _}, Opts) ->
     end;
 
 rule([code|_], {_, [Type], [{pcdata, _, Code}]}, Opts) ->
-    case lists:member(Type, ["ERL","C","NONE"]) of
+    case lists:member(Type,["ERL","C","NONE"]) of
 	true ->
 	    {{drop, ["\n<div class=\"example\"><pre>\n", docb_html_util:element_cdata_to_html(Code),
 		     "\n</pre></div>\n"]}, Opts};

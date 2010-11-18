@@ -26,7 +26,6 @@
 	 slogan,
 	 system_vsn,
 	 compile_time,
-	 taints,
 	 node_name,
 	 num_atoms,
 	 num_procs,

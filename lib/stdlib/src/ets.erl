@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 -module(ets).
@@ -42,14 +42,9 @@
 
 -export([i/0, i/1, i/2, i/3]).
 
--export_type([tab/0, tid/0]).
-
-%%-----------------------------------------------------------------------------
+%%------------------------------------------------------------------------------
 
 -type tab()        :: atom() | tid().
-
-%% a similar definition is also in erl_types
--opaque tid()      :: integer().
 
 -type ext_info()   :: 'md5sum' | 'object_count'.
 -type protection() :: 'private' | 'protected' | 'public'.
@@ -68,7 +63,7 @@
 -type match_pattern() :: atom() | tuple().
 -type match_specs()   :: [{match_pattern(), [_], [_]}].
 
-%%-----------------------------------------------------------------------------
+%%------------------------------------------------------------------------------
 
 %% The following functions used to be found in this module, but
 %% are now BIFs (i.e. implemented in C).
@@ -235,7 +230,7 @@ from_dets(EtsTable, DetsTable) ->
 	    erlang:error(Unexpected,[EtsTable,DetsTable])
     end.
 
--spec to_dets(tab(), dets:tab_name()) -> dets:tab_name().
+-spec to_dets(tab(), dets:tab_name()) -> tab().
 
 to_dets(EtsTable, DetsTable) ->
     case (catch dets:from_ets(DetsTable, EtsTable)) of
@@ -627,14 +622,14 @@ do_read_and_verify(ReadFun,InitState,Tab,FtOptions,HeadCount,Verify) ->
 	    end,
 	    {ok,Tab};
 	{ok,{FinalMD5State,FinalCount,['$end_of_table',LastInfo],_}} ->
-	    ECount = case lists:keyfind(count,1,LastInfo) of
-			 {count,N} ->
+	    ECount = case lists:keysearch(count,1,LastInfo) of
+			 {value,{count,N}} ->
 			     N;
 			 _ ->
 			     false
 		     end,
-	    EMD5 = case lists:keyfind(md5,1,LastInfo) of
-			 {md5,M} ->
+	    EMD5 = case lists:keysearch(md5,1,LastInfo) of
+			 {value,{md5,M}} ->
 			     M;
 			 _ ->
 			     false
@@ -747,21 +742,22 @@ get_header_data(Name,true) ->
 			false ->
 			    throw(badfile);
 			true ->
-			    Major = case lists:keyfind(major,1,L) of
-					{major,Maj} ->
+			    Major = case lists:keysearch(major,1,L) of
+					{value,{major,Maj}} ->
 					    Maj;
 					_ ->
 					    0
 				    end,
-			    Minor = case lists:keyfind(minor,1,L) of
-					{minor,Min} ->
+			    Minor = case lists:keysearch(minor,1,L) of
+					{value,{minor,Min}} ->
 					    Min;
 					_ ->
 					    0
 				    end,
 			    FtOptions = 
-				case lists:keyfind(extended_info,1,L) of
-				    {extended_info,I} when is_list(I) ->
+				case lists:keysearch(extended_info,1,L) of
+				    {value,{extended_info,I}} 
+				    when is_list(I) ->
 					#filetab_options
 					    {
 					    object_count = 
@@ -790,28 +786,29 @@ get_header_data(Name,true) ->
     end;
 
 get_header_data(Name, false) ->
-   case wrap_chunk(Name, start, 1, false) of
+   case wrap_chunk(Name,start,1,false) of 
        {C,[Tup]} when is_tuple(Tup) ->
 	   L = tuple_to_list(Tup),
 	   case verify_header_mandatory(L) of
 	       false ->
 		   throw(badfile);
 	       true ->
-		   Major = case lists:keyfind(major_version, 1, L) of
-			       {major_version, Maj} ->
+		   Major = case lists:keysearch(major_version,1,L) of
+			       {value,{major_version,Maj}} ->
 				   Maj;
 			       _ ->
 				   0
 			   end,
-		   Minor = case lists:keyfind(minor_version, 1, L) of
-			       {minor_version, Min} ->
+		   Minor = case lists:keysearch(minor_version,1,L) of
+			       {value,{minor_version,Min}} ->
 				   Min;
 			       _ ->
 				   0
 			   end,
 		   FtOptions = 
-		       case lists:keyfind(extended_info, 1, L) of
-			   {extended_info, I} when is_list(I) ->
+		       case lists:keysearch(extended_info,1,L) of
+			   {value,{extended_info,I}} 
+			   when is_list(I) ->
 			       #filetab_options
 					 {
 					 object_count = 
@@ -828,26 +825,25 @@ get_header_data(Name, false) ->
 	   throw(badfile)
     end.
 
-md5_and_convert([], MD5State, Count) ->
+md5_and_convert([],MD5State,Count) ->
     {[],MD5State,Count,[]};
-md5_and_convert([H|T], MD5State, Count) when is_binary(H) ->
+md5_and_convert([H|T],MD5State,Count) when is_binary(H) ->
     case (catch binary_to_term(H)) of
 	{'EXIT', _} ->
 	    md5_and_convert(T,MD5State,Count);
-	['$end_of_table',_Dat] = L ->
-	   {[],MD5State,Count,L};
+	['$end_of_table',Dat] ->
+	   {[],MD5State,Count,['$end_of_table',Dat]}; 
 	Term ->
-	    X = erlang:md5_update(MD5State, H),
-	    {Rest,NewMD5,NewCount,NewLast} = md5_and_convert(T, X, Count+1),
+	    X = erlang:md5_update(MD5State,H),
+	    {Rest,NewMD5,NewCount,NewLast} = md5_and_convert(T,X,Count+1),
 	    {[Term | Rest],NewMD5,NewCount,NewLast}
     end.
-
-scan_for_endinfo([], Count) ->
+scan_for_endinfo([],Count) ->
     {[],Count,[]};
-scan_for_endinfo([['$end_of_table',Dat]], Count) ->
+scan_for_endinfo([['$end_of_table',Dat]],Count) ->
     {['$end_of_table',Dat],Count,[]};
-scan_for_endinfo([Term|T], Count) ->
-    {NewLast,NCount,Rest} = scan_for_endinfo(T, Count+1),
+scan_for_endinfo([Term|T],Count) ->
+    {NewLast,NCount,Rest} = scan_for_endinfo(T,Count+1),
     {NewLast,NCount,[Term | Rest]}.
 
 load_table(ReadFun, State, Tab) ->
@@ -856,19 +852,19 @@ load_table(ReadFun, State, Tab) ->
 	[] ->
 	    {ok,NewState};
 	List ->
-	    ets:insert(Tab, List),
-	    load_table(ReadFun, NewState, Tab)
+	    ets:insert(Tab,List),
+	    load_table(ReadFun,NewState,Tab)
     end.
 
 create_tab(I) ->
-    {name, Name} = lists:keyfind(name, 1, I),
-    {type, Type} = lists:keyfind(type, 1, I),
-    {protection, P} = lists:keyfind(protection, 1, I),
-    {named_table, Val} = lists:keyfind(named_table, 1, I),
-    {keypos, _Kp} = Keypos = lists:keyfind(keypos, 1, I),
-    {size, Sz} = lists:keyfind(size, 1, I),
+    {value, {name, Name}} = lists:keysearch(name, 1, I),
+    {value, {type, Type}} = lists:keysearch(type, 1, I),
+    {value, {protection, P}} = lists:keysearch(protection, 1, I),
+    {value, {named_table, Val}} = lists:keysearch(named_table, 1, I),
+    {value, {keypos, Kp}} = lists:keysearch(keypos, 1, I),
+    {value, {size, Sz}} = lists:keysearch(size, 1, I),
     try
-	Tab = ets:new(Name, [Type, P, Keypos | named_table(Val)]),
+	Tab = ets:new(Name, [Type, P, {keypos, Kp} | named_table(Val)]),
 	{ok, Tab, Sz}
     catch
 	_:_ ->
@@ -909,9 +905,9 @@ tabfile_info(File) when is_list(File) ; is_atom(File) ->
 	{value, Val} = lists:keysearch(named_table, 1, FullHeader),
 	{value, Kp} = lists:keysearch(keypos, 1, FullHeader),
 	{value, Sz} = lists:keysearch(size, 1, FullHeader),
-	Ei = case lists:keyfind(extended_info, 1, FullHeader) of
-		 false -> {extended_info, []};
-		 Ei0 -> Ei0
+	Ei = case lists:keysearch(extended_info, 1, FullHeader) of
+		 {value, Ei0} -> Ei0;
+		 _ -> {extended_info, []}
 	     end,
 	{ok, [N,Type,P,Val,Kp,Sz,Ei,{version,{Major,Minor}}]}
     catch
@@ -1025,20 +1021,21 @@ options(Option, Keys) ->
     options([Option], Keys, []).
 
 options(Options, [Key | Keys], L) when is_list(Options) ->
-    V = case lists:keyfind(Key, 1, Options) of
-            {n_objects, default} ->
+    V = case lists:keysearch(Key, 1, Options) of
+            {value, {n_objects, default}} ->
                 {ok, default_option(Key)};
-            {n_objects, NObjs} when is_integer(NObjs), NObjs >= 1 ->
+            {value, {n_objects, NObjs}} when is_integer(NObjs),
+                                             NObjs >= 1 ->
                 {ok, NObjs};
-            {traverse, select} ->
+            {value, {traverse, select}} ->
                 {ok, select};
-            {traverse, {select, _MS} = Select} ->
-                {ok, Select};
-            {traverse, first_next} ->
+            {value, {traverse, {select, MS}}} ->
+                {ok, {select, MS}};
+            {value, {traverse, first_next}} ->
                 {ok, first_next};
-            {traverse, last_prev} ->
+            {value, {traverse, last_prev}} ->
                 {ok, last_prev};
-	    {Key, _} ->
+	    {value, {Key, _}} ->
 		badarg;
 	    false ->
 		Default = default_option(Key),

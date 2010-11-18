@@ -2,20 +2,20 @@
 <!--      
      #
      # %CopyrightBegin%
-     #
-     # Copyright Ericsson AB 2009-2010. All Rights Reserved.
-     #
+     # 
+     # Copyright Ericsson AB 2009. All Rights Reserved.
+     # 
      # The contents of this file are subject to the Erlang Public License,
      # Version 1.1, (the "License"); you may not use this file except in
      # compliance with the License. You should have received a copy of the
      # Erlang Public License along with this software. If not, it can be
      # retrieved online at http://www.erlang.org/.
-     #
+     # 
      # Software distributed under the License is distributed on an "AS IS"
      # basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
      # the License for the specific language governing rights and limitations
      # under the License.
-     #
+     # 
      # %CopyrightEnd%
      
      -->
@@ -229,9 +229,7 @@
           <xsl:value-of select="$companyname"/>
         </fo:block>
         <fo:block xsl:use-attribute-sets="cover.inner.copyrightnotice">
-          <xsl:value-of select="/book/header/legalnotice"/>
-
-        <!--   The contents of this file are subject to the Erlang Public License,
+  The contents of this file are subject to the Erlang Public License,
   Version 1.1, (the "License"); you may not use this file except in
   compliance with the License. You should have received a copy of the
   Erlang Public License along with this software. If not, it can be
@@ -243,7 +241,6 @@
   under the License.
 
   The Initial Developer of the Original Code is 
--->
           <xsl:value-of select="$companyname"/>.
         </fo:block>
         <fo:block xsl:use-attribute-sets="cover.inner.date">
@@ -385,9 +382,7 @@
       <xsl:choose>
         <xsl:when test="ancestor::cref">
           <fo:bookmark internal-destination="{generate-id(nametext)}" starting-state="hide">
-            <xsl:variable name="fname">
-              <xsl:value-of select="substring-before(nametext, '(')"/>
-            </xsl:variable> 
+            <xsl:variable name="fname"><xsl:value-of select="substring-before(nametext, '(')"/></xsl:variable> 
             <fo:bookmark-title>
               <xsl:choose>
                 <xsl:when test="string-length($fname) > 0">
@@ -427,26 +422,8 @@
                 <xsl:with-param name="no-of-pars" select="0"/> 
               </xsl:call-template>
             </xsl:variable> 
-
-            <xsl:variable name="fname">
-              <xsl:variable name="fname1">
-                <xsl:value-of select="substring-before(., '(')"/>
-              </xsl:variable>
-              <xsl:variable name="fname2">
-                <xsl:value-of select="substring-after($fname1, 'erlang:')"/>
-              </xsl:variable>
-              <xsl:choose>
-                <xsl:when test="string-length($fname2) > 0">   
-                  <xsl:value-of select="$fname2"/>
-                </xsl:when>
-                <xsl:otherwise>
-                  <xsl:value-of select="$fname1"/>
-                </xsl:otherwise>
-              </xsl:choose>
-            </xsl:variable>
-
             <fo:bookmark-title>
-              <xsl:value-of select="$fname"/>/<xsl:value-of select="$arity"/>
+              <xsl:value-of select="substring-before(., '(')"/>/<xsl:value-of select="$arity"/>
             </fo:bookmark-title>
           </fo:bookmark>
         </xsl:when>
@@ -691,12 +668,12 @@
       <xsl:number level="any" from="part" count="code"/>
     </xsl:variable>
 
-    <fo:block xsl:use-attribute-sets="code">
+    <fo:block xsl:use-attribute-sets="code" margin-left="1.5em">
       <xsl:apply-templates select="text()"/> 
     </fo:block>
 
     <xsl:if test="@caption">
-      <fo:block xsl:use-attribute-sets="caption">
+      <fo:block xsl:use-attribute-sets="caption" margin-left="1.5em">
           Code listing <xsl:value-of select="$partnum"/>.<xsl:value-of select="$codenum"/>:&#160;
           <xsl:value-of select="@caption"/>
       </fo:block>
@@ -710,12 +687,12 @@
       <xsl:number level="any" from="part" count="code"/>
     </xsl:variable>
 
-    <fo:block xsl:use-attribute-sets="code">
+    <fo:block xsl:use-attribute-sets="code" margin-left="1.5em">
       <xsl:apply-templates/> 
     </fo:block>
 
     <xsl:if test="@caption">
-      <fo:block xsl:use-attribute-sets="caption">
+      <fo:block xsl:use-attribute-sets="caption" margin-left="1.5em">
           Code listing <xsl:value-of select="$partnum"/>.<xsl:value-of select="$codenum"/>:&#160;
           <xsl:value-of select="@caption"/>
       </fo:block>
@@ -885,7 +862,7 @@
 
   <!-- Funcs -->
   <xsl:template match="funcs">
-    <xsl:param name="partnum"/>
+
     <fo:block  xsl:use-attribute-sets="h3">
       <xsl:text>Exports</xsl:text>
     </fo:block>
@@ -981,7 +958,6 @@
 
   <!-- Desc -->
   <xsl:template match="desc">
-    <xsl:param name="partnum"/>
 
     <xsl:apply-templates>
       <xsl:with-param name="partnum" select="$partnum"/>
@@ -1127,62 +1103,27 @@
 
   <xsl:template name="remove-paren">
     <xsl:param name="string"/>
-
-    <xsl:variable name="str1">
-      <xsl:call-template name="remove-paren-1">
-        <xsl:with-param name="string" select="$string"/>
-        <xsl:with-param name="start">(</xsl:with-param> 
-        <xsl:with-param name="end">)</xsl:with-param> 
-      </xsl:call-template>    
-    </xsl:variable>
-
-    <xsl:variable name="str2">
-      <xsl:call-template name="remove-paren-1">
-        <xsl:with-param name="string" select="$str1"/>
-        <xsl:with-param name="start">{</xsl:with-param>
-        <xsl:with-param name="end">}</xsl:with-param>
-      </xsl:call-template>    
-    </xsl:variable>
-
-    <xsl:variable name="str3">
-      <xsl:call-template name="remove-paren-1">
-        <xsl:with-param name="string" select="$str2"/>
-        <xsl:with-param name="start">[</xsl:with-param>
-        <xsl:with-param name="end">]</xsl:with-param>
-      </xsl:call-template>    
-    </xsl:variable>
-
-    <xsl:value-of select="$str3"/>
-
-  </xsl:template>
-
-
-  <xsl:template name="remove-paren-1">
-    <xsl:param name="string"/>
-    <xsl:param name="start"/>
-    <xsl:param name="end"/>
    
-    <xsl:variable name="tmp1">
-      <xsl:value-of select="substring-before($string, $start)"/>
+    <xsl:variable name="bstring">
+      <xsl:value-of select="substring-before($string, '(')"/>
     </xsl:variable>
 
     <xsl:choose>
-      <xsl:when test="string-length($tmp1) > 0 or starts-with($string, $start)">
-        <xsl:variable name="tmp2">
-          <xsl:value-of select="substring-after($string, $end)"/>
+      <xsl:when test="string-length($bstring) > 0">
+        <xsl:variable name="astring">
+          <xsl:value-of select="substring-after($string, ')')"/>
         </xsl:variable>
         <xsl:variable name="retstring">
           <xsl:call-template name="remove-paren">
-            <xsl:with-param name="string" select="$tmp2"/>
+            <xsl:with-param name="string" select="$astring"/>
           </xsl:call-template>        
         </xsl:variable>
-        <xsl:value-of select="concat(concat($tmp1, 'x'), $retstring)"/>
+        <xsl:value-of select="concat($bstring, $retstring)"/>
       </xsl:when>
       <xsl:otherwise>
         <xsl:value-of select="$string"/>
       </xsl:otherwise>
     </xsl:choose>
-
   </xsl:template>
 
 </xsl:stylesheet>

@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1997-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1997-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 -module(pg2).
@@ -251,9 +251,7 @@ terminate(_Reason, _S) ->
 %%%    Pid is a member of group Name.
 
 store(List) ->
-    _ = [(assure_group(Name)
-          andalso
-          [join_group(Name, P) || P <- Members -- group_members(Name)]) ||
+    _ = [assure_group(Name) andalso [join_group(Name, P) || P <- Members] ||
             [Name, Members] <- List],
     ok.
 
@@ -336,11 +334,8 @@ local_group_members(Name) ->
         P <- member_in_group(Pid, Name)].
 
 member_in_group(Pid, Name) ->
-    case ets:lookup(pg2_table, {member, Name, Pid}) of
-        [] -> [];
-        [{{member, Name, Pid}, N}] ->
-            lists:duplicate(N, Pid)
-    end.
+    [{{member, Name, Pid}, N}] = ets:lookup(pg2_table, {member, Name, Pid}),
+    lists:duplicate(N, Pid).
 
 member_groups(Pid) ->
     [Name || [Name] <- ets:match(pg2_table, {{pid, Pid, '$1'}})].

@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 %% Description: Tests supervisor.erl
@@ -50,7 +50,7 @@
 	 simple_one_for_one_extra/1]).
 
 %% Misc tests
--export([child_unlink/1, tree/1, count_children_memory/1]).
+-export([child_unlink/1, tree/1]).
 
 %-------------------------------------------------------------------------
 
@@ -60,8 +60,7 @@ all(suite) ->
       child_adm_simple, extra_return, child_specs,
       restart_one_for_one, restart_one_for_all,
       restart_simple_one_for_one, restart_rest_for_one,
-      normal_termination, abnormal_termination, child_unlink, tree,
-      count_children_memory]}.
+      normal_termination, abnormal_termination, child_unlink, tree]}.
 
 
 start(InitResult) ->
@@ -72,15 +71,6 @@ init(fail) ->
     erlang:error({badmatch,2});
 init(InitResult) ->
     InitResult.
-
-%% Respect proplist return of supervisor:count_children
-get_child_counts(Supervisor) ->
-    Counts = supervisor:count_children(Supervisor),
-    [proplists:get_value(specs, Counts),
-     proplists:get_value(active, Counts),
-     proplists:get_value(supervisors, Counts),
-     proplists:get_value(workers, Counts)].
-
 
 %-------------------------------------------------------------------------
 %
@@ -99,7 +89,7 @@ sup_start_normal(doc) ->
     ["Tests that the supervisor process starts correctly and that it "
     "can be terminated gracefully."];
 sup_start_normal(suite) -> [];
-sup_start_normal(Config) when is_list(Config) ->
+sup_start_normal(Config) when list(Config) ->
     process_flag(trap_exit, true),
     ?line {ok, Pid} = start({ok, {{one_for_one, 2, 3600}, []}}),
     ?line exit(Pid, shutdown),
@@ -117,7 +107,7 @@ sup_start_normal(Config) when is_list(Config) ->
 sup_start_ignore_init(doc) ->
     ["Tests what happens if init-callback returns ignore"];
 sup_start_ignore_init(suite) -> [];
-sup_start_ignore_init(Config) when is_list(Config) ->
+sup_start_ignore_init(Config) when list(Config) ->
     process_flag(trap_exit, true),
     ?line ignore = start(ignore),
 
@@ -137,7 +127,7 @@ sup_start_ignore_init(Config) when is_list(Config) ->
 sup_start_ignore_child(doc) ->
     ["Tests what happens if init-callback returns ignore"];
 sup_start_ignore_child(suite) -> [];
-sup_start_ignore_child(Config) when is_list(Config) ->
+sup_start_ignore_child(Config) when list(Config) ->
     process_flag(trap_exit, true),
     ?line {ok, _Pid}  = start({ok, {{one_for_one, 2, 3600}, []}}),
     Child1 = {child1, {supervisor_1, start_child, [ignore]}, 
@@ -150,15 +140,13 @@ sup_start_ignore_child(Config) when is_list(Config) ->
 
     ?line [{child2, CPid2, worker, []},{child1, undefined, worker, []}] 
 	= supervisor:which_children(sup_test),
-    ?line [2,1,0,2] = get_child_counts(sup_test),
-
     ok.
 
 %-------------------------------------------------------------------------
 sup_start_error_return(doc) ->
     ["Tests what happens if init-callback returns a invalid value"];
 sup_start_error_return(suite) -> [];
-sup_start_error_return(Config) when is_list(Config) ->
+sup_start_error_return(Config) when list(Config) ->
     process_flag(trap_exit, true),
     ?line {error, Term} = start(invalid),
 
@@ -177,7 +165,7 @@ sup_start_error_return(Config) when is_list(Config) ->
 sup_start_fail(doc) ->
     ["Tests what happens if init-callback fails"];
 sup_start_fail(suite) -> [];
-sup_start_fail(Config) when is_list(Config) ->
+sup_start_fail(Config) when list(Config) ->
     process_flag(trap_exit, true),
     ?line {error, Term} = start(fail),
 
@@ -204,7 +192,7 @@ sup_stop_infinity(doc) ->
     "for children of type supervisor"];
 sup_stop_infinity(suite) -> [];
 
-sup_stop_infinity(Config) when is_list(Config) ->
+sup_stop_infinity(Config) when list(Config) ->
     process_flag(trap_exit, true),
     ?line {ok, Pid} = start({ok, {{one_for_one, 2, 3600}, []}}),
     Child1 = {child1, {supervisor_1, start_child, []}, 
@@ -242,7 +230,7 @@ sup_stop_timeout(doc) ->
     ["See sup_stop/1 when Shutdown = 1000"];
 sup_stop_timeout(suite) -> [];
 
-sup_stop_timeout(Config) when is_list(Config) ->
+sup_stop_timeout(Config) when list(Config) ->
     process_flag(trap_exit, true),
     ?line {ok, Pid} = start({ok, {{one_for_one, 2, 3600}, []}}),
     Child1 = {child1, {supervisor_1, start_child, []}, 
@@ -290,7 +278,7 @@ sup_stop_brutal_kill(doc) ->
     ["See sup_stop/1 when Shutdown = brutal_kill"];
 sup_stop_brutal_kill(suite) -> [];
 
-sup_stop_brutal_kill(Config) when is_list(Config) ->
+sup_stop_brutal_kill(Config) when list(Config) ->
     process_flag(trap_exit, true),
     ?line {ok, Pid} = start({ok, {{one_for_one, 2, 3600}, []}}),
     Child1 = {child1, {supervisor_1, start_child, []}, 
@@ -339,7 +327,7 @@ extra_return(doc) ->
      "and restart_child/2"];
 extra_return(suite) -> [];
 
-extra_return(Config) when is_list(Config) ->
+extra_return(Config) when list(Config) ->
     process_flag(trap_exit, true),
     Child = {child1, {supervisor_1, start_child, [extra_return]}, 
 	     permanent, 1000,
@@ -353,8 +341,6 @@ extra_return(Config) when is_list(Config) ->
     ?line {error, running} = supervisor:delete_child(sup_test, child1),
     ?line {error, running} = supervisor:restart_child(sup_test, child1),
     ?line [{child1, CPid, worker, []}] = supervisor:which_children(sup_test),
-    ?line [1,1,0,1] = get_child_counts(sup_test),
-
     ?line ok = supervisor:terminate_child(sup_test, child1),
     receive
 	{'EXIT', CPid, shutdown} -> ok;
@@ -364,39 +350,29 @@ extra_return(Config) when is_list(Config) ->
 	    ?line test_server:fail(no_child_termination)
     end,
     ?line [{child1,undefined,worker,[]}] = supervisor:which_children(sup_test),
-    ?line [1,0,0,1] = get_child_counts(sup_test),
-
     ?line {ok, CPid2,extra_return} = 
 	supervisor:restart_child(sup_test, child1),
     ?line [{child1, CPid2, worker, []}] = supervisor:which_children(sup_test),
-    ?line [1,1,0,1] = get_child_counts(sup_test),
-
     ?line ok = supervisor:terminate_child(sup_test, child1),
     ?line ok = supervisor:terminate_child(sup_test, child1),
     ?line ok = supervisor:delete_child(sup_test, child1),
     ?line {error, not_found} = supervisor:restart_child(sup_test, child1),
     ?line [] = supervisor:which_children(sup_test),
-    ?line [0,0,0,0] = get_child_counts(sup_test),
-
     ?line {ok, CPid3, extra_return} = supervisor:start_child(sup_test, Child),
     ?line [{child1, CPid3, worker, []}] = supervisor:which_children(sup_test),
-    ?line [1,1,0,1] = get_child_counts(sup_test),
-
     ok.
 %-------------------------------------------------------------------------
 child_adm(doc)->
     ["Test API functions start_child/2, terminate_child/2, delete_child/2 "
-     "restart_child/2, which_children/1, count_children/1. Only correct "
-     "childspecs are used, handling of incorrect childspecs is tested in "
-     "child_specs/1"];
+     "restart_child/2, which_children/1. Only correct childspecs are used, "
+     "handling of incorrect childspecs is tested in child_specs/1"];
 child_adm(suite) -> [];
-child_adm(Config) when is_list(Config) ->
+child_adm(Config) when list(Config) ->
     process_flag(trap_exit, true),
     Child = {child1, {supervisor_1, start_child, []}, permanent, 1000,
 	     worker, []},
     ?line {ok, _Pid} = start({ok, {{one_for_one, 2, 3600}, [Child]}}),
     ?line [{child1, CPid, worker, []}] = supervisor:which_children(sup_test),
-    ?line [1,1,0,1] = get_child_counts(sup_test),
     link(CPid),
 
     %% Start of an already runnig process 
@@ -416,7 +392,6 @@ child_adm(Config) when is_list(Config) ->
 	    ?line test_server:fail(no_child_termination)
     end,
     ?line [{child1,undefined,worker,[]}] = supervisor:which_children(sup_test),
-    ?line [1,0,0,1] = get_child_counts(sup_test),
     %% Like deleting something that does not exist, it will succeed!
     ?line ok = supervisor:terminate_child(sup_test, child1),
 
@@ -427,7 +402,6 @@ child_adm(Config) when is_list(Config) ->
     %% Restart
     ?line {ok, CPid2} = supervisor:restart_child(sup_test, child1),
     ?line [{child1, CPid2, worker, []}] = supervisor:which_children(sup_test),
-    ?line [1,1,0,1] = get_child_counts(sup_test),
     ?line {error, running} = supervisor:restart_child(sup_test, child1),
     ?line {error, not_found} = supervisor:restart_child(sup_test, child2),
     
@@ -440,19 +414,15 @@ child_adm(Config) when is_list(Config) ->
     ?line ok = supervisor:delete_child(sup_test, child1),
     ?line {error, not_found} = supervisor:restart_child(sup_test, child1),
     ?line [] = supervisor:which_children(sup_test),
-    ?line [0,0,0,0] = get_child_counts(sup_test),
     
     %% Start
     ?line {'EXIT',{noproc,{gen_server,call, _}}} =
 	(catch supervisor:start_child(foo, Child)),
     ?line {ok, CPid3} = supervisor:start_child(sup_test, Child),
     ?line [{child1, CPid3, worker, []}] = supervisor:which_children(sup_test),
-    ?line [1,1,0,1] = get_child_counts(sup_test),
 
     ?line {'EXIT',{noproc,{gen_server,call,[foo,which_children,infinity]}}}
 	= (catch supervisor:which_children(foo)),
-    ?line {'EXIT',{noproc,{gen_server,call,[foo,count_children,infinity]}}}
-	= (catch supervisor:count_children(foo)),
     ok.
 %-------------------------------------------------------------------------
 child_adm_simple(doc) ->
@@ -460,13 +430,12 @@ child_adm_simple(doc) ->
      "restart_child/2 are not valid for a simple_one_for_one supervisor "
     "check that the correct error message is returned."];
 child_adm_simple(suite) -> [];
-child_adm_simple(Config) when is_list(Config) ->
+child_adm_simple(Config) when list(Config) ->
     Child = {child, {supervisor_1, start_child, []}, permanent, 1000,
 	     worker, []},
     ?line {ok, _Pid} = start({ok, {{simple_one_for_one, 2, 3600}, [Child]}}),
     %% In simple_one_for_one all children are added dynamically 
     ?line [] = supervisor:which_children(sup_test), 
-    ?line [1,0,0,0] = get_child_counts(sup_test),
     
     %% Start
     ?line {'EXIT',{noproc,{gen_server,call, _}}} =
@@ -474,14 +443,12 @@ child_adm_simple(Config) when is_list(Config) ->
     ?line {ok, CPid1} = supervisor:start_child(sup_test, []),
     ?line [{undefined, CPid1, worker, []}] = 
 	supervisor:which_children(sup_test),
-    ?line [1,1,0,1] = get_child_counts(sup_test),
     
     ?line {ok, CPid2} = supervisor:start_child(sup_test, []),
     ?line Children = supervisor:which_children(sup_test),
     ?line 2 = length(Children),
     ?line true = lists:member({undefined, CPid2, worker, []}, Children),
     ?line true = lists:member({undefined, CPid1, worker, []}, Children),
-    ?line [1,2,0,2] = get_child_counts(sup_test),
 
     %% Termination
     ?line {error, simple_one_for_one} =
@@ -500,7 +467,7 @@ child_adm_simple(Config) when is_list(Config) ->
 child_specs(doc) ->
     ["Tests child specs, invalid formats should be rejected."];
 child_specs(suite) -> [];
-child_specs(Config) when is_list(Config) ->
+child_specs(Config) when list(Config) ->
     process_flag(trap_exit, true),
     ?line {ok, _Pid} = start({ok, {{one_for_one, 2, 3600}, []}}),
     ?line {error, _} = supervisor:start_child(sup_test, hej),
@@ -559,7 +526,7 @@ normal_termination(suite) ->
 permanent_normal(doc) ->
     ["A permanent child should always be restarted"];
 permanent_normal(suite) -> [];
-permanent_normal(Config) when is_list(Config) ->
+permanent_normal(Config) when list(Config) ->
     ?line  {ok, _SupPid} = start({ok, {{one_for_one, 2, 3600}, []}}),
     Child1 = {child1, {supervisor_1, start_child, []}, permanent, 1000,
 	      worker, []},
@@ -574,16 +541,14 @@ permanent_normal(Config) when is_list(Config) ->
 	    ok;
 	false ->
 	    ?line test_server:fail({permanent_child_not_restarted, Child1})
-    end,
-    ?line [1,1,0,1] = get_child_counts(sup_test),
+    end.
 
-    ok.
 %------------------------------------------------------------------------- 
 transient_normal(doc) ->
     ["A transient child should not be restarted if it exits with " 
      "reason normal"];
 transient_normal(suite) -> [];
-transient_normal(Config) when is_list(Config) ->
+transient_normal(Config) when list(Config) ->
     ?line  {ok, _SupPid} = start({ok, {{one_for_one, 2, 3600}, []}}),
     Child1 = {child1, {supervisor_1, start_child, []}, transient, 1000,
 	      worker, []},
@@ -593,15 +558,13 @@ transient_normal(Config) when is_list(Config) ->
     CPid1 ! stop,
     test_server:sleep(100),
     
-    ?line [{child1,undefined,worker,[]}] = supervisor:which_children(sup_test),
-    ?line [1,0,0,1] = get_child_counts(sup_test),
+    ?line [{child1,undefined,worker,[]}] = supervisor:which_children(sup_test).
 
-    ok.
 %-------------------------------------------------------------------------    
 temporary_normal(doc) ->
     ["A temporary process should never be restarted"];
 temporary_normal(suite) -> [];
-temporary_normal(Config) when is_list(Config) ->
+temporary_normal(Config) when list(Config) ->
      ?line  {ok, _SupPid} = start({ok, {{one_for_one, 2, 3600}, []}}),
     Child1 = {child1, {supervisor_1, start_child, []}, temporary, 1000,
 	      worker, []},
@@ -611,10 +574,8 @@ temporary_normal(Config) when is_list(Config) ->
     CPid1 ! stop,
     test_server:sleep(100),
     
-    ?line [{child1,undefined,worker,[]}] = supervisor:which_children(sup_test),
-    ?line [1,0,0,1] = get_child_counts(sup_test),
+    ?line [{child1,undefined,worker,[]}] = supervisor:which_children(sup_test).
 
-    ok.
 %-------------------------------------------------------------------------
 abnormal_termination(doc) ->
     ["Testes the supervisors behaviour if a child dies with reason abnormal"];
@@ -625,7 +586,7 @@ abnormal_termination(suite) ->
 permanent_abnormal(doc) ->
     ["A permanent child should always be restarted"];
 permanent_abnormal(suite) -> [];
-permanent_abnormal(Config) when is_list(Config) ->
+permanent_abnormal(Config) when list(Config) ->
     ?line  {ok, _SupPid} = start({ok, {{one_for_one, 2, 3600}, []}}),
     Child1 = {child1, {supervisor_1, start_child, []}, permanent, 1000,
 	      worker, []},
@@ -640,16 +601,14 @@ permanent_abnormal(Config) when is_list(Config) ->
 	    ok;
 	false ->
 	    ?line test_server:fail({permanent_child_not_restarted, Child1})
-    end,
-    ?line [1,1,0,1] = get_child_counts(sup_test),
+    end.
 
-    ok.
 %------------------------------------------------------------------------- 
 transient_abnormal(doc) ->
     ["A transient child should be restarted if it exits with " 
      "reason abnormal"];
 transient_abnormal(suite) -> [];
-transient_abnormal(Config) when is_list(Config) ->
+transient_abnormal(Config) when list(Config) ->
     ?line  {ok, _SupPid} = start({ok, {{one_for_one, 2, 3600}, []}}),
     Child1 = {child1, {supervisor_1, start_child, []}, transient, 1000,
 	      worker, []},
@@ -665,15 +624,14 @@ transient_abnormal(Config) when is_list(Config) ->
 	    ok;
 	false ->
 	    ?line test_server:fail({transient_child_not_restarted, Child1})
-    end,
-    ?line [1,1,0,1] = get_child_counts(sup_test),
+    end.
 
-    ok.
+
 %-------------------------------------------------------------------------    
 temporary_abnormal(doc) ->
     ["A temporary process should never be restarted"];
 temporary_abnormal(suite) -> [];
-temporary_abnormal(Config) when is_list(Config) ->
+temporary_abnormal(Config) when list(Config) ->
      ?line  {ok, _SupPid} = start({ok, {{one_for_one, 2, 3600}, []}}),
     Child1 = {child1, {supervisor_1, start_child, []}, temporary, 1000,
 	      worker, []},
@@ -683,10 +641,8 @@ temporary_abnormal(Config) when is_list(Config) ->
     CPid1 ! die,
     test_server:sleep(100),
     
-    ?line [{child1,undefined,worker,[]}] = supervisor:which_children(sup_test),
-    ?line [1,0,0,1] = get_child_counts(sup_test),
+    ?line [{child1,undefined,worker,[]}] = supervisor:which_children(sup_test).
 
-    ok.
 %-------------------------------------------------------------------------
 restart_one_for_one(doc) ->
     ["Test that the one_for_one strategy works."];
@@ -697,7 +653,7 @@ restart_one_for_one(suite) -> [one_for_one, one_for_one_escalation].
 one_for_one(doc) ->
     ["Test the one_for_one base case."];
 one_for_one(suite) -> [];
-one_for_one(Config) when is_list(Config) ->
+one_for_one(Config) when list(Config) ->
     process_flag(trap_exit, true),
     Child1 = {child1, {supervisor_1, start_child, []}, permanent, 1000,
 	     worker, []},
@@ -723,7 +679,6 @@ one_for_one(Config) when is_list(Config) ->
 	    end;
        true -> ?line test_server:fail({bad_child_list, Children})
     end,
-    ?line [2,2,0,2] = get_child_counts(sup_test),
     
     %% Test restart frequency property
     CPid2 ! die,
@@ -742,7 +697,7 @@ one_for_one(Config) when is_list(Config) ->
 one_for_one_escalation(doc) ->
     ["Test restart escalation on a one_for_one supervisor."];
 one_for_one_escalation(suite) -> [];
-one_for_one_escalation(Config) when is_list(Config) ->
+one_for_one_escalation(Config) when list(Config) ->
     process_flag(trap_exit, true),
     Child1 = {child1, {supervisor_1, start_child, [error]},
 	      permanent, 1000,
@@ -782,7 +737,7 @@ restart_one_for_all(suite) ->
 one_for_all(doc) ->
     ["Test the one_for_all base case."];
 one_for_all(suite) -> [];
-one_for_all(Config) when is_list(Config) ->
+one_for_all(Config) when list(Config) ->
     process_flag(trap_exit, true),
     Child1 = {child1, {supervisor_1, start_child, []}, permanent, 1000,
 	     worker, []},
@@ -817,8 +772,6 @@ one_for_all(Config) when is_list(Config) ->
 	true -> ?line test_server:fail(bad_child);
 	false -> ok
     end,
-    ?line [2,2,0,2] = get_child_counts(sup_test),
-
     %%% Test restart frequency property
     [{_, Pid3, _, _}|_] = supervisor:which_children(sup_test),
     Pid3 ! die,
@@ -835,7 +788,7 @@ one_for_all(Config) when is_list(Config) ->
 one_for_all_escalation(doc) -> 
     ["Test restart escalation on a one_for_all supervisor."];
 one_for_all_escalation(suite) -> [];
-one_for_all_escalation(Config) when is_list(Config) ->
+one_for_all_escalation(Config) when list(Config) ->
     process_flag(trap_exit, true),
     Child1 = {child1, {supervisor_1, start_child, []}, permanent, 1000,
 	     worker, []},
@@ -877,7 +830,7 @@ restart_simple_one_for_one(suite) ->
 simple_one_for_one(doc) ->
     ["Test the simple_one_for_one base case."];
 simple_one_for_one(suite) -> [];
-simple_one_for_one(Config) when is_list(Config) ->
+simple_one_for_one(Config) when list(Config) ->
     process_flag(trap_exit, true),
     Child = {child, {supervisor_1, start_child, []}, permanent, 1000,
 	     worker, []},
@@ -901,8 +854,6 @@ simple_one_for_one(Config) when is_list(Config) ->
 	    end;
        true -> ?line test_server:fail({bad_child_list, Children})
     end,
-    ?line [1,2,0,2] = get_child_counts(sup_test),
-
     %% Test restart frequency property
     CPid2 ! die,
     receive
@@ -921,7 +872,7 @@ simple_one_for_one_extra(doc) ->
     ["Tests automatic restart of children " 
      "who's start function return extra info."];
 simple_one_for_one_extra(suite) -> [];
-simple_one_for_one_extra(Config) when is_list(Config) ->
+simple_one_for_one_extra(Config) when list(Config) ->
     process_flag(trap_exit, true),
     Child = {child, {supervisor_1, start_child, [extra_info]}, 
 	     permanent, 1000, worker, []},
@@ -945,8 +896,6 @@ simple_one_for_one_extra(Config) when is_list(Config) ->
 	    end;
        true -> ?line test_server:fail({bad_child_list, Children})
     end,
-    ?line [1,2,0,2] = get_child_counts(sup_test),
-
     CPid2 ! die,
     receive
 	{'EXIT', CPid2, _} -> ok
@@ -963,7 +912,7 @@ simple_one_for_one_extra(Config) when is_list(Config) ->
 simple_one_for_one_escalation(doc) ->
     ["Test restart escalation on a simple_one_for_one supervisor."];
 simple_one_for_one_escalation(suite) -> [];
-simple_one_for_one_escalation(Config) when is_list(Config) ->
+simple_one_for_one_escalation(Config) when list(Config) ->
     process_flag(trap_exit, true),
     Child = {child, {supervisor_1, start_child, []}, permanent, 1000,
 	     worker, []},
@@ -998,7 +947,7 @@ restart_rest_for_one(suite) -> [rest_for_one, rest_for_one_escalation].
 rest_for_one(doc) ->
     ["Test the rest_for_one base case."];
 rest_for_one(suite) -> [];
-rest_for_one(Config) when is_list(Config) ->
+rest_for_one(Config) when list(Config) ->
     process_flag(trap_exit, true),
     Child1 = {child1, {supervisor_1, start_child, []}, permanent, 1000,
 	     worker, []},
@@ -1013,8 +962,6 @@ rest_for_one(Config) when is_list(Config) ->
     link(CPid2),
     ?line {ok, CPid3} = supervisor:start_child(sup_test, Child3),    
     link(CPid3),
-    ?line [3,3,0,3] = get_child_counts(sup_test),
-
     CPid2 ! die,
     receive
 	{'EXIT', CPid2, died} -> ok;
@@ -1040,8 +987,6 @@ rest_for_one(Config) when is_list(Config) ->
     if length(Children) == 3 -> ok;
        true -> ?line test_server:fail({bad_child_list, Children})
     end,
-    ?line [3,3,0,3] = get_child_counts(sup_test),
-
     %% Test that no old children is still alive
     SCh = lists:map(fun({_,P,_,_}) -> P end, Children),
     case lists:member(CPid1, SCh) of
@@ -1073,7 +1018,7 @@ rest_for_one(Config) when is_list(Config) ->
 rest_for_one_escalation(doc) ->
     ["Test restart escalation on a rest_for_one supervisor."];
 rest_for_one_escalation(suite) -> [];
-rest_for_one_escalation(Config) when is_list(Config) ->
+rest_for_one_escalation(Config) when list(Config) ->
     process_flag(trap_exit, true),
     Child1 = {child1, {supervisor_1, start_child, []}, permanent, 1000,
 	     worker, []},
@@ -1107,7 +1052,7 @@ rest_for_one_escalation(Config) when is_list(Config) ->
 child_unlink(doc)-> ["Test that the supervisor does not hang forever if "
     "the child unliks and then is terminated by the supervisor."];
 child_unlink(suite) -> [];
-child_unlink(Config) when is_list(Config) ->
+child_unlink(Config) when list(Config) ->
     
     ?line {ok, SupPid} = start({ok, {{one_for_one, 2, 3600}, []}}),
     
@@ -1136,7 +1081,7 @@ tree(doc) ->
     ["Test a basic supervison tree."];
 tree(suite) ->
     [];
-tree(Config) when is_list(Config) ->
+tree(Config) when list(Config) ->
     process_flag(trap_exit, true),
     
     Child1 = {child1, {supervisor_1, start_child, []},
@@ -1169,19 +1114,15 @@ tree(Config) when is_list(Config) ->
     %% Child supervisors  
     ?line {ok, Sup1} = supervisor:start_child(Pid, ChildSup1),
     ?line {ok, Sup2} = supervisor:start_child(Pid, ChildSup2),
-    ?line [2,2,2,0] = get_child_counts(Pid),
     
     %% Workers
+    
      ?line [{_, CPid2, _, _},{_, CPid1, _, _}] = 
 	supervisor:which_children(Sup1),
-    ?line [2,2,0,2] = get_child_counts(Sup1),
-    ?line [0,0,0,0] = get_child_counts(Sup2),
    
     %% Dynamic children
     ?line {ok, CPid3} = supervisor:start_child(Sup2, Child3),
     ?line {ok, CPid4} = supervisor:start_child(Sup2, Child4),
-    ?line [2,2,0,2] = get_child_counts(Sup1),
-    ?line [2,2,0,2] = get_child_counts(Sup2),
     
     link(Sup1),
     link(Sup2),
@@ -1203,11 +1144,9 @@ tree(Config) when is_list(Config) ->
     
     ?line [{_, CPid2, _, _},{_, CPid1, _, _}] = 
 	supervisor:which_children(Sup1),
-    ?line [2,2,0,2] = get_child_counts(Sup1),
     
     ?line [{_, NewCPid4, _, _},{_, CPid3, _, _}] = 
 	supervisor:which_children(Sup2),
-    ?line [2,2,0,2] = get_child_counts(Sup2),
     
     link(NewCPid4),
 
@@ -1256,99 +1195,9 @@ tree(Config) when is_list(Config) ->
         
     ?line [{supchild2, NewSup2, _, _},{supchild1, NewSup1, _, _}] =
 	supervisor:which_children(Pid),
-    ?line [2,2,2,0] = get_child_counts(Pid),
     
     ?line [{child2, _, _, _},{child1, _, _, _}]  =
 	supervisor:which_children(NewSup1),
-    ?line [2,2,0,2] = get_child_counts(NewSup1),
-
     ?line [] = supervisor:which_children(NewSup2),
-    ?line [0,0,0,0] = get_child_counts(NewSup2),
     
-    ok.
-%-------------------------------------------------------------------------
-count_children_allocator_test(MemoryState) ->
-    Allocators = [temp_alloc, eheap_alloc, binary_alloc, ets_alloc,
-		  driver_alloc, sl_alloc, ll_alloc, fix_alloc, std_alloc,
-		  sys_alloc],
-    MemoryStateList = element(4, MemoryState),
-    AllocTypes = [lists:keyfind(Alloc, 1, MemoryStateList)
-		  || Alloc <- Allocators],
-    AllocStates = [lists:keyfind(e, 1, AllocValue)
-		   || {_Type, AllocValue} <- AllocTypes],
-    lists:all(fun(State) -> State == {e, true} end, AllocStates).
-
-count_children_memory(doc) ->
-    ["Test that which_children eats memory, but count_children does not."];
-count_children_memory(suite) ->
-    MemoryState = erlang:system_info(allocator),
-    case count_children_allocator_test(MemoryState) of
-	true -> [];
-	false ->
-	    {skip, "+Meamin used during test; erlang:memory/1 not available"}
-    end;
-count_children_memory(Config) when is_list(Config) ->
-    process_flag(trap_exit, true),
-    Child = {child, {supervisor_1, start_child, []}, temporary, 1000,
-	     worker, []},
-    ?line {ok, _Pid} = start({ok, {{simple_one_for_one, 2, 3600}, [Child]}}),
-    [supervisor:start_child(sup_test, []) || _Ignore <- lists:seq(1,1000)],
-
-    garbage_collect(),
-    _Size1 = erlang:memory(processes_used),
-    Children = supervisor:which_children(sup_test),
-    _Size2 = erlang:memory(processes_used),
-    ChildCount = get_child_counts(sup_test),
-    Size3 = erlang:memory(processes_used),
-
-    [supervisor:start_child(sup_test, []) || _Ignore2 <- lists:seq(1,1000)],
-
-    garbage_collect(),
-    Children2 = supervisor:which_children(sup_test),
-    Size4 = erlang:memory(processes_used),
-    ChildCount2 = get_child_counts(sup_test),
-    Size5 = erlang:memory(processes_used),
-
-    garbage_collect(),
-    Children3 = supervisor:which_children(sup_test),
-    Size6 = erlang:memory(processes_used),
-    ChildCount3 = get_child_counts(sup_test),
-    Size7 = erlang:memory(processes_used),
-
-    ?line 1000 = length(Children),
-    ?line [1,1000,0,1000] = ChildCount,
-    ?line 2000 = length(Children2),
-    ?line [1,2000,0,2000] = ChildCount2,
-    ?line Children3 = Children2,
-    ?line ChildCount3 = ChildCount2,
-
-    %% count_children consumes memory using an accumulator function,
-    %% but the space can be reclaimed incrementally, whereas
-    %% which_children generates a return list.
-    case (Size5 =< Size4) of
-	true -> ok;
-	false ->
-	    ?line test_server:fail({count_children, used_more_memory})
-    end,
-    case Size7 =< Size6 of
-	true -> ok;
-	false ->
-	    ?line test_server:fail({count_children, used_more_memory})
-    end,
-
-    case Size4 > Size3 of
-	true -> ok;
-	false ->
-	    ?line test_server:fail({which_children, used_no_memory})
-    end,
-    case Size6 > Size5 of
-	true -> ok;
-	false ->
-	    ?line test_server:fail({which_children, used_no_memory})
-    end,
-
-    [exit(Pid, kill) || {undefined, Pid, worker, _Modules} <- Children3],
-    test_server:sleep(100),
-    ?line [1,0,0,0] = get_child_counts(sup_test),
-
     ok.

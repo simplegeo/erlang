@@ -1,30 +1,26 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1999-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1999-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 -module(snmpa_usm).
 
-%% Avoid warning for local function error/1 clashing with autoimported BIF.
--compile({no_auto_import,[error/1]}).
-%% Avoid warning for local function error/2 clashing with autoimported BIF.
--compile({no_auto_import,[error/2]}).
 -export([
-	 process_incoming_msg/4, process_incoming_msg/5, 
-	 generate_outgoing_msg/5, generate_outgoing_msg/6,
+	 process_incoming_msg/4, 
+	 generate_outgoing_msg/5,
 	 generate_discovery_msg/4, generate_discovery_msg/5,
 	 current_statsNotInTimeWindows_vb/0
 	]).
@@ -37,7 +33,6 @@
 
 -define(VMODULE,"A-USM").
 -include("snmp_verbosity.hrl").
--include("snmpa_internal.hrl").
 
 
 %%-----------------------------------------------------------------
@@ -63,11 +58,7 @@
 %%-----------------------------------------------------------------
 
 process_incoming_msg(Packet, Data, SecParams, SecLevel) ->
-    LocalEngineID = ?DEFAULT_LOCAL_ENGINE_ID, 
-    process_incoming_msg(Packet, Data, SecParams, SecLevel, LocalEngineID).
-
-process_incoming_msg(Packet, Data, SecParams, SecLevel, LocalEngineID) ->
-    TermDiscoEnabled    = is_terminating_discovery_enabled(), 
+    TermDiscoEnabled = is_terminating_discovery_enabled(), 
     TermTriggerUsername = terminating_trigger_username(), 
     %% 3.2.1
     ?vtrace("process_incoming_msg -> check security parms: 3.2.1",[]),
@@ -133,7 +124,7 @@ process_incoming_msg(Packet, Data, SecParams, SecLevel, LocalEngineID) ->
 		    "~n   ~p",[UsmUser]),
 	    DiscoOrPlain = authenticate_incoming(Packet, 
 						 UsmSecParams, UsmUser, 
-						 SecLevel, LocalEngineID), 
+						 SecLevel), 
 	    %% 3.2.8
 	    ?vtrace("process_incoming_msg -> "
 		    "decrypt scoped data: 3.2.8",[]),
@@ -175,8 +166,7 @@ process_discovery_msg(MsgAuthEngineID, Data, SecLevel) ->
     end.
 	    
 
-authenticate_incoming(Packet, UsmSecParams, UsmUser, SecLevel, 
-		      LocalEngineID) ->
+authenticate_incoming(Packet, UsmSecParams, UsmUser, SecLevel) ->
     %% 3.2.6
     ?vtrace("authenticate_incoming -> 3.2.6", []),
     AuthProtocol = element(?usmUserAuthProtocol, UsmUser),
@@ -200,8 +190,7 @@ authenticate_incoming(Packet, UsmSecParams, UsmUser, SecLevel,
 			 SecName,
 			 MsgAuthEngineID,
 			 MsgAuthEngineBoots, 
-			 MsgAuthEngineTime,
-			 LocalEngineID) of
+			 MsgAuthEngineTime) of
 		discovery ->
 		    discovery;
 		true -> 
@@ -216,15 +205,15 @@ authenticate_incoming(Packet, UsmSecParams, UsmUser, SecLevel,
 	    plain
     end.
 	    
-authoritative(SecName, MsgAuthEngineBoots, MsgAuthEngineTime, LocalEngineID) ->
+authoritative(SecName, MsgAuthEngineBoots, MsgAuthEngineTime) ->
     ?vtrace("authoritative -> entry with"
 	    "~n   SecName:            ~p"
 	    "~n   MsgAuthEngineBoots: ~p"
 	    "~n   MsgAuthEngineTime:  ~p", 
 	    [SecName, MsgAuthEngineBoots, MsgAuthEngineTime]),
-    SnmpEngineBoots = get_local_engine_boots(LocalEngineID),
+    SnmpEngineBoots = snmp_framework_mib:get_engine_boots(),
     ?vtrace("authoritative -> SnmpEngineBoots: ~p", [SnmpEngineBoots]),
-    SnmpEngineTime = get_local_engine_time(LocalEngineID),
+    SnmpEngineTime = snmp_framework_mib:get_engine_time(),
     ?vtrace("authoritative -> SnmpEngineTime: ~p", [SnmpEngineTime]),
     InTimeWindow =
 	if
@@ -331,12 +320,11 @@ non_authoritative(SecName,
     end.
 
       
-is_auth(?usmNoAuthProtocol, _, _, _, SecName, _, _, _, _) -> % 3.2.5
+is_auth(?usmNoAuthProtocol, _, _, _, SecName, _, _, _) -> % 3.2.5
     error(usmStatsUnsupportedSecLevels,
 	  ?usmStatsUnsupportedSecLevels_instance, SecName); % OTP-5464
 is_auth(AuthProtocol, AuthKey, AuthParams, Packet, SecName,
-	MsgAuthEngineID, MsgAuthEngineBoots, MsgAuthEngineTime, 
-	LocalEngineID) ->
+	MsgAuthEngineID, MsgAuthEngineBoots, MsgAuthEngineTime) ->
     TermDiscoEnabled = is_terminating_discovery_enabled(), 
     TermDiscoStage2  = terminating_discovery_stage2(), 
     IsAuth = auth_in(AuthProtocol, AuthKey, AuthParams, Packet),
@@ -346,7 +334,7 @@ is_auth(AuthProtocol, AuthKey, AuthParams, Packet, SecName,
 	    %% 3.2.7
 	    ?vtrace("is_auth -> "
 		    "retrieve EngineBoots and EngineTime: 3.2.7",[]),
-	    SnmpEngineID = LocalEngineID,
+	    SnmpEngineID = snmp_framework_mib:get_engine_id(),
 	    ?vtrace("is_auth -> SnmpEngineID: ~p", [SnmpEngineID]),
 	    case MsgAuthEngineID of
 		SnmpEngineID when ((MsgAuthEngineBoots =:= 0) andalso 
@@ -363,14 +351,12 @@ is_auth(AuthProtocol, AuthKey, AuthParams, Packet, SecName,
 		    %% This will *always* result in the manager *not* 
 		    %% beeing in timewindow
 		    authoritative(SecName, 
-				  MsgAuthEngineBoots, MsgAuthEngineTime, 
-				  LocalEngineID);
+				  MsgAuthEngineBoots, MsgAuthEngineTime);
 
 		SnmpEngineID -> %% 3.2.7a
 		    ?vtrace("is_auth -> we are authoritative: 3.2.7a", []),
 		    authoritative(SecName, 
-				  MsgAuthEngineBoots, MsgAuthEngineTime, 
-				  LocalEngineID);
+				  MsgAuthEngineBoots, MsgAuthEngineTime);
 
 		_ -> %% 3.2.7b - we're non-authoritative
 		    ?vtrace("is_auth -> we are non-authoritative: 3.2.7b",[]),
@@ -410,9 +396,7 @@ try_decrypt(?usmDESPrivProtocol,
     case (catch des_decrypt(PrivKey, UsmSecParams, EncryptedPDU)) of
 	{ok, DecryptedData} ->
 	    DecryptedData;
-	Error ->
-	    ?vlog("try_decrypt -> failed DES decrypt"
-		  "~n   Error: ~p", [Error]),
+	_ ->
 	    error(usmStatsDecryptionErrors, 
 		  ?usmStatsDecryptionErrors_instance, % OTP-5464
 		  SecName)
@@ -422,9 +406,7 @@ try_decrypt(?usmAesCfb128Protocol,
     case (catch aes_decrypt(PrivKey, UsmSecParams, EncryptedPDU)) of
 	{ok, DecryptedData} ->
 	    DecryptedData;
-	Error ->
-	    ?vlog("try_decrypt -> failed AES decrypt"
-		  "~n   Error: ~p", [Error]),
+	_ ->
 	    error(usmStatsDecryptionErrors, 
 		  ?usmStatsDecryptionErrors_instance, % OTP-5464
 		  SecName)
@@ -432,19 +414,12 @@ try_decrypt(?usmAesCfb128Protocol,
 
 
 generate_outgoing_msg(Message, SecEngineID, SecName, SecData, SecLevel) ->
-    LocalEngineID = ?DEFAULT_LOCAL_ENGINE_ID, 
-    generate_outgoing_msg(Message, SecEngineID, SecName, SecData, SecLevel, 
-			  LocalEngineID).
-
-generate_outgoing_msg(Message, SecEngineID, SecName, SecData, SecLevel, 
-		      LocalEngineID) ->
     %% 3.1.1
     ?vtrace("generate_outgoing_msg -> [3.1.1] entry with"
-	    "~n   SecEngineID:   ~p"
-	    "~n   SecName:       ~p"
-	    "~n   SecLevel:      ~w" 
-	    "~n   LocalEngineID: ~p", 
-	    [SecEngineID, SecName, SecLevel, LocalEngineID]),
+	    "~n   SecEngineID: ~p"
+	    "~n   SecName:     ~p"
+	    "~n   SecLevel:    ~w", 
+	    [SecEngineID, SecName, SecLevel]),
     {UserName, AuthProtocol, PrivProtocol, AuthKey, PrivKey} =
 	case SecData of
 	    [] -> % 3.1.1b
@@ -460,7 +435,7 @@ generate_outgoing_msg(Message, SecEngineID, SecName, SecData, SecLevel,
 			 element(?usmUserPrivKey, User)};
 		    {_, Name,_,_,_,_,_,_,_,_,_,_,_, RowStatus,_,_} ->
 			?vdebug("generate_outgoing_msg -> "
-				"found not active user ~p: ~p", 
+				"found user ~p with wrong row status: ~p", 
 				[Name, RowStatus]),
 			error(unknownSecurityName);
 		    _ ->
@@ -481,7 +456,7 @@ generate_outgoing_msg(Message, SecEngineID, SecName, SecData, SecLevel,
     ScopedPduBytes = Message#message.data,
     {ScopedPduData, MsgPrivParams} =
 	encrypt(ScopedPduBytes, PrivProtocol, PrivKey, SecLevel),
-    SnmpEngineID = LocalEngineID, 
+    SnmpEngineID = snmp_framework_mib:get_engine_id(),
     ?vtrace("generate_outgoing_msg -> SnmpEngineID: ~p [3.1.6]",
 	    [SnmpEngineID]),
     %% 3.1.6
@@ -495,8 +470,8 @@ generate_outgoing_msg(Message, SecEngineID, SecName, SecData, SecLevel,
 		{get_engine_boots(SecEngineID),
 		 get_engine_time(SecEngineID)};
 	    _ ->
-		{get_local_engine_boots(SnmpEngineID),
-		 get_local_engine_time(SnmpEngineID)}
+		{snmp_framework_mib:get_engine_boots(),
+		 snmp_framework_mib:get_engine_time()}
 	end,
     %% 3.1.5 - 3.1.7
     ?vtrace("generate_outgoing_msg -> [3.1.5 - 3.1.7]",[]),
@@ -581,15 +556,11 @@ encrypt(Data, PrivProtocol, PrivKey, SecLevel) ->
 	    ?vtrace("encrypt -> 3.1.4a",[]),
 	    case (catch try_encrypt(PrivProtocol, PrivKey, Data)) of
 		{ok, ScopedPduData, MsgPrivParams} ->
-		    ?vtrace("encrypt -> encrypted - now encode tag",[]),
+		    ?vtrace("encrypt -> encode tag",[]),
 		    {snmp_pdus:enc_oct_str_tag(ScopedPduData), MsgPrivParams};
                 {error, Reason} ->
-		    ?vtrace("encrypt -> error: "
-			    "~n   Reason: ~p", [Reason]),
                     error(Reason);
- 		Error ->
-		    ?vtrace("encrypt -> other: "
-			    "~n   Error: ~p", [Error]),
+ 		_Error ->
 		    error(encryptionError)
 	    end
     end.
@@ -700,19 +671,6 @@ current_statsNotInTimeWindows_vb() ->
     #varbind{oid          = ?usmStatsNotInTimeWindows_instance,
 	     variabletype = 'Counter32',
 	     value        = get_counter(usmStatsNotInTimeWindows)}.
-
-
-
-%%-----------------------------------------------------------------
-%% Future profing...
-%%-----------------------------------------------------------------
-
-get_local_engine_boots(_LocalEngineID) ->
-    snmp_framework_mib:get_engine_boots().
-
-get_local_engine_time(_LocalEngineID) ->
-    snmp_framework_mib:get_engine_time().
-
 
 
 %%-----------------------------------------------------------------

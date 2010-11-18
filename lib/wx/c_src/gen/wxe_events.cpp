@@ -1,23 +1,23 @@
 /*
  * %CopyrightBegin%
- *
- * Copyright Ericsson AB 2008-2010. All Rights Reserved.
- *
+ * 
+ * Copyright Ericsson AB 2008-2009. All Rights Reserved.
+ * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- *
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
+ * 
  * %CopyrightEnd% 
 */
 
-/***** This file is generated do not edit ****/
+/***** This file is generated do not edit ****/ 
 
 #include <wx/wx.h>
 #include "../wxe_impl.h"
@@ -31,7 +31,7 @@ wxeEtype::wxeEtype(const char *name, int Id) {eName = name;cID = Id;}
 
 WX_DECLARE_HASH_MAP(int, wxeEtype*, wxIntegerHash, wxIntegerEqual, wxeETmap );
 
-wxeETmap etmap;
+wxeETmap etmap; 
 
 int wxeEventTypeFromAtom(char *etype_atom) {
   wxeETmap::iterator it;
@@ -48,9 +48,9 @@ int wxeEventTypeFromAtom(char *etype_atom) {
   return -1; 
 }
 
-void initEventTable()
+void initEventTable() 
 {
-  struct { int ev_type;  int class_id; const char * ev_name;} event_types[] =
+  struct { int ev_type;  int class_id; const char * ev_name;} event_types[] = 
   {
    {wxEVT_NULL, 0, "null"},
    {wxEVT_COMMAND_BUTTON_CLICKED, 163, "command_button_clicked"},
@@ -266,46 +266,46 @@ void initEventTable()
    {wxEVT_COMMAND_SPLITTER_DOUBLECLICKED, 217, "command_splitter_doubleclicked"},
    {wxEVT_COMMAND_SPLITTER_UNSPLIT, 217, "command_splitter_unsplit"},
    {wxEVT_COMMAND_HTML_LINK_CLICKED, 219, "command_html_link_clicked"},
-   {wxEVT_COMMAND_AUINOTEBOOK_PAGE_CLOSE, 221, "command_auinotebook_page_close"},
-   {wxEVT_COMMAND_AUINOTEBOOK_PAGE_CHANGED, 221, "command_auinotebook_page_changed"},
-   {wxEVT_COMMAND_AUINOTEBOOK_PAGE_CHANGING, 221, "command_auinotebook_page_changing"},
-   {wxEVT_COMMAND_AUINOTEBOOK_BUTTON, 221, "command_auinotebook_button"},
-   {wxEVT_COMMAND_AUINOTEBOOK_BEGIN_DRAG, 221, "command_auinotebook_begin_drag"},
-   {wxEVT_COMMAND_AUINOTEBOOK_END_DRAG, 221, "command_auinotebook_end_drag"},
-   {wxEVT_COMMAND_AUINOTEBOOK_DRAG_MOTION, 221, "command_auinotebook_drag_motion"},
-   {wxEVT_COMMAND_AUINOTEBOOK_ALLOW_DND, 221, "command_auinotebook_allow_dnd"},
-#if wxCHECK_VERSION(2,8,5)
-   {wxEVT_COMMAND_AUINOTEBOOK_TAB_MIDDLE_DOWN, 221, "command_auinotebook_tab_middle_down"},
-#endif
-#if wxCHECK_VERSION(2,8,5)
-   {wxEVT_COMMAND_AUINOTEBOOK_TAB_MIDDLE_UP, 221, "command_auinotebook_tab_middle_up"},
-#endif
-#if wxCHECK_VERSION(2,8,5)
-   {wxEVT_COMMAND_AUINOTEBOOK_TAB_RIGHT_DOWN, 221, "command_auinotebook_tab_right_down"},
-#endif
-#if wxCHECK_VERSION(2,8,5)
-   {wxEVT_COMMAND_AUINOTEBOOK_TAB_RIGHT_UP, 221, "command_auinotebook_tab_right_up"},
-#endif
-#if wxCHECK_VERSION(2,8,5)
-   {wxEVT_COMMAND_AUINOTEBOOK_PAGE_CLOSED, 221, "command_auinotebook_page_closed"},
-#endif
-#if wxCHECK_VERSION(2,8,5)
-   {wxEVT_COMMAND_AUINOTEBOOK_DRAG_DONE, 221, "command_auinotebook_drag_done"},
-#endif
-#if wxCHECK_VERSION(2,8,5)
-   {wxEVT_COMMAND_AUINOTEBOOK_BG_DCLICK, 221, "command_auinotebook_bg_dclick"},
-#endif
-   {wxEVT_AUI_PANE_BUTTON, 222, "aui_pane_button"},
-   {wxEVT_AUI_PANE_CLOSE, 222, "aui_pane_close"},
-   {wxEVT_AUI_PANE_MAXIMIZE, 222, "aui_pane_maximize"},
-   {wxEVT_AUI_PANE_RESTORE, 222, "aui_pane_restore"},
-   {wxEVT_AUI_RENDER, 222, "aui_render"},
-   {wxEVT_AUI_FIND_MANAGER, 222, "aui_find_manager"},
+   {wxEVT_COMMAND_AUINOTEBOOK_PAGE_CLOSE, 220, "command_auinotebook_page_close"},
+   {wxEVT_COMMAND_AUINOTEBOOK_PAGE_CHANGED, 220, "command_auinotebook_page_changed"},
+   {wxEVT_COMMAND_AUINOTEBOOK_PAGE_CHANGING, 220, "command_auinotebook_page_changing"},
+   {wxEVT_COMMAND_AUINOTEBOOK_BUTTON, 220, "command_auinotebook_button"},
+   {wxEVT_COMMAND_AUINOTEBOOK_BEGIN_DRAG, 220, "command_auinotebook_begin_drag"},
+   {wxEVT_COMMAND_AUINOTEBOOK_END_DRAG, 220, "command_auinotebook_end_drag"},
+   {wxEVT_COMMAND_AUINOTEBOOK_DRAG_MOTION, 220, "command_auinotebook_drag_motion"},
+   {wxEVT_COMMAND_AUINOTEBOOK_ALLOW_DND, 220, "command_auinotebook_allow_dnd"},
+#if wxCHECK_VERSION(2,8,5) 
+   {wxEVT_COMMAND_AUINOTEBOOK_TAB_MIDDLE_DOWN, 220, "command_auinotebook_tab_middle_down"},
+#endif 
+#if wxCHECK_VERSION(2,8,5) 
+   {wxEVT_COMMAND_AUINOTEBOOK_TAB_MIDDLE_UP, 220, "command_auinotebook_tab_middle_up"},
+#endif 
+#if wxCHECK_VERSION(2,8,5) 
+   {wxEVT_COMMAND_AUINOTEBOOK_TAB_RIGHT_DOWN, 220, "command_auinotebook_tab_right_down"},
+#endif 
+#if wxCHECK_VERSION(2,8,5) 
+   {wxEVT_COMMAND_AUINOTEBOOK_TAB_RIGHT_UP, 220, "command_auinotebook_tab_right_up"},
+#endif 
+#if wxCHECK_VERSION(2,8,5) 
+   {wxEVT_COMMAND_AUINOTEBOOK_PAGE_CLOSED, 220, "command_auinotebook_page_closed"},
+#endif 
+#if wxCHECK_VERSION(2,8,5) 
+   {wxEVT_COMMAND_AUINOTEBOOK_DRAG_DONE, 220, "command_auinotebook_drag_done"},
+#endif 
+#if wxCHECK_VERSION(2,8,5) 
+   {wxEVT_COMMAND_AUINOTEBOOK_BG_DCLICK, 220, "command_auinotebook_bg_dclick"},
+#endif 
+   {wxEVT_AUI_PANE_BUTTON, 221, "aui_pane_button"},
+   {wxEVT_AUI_PANE_CLOSE, 221, "aui_pane_close"},
+   {wxEVT_AUI_PANE_MAXIMIZE, 221, "aui_pane_maximize"},
+   {wxEVT_AUI_PANE_RESTORE, 221, "aui_pane_restore"},
+   {wxEVT_AUI_RENDER, 221, "aui_render"},
+   {wxEVT_AUI_FIND_MANAGER, 221, "aui_find_manager"},
    {-1, 0, }
   };
   for(int i=0; event_types[i].ev_type != -1; i++) {
      if(NULL == etmap[event_types[i].ev_type]) {
-       etmap[event_types[i].ev_type] =
+       etmap[event_types[i].ev_type] = 
         new wxeEtype(event_types[i].ev_name, event_types[i].class_id);
      } else {
        wxeEtype *prev = etmap[event_types[i].ev_type];
@@ -319,21 +319,21 @@ void initEventTable()
   }
 }
 
-void wxeEvtListener::forward(wxEvent& event)
-{
+void wxeEvtListener::forward(wxEvent& event) 
+{ 
 #ifdef DEBUG
-  if(!sendevent(&event, port))
+  if(!sendevent(&event, port)) 
     fprintf(stderr, "Couldn't send event!\r\n");
 #else
 sendevent(&event, port);
 #endif
 }
 
-int getRef(void* ptr, wxeMemEnv* memenv)
-{
+int getRef(void* ptr, wxeMemEnv* memenv) 
+{ 
   WxeApp * app = (WxeApp *) wxTheApp;
   return app->getRef(ptr,memenv);
-}
+} 
 
 bool sendevent(wxEvent *event, ErlDrvPort port)
 {
@@ -740,8 +740,8 @@ case 208: {// wxTreeEvent
     evClass = (char*)"wxTreeEvent";
     rt.addAtom((char*)"wxTree");
     rt.addAtom(Etype->eName);
- rt.add((wxUIntPtr *) ev->GetItem().m_pItem);
- rt.add((wxUIntPtr *) ev->GetOldItem().m_pItem);
+ rt.addRef(getRef((void *)ev->GetItem().m_pItem,memenv), "wxTreeItemId");
+ rt.addRef(getRef((void *)ev->GetOldItem().m_pItem,memenv), "wxTreeItemId");
  rt.add(ev->GetPoint());
     rt.addTupleCount(5);
   break;
@@ -778,7 +778,7 @@ case 219: {// wxHtmlLinkEvent
     rt.addTupleCount(3);
   break;
 }
-case 221: {// wxAuiNotebookEvent
+case 220: {// wxAuiNotebookEvent
  wxAuiNotebookEvent * ev = (wxAuiNotebookEvent *) event;
  wxAuiNotebook * GetDragSource = ev->GetDragSource();
     evClass = (char*)"wxAuiNotebookEvent";
@@ -790,7 +790,7 @@ case 221: {// wxAuiNotebookEvent
     rt.addTupleCount(5);
   break;
 }
-case 222: {// wxAuiManagerEvent
+case 221: {// wxAuiManagerEvent
  wxAuiManagerEvent * ev = (wxAuiManagerEvent *) event;
  wxAuiManager * GetManager = ev->GetManager();
  wxAuiPaneInfo * GetPane = ev->GetPane();

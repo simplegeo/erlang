@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- *
- * Copyright Ericsson AB 1996-2010. All Rights Reserved.
- *
+ * 
+ * Copyright Ericsson AB 1996-2009. All Rights Reserved.
+ * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- *
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
+ * 
  * %CopyrightEnd%
  */
 
@@ -1459,31 +1459,7 @@ Eterm uint_to_big(Uint x, Eterm *y)
     BIG_DIGIT(y, 0) = x;
     return make_big(y);
 }
-/*
-** convert UWord to bigint
-** (must only be used if x is to big to be stored as a small)
-** Allocation is tricky, the heap need has to be calculated
-** with the macro BIG_UWORD_HEAP_SIZE(x)
-*/
 
-Eterm uword_to_big(UWord x, Eterm *y)
-{
-#if HALFWORD_HEAP
-    Uint upper = x >> 32;
-    Uint lower = x & 0xFFFFFFFFUL;
-    if (upper == 0) {
-	*y = make_pos_bignum_header(1);
-    } else {
-	*y = make_pos_bignum_header(2);
-	BIG_DIGIT(y, 1) = upper;
-    }
-    BIG_DIGIT(y, 0) = lower;
-#else
-    *y = make_pos_bignum_header(1);
-    BIG_DIGIT(y, 0) = x;
-#endif
-    return make_big(y);
-}
 
 /*
 ** convert signed int to bigint
@@ -1504,19 +1480,19 @@ Eterm small_to_big(Sint x, Eterm *y)
 Eterm erts_uint64_to_big(Uint64 x, Eterm **hpp)
 {
     Eterm *hp = *hpp;
-#if defined(ARCH_32) || HALFWORD_HEAP
+#ifdef ARCH_32
     if (x >= (((Uint64) 1) << 32)) {
 	*hp = make_pos_bignum_header(2);
 	BIG_DIGIT(hp, 0) = (Uint) (x & ((Uint) 0xffffffff));
 	BIG_DIGIT(hp, 1) = (Uint) ((x >> 32) & ((Uint) 0xffffffff));
-	*hpp += 3;
+	*hpp += 2;
     }
     else
 #endif
     {
 	*hp = make_pos_bignum_header(1);
 	BIG_DIGIT(hp, 0) = (Uint) x;
-	*hpp += 2;
+	*hpp += 1;
     }
     return make_big(hp);
 }
@@ -1531,7 +1507,7 @@ Eterm erts_sint64_to_big(Sint64 x, Eterm **hpp)
 	neg = 1;
 	x = -x;
     }
-#if defined(ARCH_32) || HALFWORD_HEAP
+#ifdef ARCH_32
     if (x >= (((Uint64) 1) << 32)) {
 	if (neg)
 	    *hp = make_neg_bignum_header(2);
@@ -1539,7 +1515,7 @@ Eterm erts_sint64_to_big(Sint64 x, Eterm **hpp)
 	    *hp = make_pos_bignum_header(2);
 	BIG_DIGIT(hp, 0) = (Uint) (x & ((Uint) 0xffffffff));
 	BIG_DIGIT(hp, 1) = (Uint) ((x >> 32) & ((Uint) 0xffffffff));
-	*hpp += 3;
+	*hpp += 2;
     }
     else
 #endif
@@ -1549,7 +1525,7 @@ Eterm erts_sint64_to_big(Sint64 x, Eterm **hpp)
 	else
 	    *hp = make_pos_bignum_header(1);
 	BIG_DIGIT(hp, 0) = (Uint) x;
-	*hpp += 2;
+	*hpp += 1;
     }
     return make_big(hp);
 }
@@ -1878,87 +1854,6 @@ term_to_Uint(Eterm term, Uint *up)
     }
 }
 
-int
-term_to_UWord(Eterm term, UWord *up)
-{
-#if SIZEOF_VOID_P == ERTS_SIZEOF_ETERM
-    return term_to_Uint(term,up);
-#else
-    if (is_small(term)) {
-	Sint i = signed_val(term);
-	if (i < 0) {
-	    *up = BADARG;
-	    return 0;
-	}
-	*up = (UWord) i;
-	return 1;
-    } else if (is_big(term)) {
-	ErtsDigit* xr = big_v(term);
-	dsize_t  xl = big_size(term);
-	UWord uval = 0;
-	int n = 0;
-
-	if (big_sign(term)) {
-	    *up = BADARG;
-	    return 0;
-	} else if (xl*D_EXP > sizeof(UWord)*8) {
-	    *up = SYSTEM_LIMIT;
-	    return 0;
-	}
-	while (xl-- > 0) {
-	    uval |= ((UWord)(*xr++)) << n;
-	    n += D_EXP;
-	}
-	*up = uval;
-	return 1;
-    } else {
-	*up = BADARG;
-	return 0;
-    }
-#endif
-}
-
-int
-term_to_Uint64(Eterm term, Uint64 *up)
-{
-#if SIZEOF_VOID_P == 8
-    return term_to_UWord(term,up);
-#else
-    if (is_small(term)) {
-	Sint i = signed_val(term);
-	if (i < 0) {
-	    *up = BADARG;
-	    return 0;
-	}
-	*up = (Uint64) i;
-	return 1;
-    } else if (is_big(term)) {
-	ErtsDigit* xr = big_v(term);
-	dsize_t  xl = big_size(term);
-	Uint64 uval = 0;
-	int n = 0;
-
-	if (big_sign(term)) {
-	    *up = BADARG;
-	    return 0;
-	} else if (xl*D_EXP > sizeof(Uint64)*8) {
-	    *up = SYSTEM_LIMIT;
-	    return 0;
-	}
-	while (xl-- > 0) {
-	    uval |= ((Uint64)(*xr++)) << n;
-	    n += D_EXP;
-	}
-	*up = uval;
-	return 1;
-    } else {
-	*up = BADARG;
-	return 0;
-    }
-#endif
-}
-
-
 int term_to_Sint(Eterm term, Sint *sp)
 {
     if (is_small(term)) {
@@ -1992,47 +1887,6 @@ int term_to_Sint(Eterm term, Sint *sp)
 	return 0;
     }
 }
-
-#if HAVE_INT64
-int term_to_Sint64(Eterm term, Sint64 *sp)
-{
-#if ERTS_SIZEOF_ETERM == 8
-    return term_to_Sint(term, sp);
-#else
-    if (is_small(term)) {
-	*sp = signed_val(term);
-	return 1;
-    } else if (is_big(term)) {
-	ErtsDigit* xr = big_v(term);
-	dsize_t xl = big_size(term);
-	int sign = big_sign(term);
-	Uint64 uval = 0;
-	int n = 0;
-
-	if (xl*D_EXP > sizeof(Uint64)*8) {
-	    return 0;
-	}
-	while (xl-- > 0) {
-	    uval |= ((Uint64)(*xr++)) << n;
-	    n += D_EXP;
-	}
-	if (sign) {
-	    uval = -uval;
-	    if ((Sint64)uval > 0)
-		return 0;
-	} else {
-	    if ((Sint64)uval < 0)
-		return 0;
-	}
-	*sp = uval;
-	return 1;
-    } else {
-	return 0;
-    }
-#endif
-}
-#endif /* HAVE_INT64 */
-
 
 /*
 ** Add and subtract

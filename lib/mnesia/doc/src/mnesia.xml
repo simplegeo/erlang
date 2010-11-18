@@ -4,7 +4,7 @@
 <erlref>
   <header>
     <copyright>
-      <year>1996</year><year>2010</year>
+      <year>1996</year><year>2009</year>
       <holder>Ericsson AB. All Rights Reserved.</holder>
     </copyright>
     <legalnotice>
@@ -13,12 +13,12 @@
       compliance with the License. You should have received a copy of the
       Erlang Public License along with this software. If not, it can be
       retrieved online at http://www.erlang.org/.
-
+    
       Software distributed under the License is distributed on an "AS IS"
       basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
       the License for the specific language governing rights and limitations
       under the License.
-
+    
     </legalnotice>
 
     <title>mnesia</title>
@@ -360,9 +360,6 @@ If a new item is inserted with the same key as
           </p>
         <list type="bulleted">
           <item>
-            <p>mnesia:lock/2 (read_lock_table/1, write_lock_table/1)</p>
-          </item>
-          <item>
             <p>mnesia:write/3 (write/1, s_write/1)</p>
           </item>
           <item>
@@ -397,6 +394,9 @@ If a new item is inserted with the same key as
           </item>
           <item>
             <p>mnesia:index_read/3</p>
+          </item>
+          <item>
+            <p>mnesia:lock/2 (read_lock_table/1, write_lock_table/1)</p>
           </item>
           <item>
             <p>mnesia:table_info/2</p>
@@ -1135,7 +1135,7 @@ mnesia:create_table(person,
         </list>
         <p>If two processes perform <c>mnesia:dirty_update_counter/3</c>
           simultaneously, both updates will take effect without the
-          risk of losing one of the updates. The new value
+          risk of loosing one of the updates. The new value
           <c>NewVal</c> of the counter is returned.</p>
         <p>If <c>Key</c> don't exits, a new record is created with the value
           <c>Incr</c> if it is larger than 0, otherwise it is set to 0.</p>
@@ -3042,17 +3042,6 @@ raise(Name, Amount) ->
           parallel table loaders during start. More loaders can be good if the
           network latency is high or if many tables contains few records.
           The default value is <c>2</c>.
-          </p>
-      </item>
-      <item>
-        <p><c>-mnesia send_compressed Level</c> specifies the level of
-          compression to be used when copying a table from the local node to
-          another one. The default level is 0.
-          </p>
-        <p><c>Level</c> must be an integer in the interval [0, 9], with 0
-          representing no compression and 9 representing maximum compression.
-          Before setting it to a non-zero value, make sure the remote nodes
-          understand this configuration.
           </p>
       </item>
       <item>

@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- *
- * Copyright Ericsson AB 2008-2010. All Rights Reserved.
- *
+ * 
+ * Copyright Ericsson AB 2008-2009. All Rights Reserved.
+ * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- *
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
+ * 
  * %CopyrightEnd% 
 */
  /* This file is also generated */
@@ -24,8 +24,6 @@
 void WxeApp::init_nonconsts(wxeMemEnv *memenv, ErlDrvTermData caller) {
   wxeReturn rt = wxeReturn(WXE_DRV_PORT, caller);
  rt.addAtom((char*)"wx_consts");
- rt.addAtom("wxALWAYS_NATIVE_DOUBLE_BUFFER"); rt.addInt(wxALWAYS_NATIVE_DOUBLE_BUFFER);
- rt.addTupleCount(2);
  rt.addAtom("wxBYTE_ORDER"); rt.addInt(wxBYTE_ORDER);
  rt.addTupleCount(2);
  rt.addAtom("wxDEFAULT_CONTROL_BORDER"); rt.addInt(wxDEFAULT_CONTROL_BORDER);
@@ -33,10 +31,6 @@ void WxeApp::init_nonconsts(wxeMemEnv *memenv, ErlDrvTermData caller) {
  rt.addAtom("wxHAS_INT64"); rt.addInt(wxHAS_INT64);
  rt.addTupleCount(2);
  rt.addAtom("wxRETAINED"); rt.addInt(wxRETAINED);
- rt.addTupleCount(2);
- rt.addAtom("wxGAUGE_EMULATE_INDETERMINATE_MODE"); rt.addInt(wxGAUGE_EMULATE_INDETERMINATE_MODE);
- rt.addTupleCount(2);
- rt.addAtom("wxTR_DEFAULT_STYLE"); rt.addInt(wxTR_DEFAULT_STYLE);
  rt.addTupleCount(2);
  rt.addAtom("wxBETA_NUMBER"); rt.addInt(wxBETA_NUMBER);
  rt.addTupleCount(2);
@@ -136,7 +130,7 @@ void WxeApp::init_nonconsts(wxeMemEnv *memenv, ErlDrvTermData caller) {
    rt.addTupleCount(2);
    rt.addAtom("wxWHITE_PEN"); rt.addRef(getRef((void *)wxWHITE_PEN,memenv),"wxPen");
    rt.addTupleCount(2);
- rt.endList(56);
+ rt.endList(53);
  rt.addTupleCount(2);
   rt.send();
 }

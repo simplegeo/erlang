@@ -4,7 +4,7 @@
 <chapter>
   <header>
     <copyright>
-      <year>2006</year><year>2010</year>
+      <year>2006</year><year>2009</year>
       <holder>Ericsson AB. All Rights Reserved.</holder>
     </copyright>
     <legalnotice>
@@ -13,12 +13,12 @@
       compliance with the License. You should have received a copy of the
       Erlang Public License along with this software. If not, it can be
       retrieved online at http://www.erlang.org/.
-
+    
       Software distributed under the License is distributed on an "AS IS"
       basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
       the License for the specific language governing rights and limitations
       under the License.
-
+    
     </legalnotice>
 
     <title>HiPE Release Notes</title>
@@ -29,122 +29,6 @@
     <file>notes.xml</file>
   </header>
   <p>This document describes the changes made to HiPE.</p>
-
-<section><title>Hipe 3.7.7</title>
-
-    <section><title>Fixed Bugs and Malfunctions</title>
-      <list>
-        <item>
-	    <p>The HiPE compiler could crash when compiling certain
-	    modules (the bug has been latent, and been exposed by new
-	    optimizations introduced in the BEAM compiler in R14A).
-	    (Thanks to Mikael Pettersson.)</p>
-          <p>
-	    Own Id: OTP-8800</p>
-        </item>
-        <item>
-          <p>
-	    hipe:load/1 was broken. (Thanks to Paul Guyot.)</p>
-          <p>
-	    Own Id: OTP-8802</p>
-        </item>
-      </list>
-    </section>
-
-</section>
-
-<section><title>Hipe 3.7.6</title>
-
-    <section><title>Improvements and New Features</title>
-      <list>
-        <item>
-	    <p><c>receive</c> statements that can only read out a
-	    newly created reference are now specially optimized so
-	    that it will execute in constant time regardless of the
-	    number of messages in the receive queue for the process.
-	    That optimization will benefit calls to
-	    <c>gen_server:call()</c>. (See <c>gen:do_call/4</c> for
-	    an example of a receive statement that will be
-	    optimized.)</p>
-          <p>
-	    Own Id: OTP-8623</p>
-        </item>
-        <item>
-          <p>
-	    Various changes to dialyzer-related files for R14.</p>
-          <p>
-	    - Dialyzer properly supports the new attribute
-	    -export_type and checks that remote types only refer to
-	    exported types. A warning is produced if some
-	    files/applications refer to types defined in modules
-	    which are neither in the PLT nor in the analyzed
-	    applications.</p>
-          <p>
-	    - Support for detecting data races involving whereis/1
-	    and unregister/1.</p>
-          <p>
-	    - More precise identification of the reason(s) why a
-	    record construction violates the types declared for its
-	    fields.</p>
-          <p>
-	    - Fixed bug in the handling of the 'or' guard.</p>
-          <p>
-	    - Better handling of the erlang:element/2 BIF.</p>
-          <p>
-	    - Complete handling of Erlang BIFs.</p>
-          <p>
-	    Own Id: OTP-8699</p>
-        </item>
-        <item>
-	    <p><c>eprof</c> has been reimplemented with support in
-	    the Erlang virtual machine and is now both faster (i.e.
-	    slows down the code being measured less) and scales much
-	    better. In measurements we saw speed-ups compared to the
-	    old eprof ranging from 6 times (for sequential code that
-	    only uses one scheduler/core) up to 84 times (for
-	    parallel code that uses 8 cores).</p>
-	    <p>Note: The API for the <c>eprof</c> has been cleaned up
-	    and extended. See the documentation.</p>
-          <p>
-	    *** POTENTIAL INCOMPATIBILITY ***</p>
-          <p>
-	    Own Id: OTP-8706</p>
-        </item>
-      </list>
-    </section>
-
-</section>
-
-<section><title>Hipe 3.7.5</title>
-
-    <section><title>Improvements and New Features</title>
-      <list>
-        <item>
-	    <p>The documentation is now possible to build in an open
-	    source environment after a number of bugs are fixed and
-	    some features are added in the documentation build
-	    process. </p>
-	    <p>- The arity calculation is updated.</p>
-	    <p>- The module prefix used in the function names for
-	    bif's are removed in the generated links so the links
-	    will look like
-	    "http://www.erlang.org/doc/man/erlang.html#append_element-2"
-	    instead of
-	    "http://www.erlang.org/doc/man/erlang.html#erlang:append_element-2".</p>
-	    <p>- Enhanced the menu positioning in the html
-	    documentation when a new page is loaded.</p>
-	    <p>- A number of corrections in the generation of man
-	    pages (thanks to Sergei Golovan)</p>
-	    <p>- The legal notice is taken from the xml book file so
-	    OTP's build process can be used for non OTP
-	    applications.</p>
-          <p>
-	    Own Id: OTP-8343</p>
-        </item>
-      </list>
-    </section>
-
-</section>
 
 <section><title>Hipe 3.7.4</title>
 

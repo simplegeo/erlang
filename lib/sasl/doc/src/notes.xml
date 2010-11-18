@@ -4,7 +4,7 @@
 <chapter>
   <header>
     <copyright>
-      <year>2004</year><year>2010</year>
+      <year>2004</year><year>2009</year>
       <holder>Ericsson AB. All Rights Reserved.</holder>
     </copyright>
     <legalnotice>
@@ -13,12 +13,12 @@
       compliance with the License. You should have received a copy of the
       Erlang Public License along with this software. If not, it can be
       retrieved online at http://www.erlang.org/.
-
+    
       Software distributed under the License is distributed on an "AS IS"
       basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
       the License for the specific language governing rights and limitations
       under the License.
-
+    
     </legalnotice>
 
     <title>SASL Release Notes</title>
@@ -29,86 +29,6 @@
     <file>notes.xml</file>
   </header>
   <p>This document describes the changes made to the SASL application.</p>
-
-<section><title>SASL 2.1.9.2</title>
-
-    <section><title>Fixed Bugs and Malfunctions</title>
-      <list>
-        <item>
-	    <p>In R13B04 sys:get_status was modified to invoke
-	    format_status/2 in the callback module if the module
-	    exports that function. This resulted in a change to the
-	    term returned from calling sys:get_status on the
-	    supervisor module, since supervisor is a gen_server and
-	    gen_server exports format_status. The sasl
-	    release_handler_1 module had a dependency on the
-	    pre-R13B04 term returned by sys:get_status when invoked
-	    on a supervisor, so the R13B04 change broke that
-	    dependency.</p>
-	    <p>This problem has been fixed by change
-	    release_handler_1 to handle both the pre-R13B04 and
-	    R13B04 terms that sys:get_status can return from a
-	    supervisor.</p>
-          <p>
-	    Own Id: OTP-8619 Aux Id: seq11570 </p>
-        </item>
-      </list>
-    </section>
-
-</section>
-
-<section><title>SASL 2.1.9.1</title>
-
-    <section><title>Improvements and New Features</title>
-      <list>
-        <item>
-	    <p>Use an infinity timeout in all calls to
-	    <c>gen_server:call()</c> in the <c>sasl</c>
-	    application.</p>
-          <p>
-	    Own Id: OTP-8506 Aux Id: seq11509 </p>
-        </item>
-      </list>
-    </section>
-
-</section>
-
-<section><title>SASL 2.1.9</title>
-
-    <section><title>Improvements and New Features</title>
-      <list>
-        <item>
-          <p>
-	    The <c>re:grep/1</c> function now uses the '<c>re</c>'
-	    module instead of the deprecated '<c>regexp</c>' module.
-	    There are new functions <c>rb:filter/1</c> and
-	    <c>rb:filter/2</c> for easier filtering of reports.
-	    (Thanks to Alvaro Videla.)</p>
-          <p>
-	    Own Id: OTP-8443</p>
-        </item>
-        <item>
-          <p>
-	    There is new function <c>sasl_report:format_report/3</c>
-	    that works like the existing
-	    <c>sasl_report:write_report/3</c> function except that it
-	    returns a formatted string. Note that there is currently
-	    no documentation for the <c>sasl_report</c> module.
-	    (Thanks to Jay Nelson.)</p>
-          <p>
-	    Own Id: OTP-8445</p>
-        </item>
-        <item>
-          <p>
-	    Cleanups suggested by tidier and modernization of types
-	    and specs.</p>
-          <p>
-	    Own Id: OTP-8455</p>
-        </item>
-      </list>
-    </section>
-
-</section>
 
 <section><title>SASL 2.1.8</title>
 

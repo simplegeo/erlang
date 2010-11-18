@@ -25,6 +25,8 @@
 
 -include("dbg_ieval.hrl").
 
+-import(lists, [foldl/3,flatmap/2]).
+
 %%====================================================================
 %% External exports
 %%====================================================================
@@ -120,9 +122,9 @@ check_exit_msg({'EXIT', Int, Reason}, _Bs, #ieval{level=Le}) ->
     %% This *must* be interpreter which has terminated,
     %% we are not linked to anyone else
     if
-	Le =:= 1 ->
+	Le==1 ->
 	    exit(Reason);
-	Le > 1 ->
+	Le>1 ->
 	    exit({Int, Reason})
     end;
 check_exit_msg({'DOWN',_,_,_,Reason}, Bs,
@@ -139,9 +141,9 @@ check_exit_msg({'DOWN',_,_,_,Reason}, Bs,
 	    %%   importance in this case
 	    %% If we don't save them, however, post-mortem analysis
 	    %% of the process isn't possible
-	    undefined when Le =:= 1 -> % died outside interpreted code
+	    undefined when Le==1 -> % died outside interpreted code
 		{};
-	    undefined when Le > 1 ->
+	    undefined when Le>1 ->
 		StackBin = term_to_binary(get(stack)),
 		{{Mod, Li}, Bs, StackBin};
 
@@ -152,9 +154,9 @@ check_exit_msg({'DOWN',_,_,_,Reason}, Bs,
     dbg_iserver:cast(get(int), {set_exit_info,self(),ExitInfo}),
 
    if
-	Le =:= 1 ->
+	Le==1 ->
 	    exit(Reason);
-	Le > 1 ->
+	Le>1 ->
 	    exit({get(self), Reason})
     end;
 check_exit_msg(_Msg, _Bs, _Ieval) ->
@@ -271,7 +273,7 @@ meta_loop(Debugged, Bs, #ieval{level=Le} = Ieval) ->
 	    end;
 
 	%% Re-entry to Meta from non-interpreted code
-	{re_entry, Debugged, {eval,{M,F,As}}} when Le =:= 1 ->
+	{re_entry, Debugged, {eval,{M,F,As}}} when Le==1 ->
 	    %% Reset process dictionary
 	    %% This is really only necessary if the process left
 	    %% interpreted code at a call level > 1
@@ -346,7 +348,7 @@ push(MFA, Bs, #ieval{level=Le,module=Cm,line=Li,last_call=Lc}) ->
 		[] -> put(stack, [Entry]);
 		[_Entry|Entries] -> put(stack, [Entry|Entries])
 	    end;
-	_ -> % all | no_tail when Lc =:= false
+	_ -> % all | no_tail when Lc==false
 	    put(stack, [Entry|get(stack)])
     end.
 
@@ -413,10 +415,10 @@ sublist(L, Start, Length) ->
     lists:sublist(L, Start, Length).
 
 fix_stacktrace2([{_,{{M,F,As1},_,_}}, {_,{{M,F,As2},_,_}}|_])
-  when length(As1) =:= length(As2) ->
+  when length(As1)==length(As2) ->
     [{M,F,As1}];
 fix_stacktrace2([{_,{{Fun,As1},_,_}}, {_,{{Fun,As2},_,_}}|_])
-  when length(As1) =:= length(As2) ->
+  when length(As1)==length(As2) ->
     [{Fun,As1}];
 fix_stacktrace2([{_,{MFA,_,_}}|Entries]) ->
     [MFA|fix_stacktrace2(Entries)];
@@ -465,9 +467,9 @@ stack_frame(SP, Dir, [{SP, _}|Stack]) ->
     case Stack of
 	[{Le, {_MFA,Where,Bs}}|_] ->
 	    {Le, Where, Bs};
-	[] when Dir =:= up ->
+	[] when Dir==up ->
 	    top;
-	[] when Dir =:= down ->
+	[] when Dir==down ->
 	    bottom
     end;
 stack_frame(SP, Dir, [_Entry|Stack]) ->
@@ -509,7 +511,7 @@ trace(What, Args, true) ->
 			 end,
 		  io_lib:format("   (~w) receive " ++ Tail, [Le]);
 		      
-	      received when Args =:= null ->
+	      received when Args==null ->
 		  io_lib:format("~n", []);
 	      received -> % Args=Msg
 		  io_lib:format("~n<== ~p~n", [Args]);
@@ -586,8 +588,8 @@ eval_mfa(Debugged, M, F, As, Ieval) ->
     end.
 
 eval_function(Mod, Fun, As0, Bs0, _Called, Ieval) when is_function(Fun);
-						       Mod =:= ?MODULE,
-						       Fun =:= eval_fun ->
+						       Mod==?MODULE,
+						       Fun==eval_fun ->
     #ieval{level=Le, line=Li, last_call=Lc} = Ieval,
     case lambda(Fun, As0) of
 	{Cs,Module,Name,As,Bs} ->
@@ -657,7 +659,7 @@ eval_function(Mod, Name, As0, Bs0, Called, Ieval) ->
 lambda(eval_fun, [Cs,As,Bs,{Mod,Name}=F]) ->
     %% Fun defined in interpreted code, called from outside
     if 
-	length(element(3,hd(Cs))) =:= length(As) ->
+	length(element(3,hd(Cs))) == length(As) ->
 	    db_ref(Mod),  %% Adds ref between module and process
 	    {Cs,Mod,Name,As,Bs};
 	true -> 
@@ -672,7 +674,7 @@ lambda(Fun, As) when is_function(Fun) ->
 	    {env, [{Mod,Name},Bs,Cs]} = erlang:fun_info(Fun, env),
 	    {arity, Arity} = erlang:fun_info(Fun, arity),
 	    if 
-		length(As) =:= Arity ->
+		length(As) == Arity ->
 		    db_ref(Mod), %% Adds ref between module and process
 		    {Cs,Mod,Name,As,Bs};
 		true ->
@@ -731,7 +733,7 @@ db_ref(Mod) ->
 		ModDb ->
 		    Node = node(get(int)),
 		    DbRef = if
-				Node =/= node() -> {Node,ModDb};
+				Node/=node() -> {Node,ModDb};
 				true -> ModDb
 			    end,
 		    put([Mod|db], DbRef),
@@ -741,12 +743,13 @@ db_ref(Mod) ->
 	    DbRef
     end.
 
+
 cache(Key, Data) ->
     put(cache, lists:sublist([{Key,Data}|get(cache)], 5)).
 	    
 cached(Key) ->
-    case lists:keyfind(Key, 1, get(cache))  of
-	{Key,Data} -> Data;
+    case lists:keysearch(Key, 1, get(cache))  of
+	{value,{Key,Data}} -> Data;
 	false -> false
     end.
 
@@ -843,7 +846,7 @@ expr({'try',Line,Es,CaseCs,CatchCs,[]}, Bs0, Ieval0) ->
 		    case_clauses(Val, CaseCs, Bs, try_clause, Ieval)
 	    end
     catch
-	Class:Reason when CatchCs =/= [] ->
+	Class:Reason when CatchCs=/=[] ->
 	    catch_clauses({Class,Reason,[]}, CatchCs, Bs0, Ieval)
     end;
 expr({'try',Line,Es,CaseCs,CatchCs,As}, Bs0, Ieval0) ->
@@ -1139,13 +1142,18 @@ eval_lc(E, Qs, Bs, Ieval) ->
 eval_lc1(E, [{generate,Line,P,L0}|Qs], Bs0, Ieval0) ->
     Ieval = Ieval0#ieval{line=Line},
     {value,L1,Bs1} = expr(L0, Bs0, Ieval#ieval{last_call=false}),
-    CompFun = fun(NewBs) -> eval_lc1(E, Qs, NewBs, Ieval) end,
-    eval_generate(L1, P, Bs1, CompFun, Ieval);
+    flatmap(fun (V) ->
+		    case catch match1(P, V, [], Bs0) of
+			{match,Bsn} ->
+			    Bs2 = add_bindings(Bsn, Bs1),
+			    eval_lc1(E, Qs, Bs2, Ieval);
+			nomatch -> []
+		    end end,L1);
 eval_lc1(E, [{b_generate,Line,P,L0}|Qs], Bs0, Ieval0) ->
     Ieval = Ieval0#ieval{line=Line},
     {value,Bin,_} = expr(L0, Bs0, Ieval#ieval{last_call=false}),
     CompFun = fun(NewBs) -> eval_lc1(E, Qs, NewBs, Ieval) end,
-    eval_b_generate(Bin, P, Bs0, CompFun, Ieval);
+    eval_b_generate(Bin, P, Bs0, CompFun);
 eval_lc1(E, [{guard,Q}|Qs], Bs0, Ieval) ->
     case guard(Q, Bs0) of
 	true -> eval_lc1(E, Qs, Bs0, Ieval);
@@ -1154,8 +1162,7 @@ eval_lc1(E, [{guard,Q}|Qs], Bs0, Ieval) ->
 eval_lc1(E, [Q|Qs], Bs0, Ieval) ->
     case expr(Q, Bs0, Ieval#ieval{last_call=false}) of
 	{value,true,Bs} -> eval_lc1(E, Qs, Bs, Ieval);
-	{value,false,_Bs} -> [];
-	{value,V,Bs} -> exception(error, {bad_filter,V}, Bs, Ieval)
+	_ -> []
     end;
 eval_lc1(E, [], Bs, Ieval) ->
     {value,V,_} = expr(E, Bs, Ieval#ieval{last_call=false}),
@@ -1172,13 +1179,18 @@ eval_bc(E, Qs, Bs, Ieval) ->
 eval_bc1(E, [{generate,Line,P,L0}|Qs], Bs0, Ieval0) ->
     Ieval = Ieval0#ieval{line=Line},
     {value,L1,Bs1} = expr(L0, Bs0, Ieval#ieval{last_call=false}),
-    CompFun = fun(NewBs) -> eval_bc1(E, Qs, NewBs, Ieval) end,
-    eval_generate(L1, P, Bs1, CompFun, Ieval);
+    flatmap(fun (V) ->
+		    case catch match1(P, V, [], Bs0) of
+			{match,Bsn} ->
+			    Bs2 = add_bindings(Bsn, Bs1),
+			    eval_bc1(E, Qs, Bs2, Ieval);
+			nomatch -> []
+		    end end, L1);
 eval_bc1(E, [{b_generate,Line,P,L0}|Qs], Bs0, Ieval0) ->
     Ieval = Ieval0#ieval{line=Line},
     {value,Bin,_} = expr(L0, Bs0, Ieval#ieval{last_call=false}),
     CompFun = fun(NewBs) -> eval_bc1(E, Qs, NewBs, Ieval) end,
-    eval_b_generate(Bin, P, Bs0, CompFun, Ieval);
+    eval_b_generate(Bin, P, Bs0, CompFun);
 eval_bc1(E, [{guard,Q}|Qs], Bs0, Ieval) ->
     case guard(Q, Bs0) of
 	true -> eval_bc1(E, Qs, Bs0, Ieval);
@@ -1187,40 +1199,24 @@ eval_bc1(E, [{guard,Q}|Qs], Bs0, Ieval) ->
 eval_bc1(E, [Q|Qs], Bs0, Ieval) ->
     case expr(Q, Bs0, Ieval#ieval{last_call=false}) of
 	{value,true,Bs} -> eval_bc1(E, Qs, Bs, Ieval);
-	{value,false,_Bs} -> [];
-	{value,V,Bs} -> exception(error, {bad_filter,V}, Bs, Ieval)
+	_ -> []
     end;
 eval_bc1(E, [], Bs, Ieval) ->
     {value,V,_} = expr(E, Bs, Ieval#ieval{last_call=false}),
     [V].
 
-eval_generate([V|Rest], P, Bs0, CompFun, Ieval) ->
-    case catch match1(P, V, erl_eval:new_bindings(), Bs0) of
-	{match,Bsn} ->
-	    Bs2 = add_bindings(Bsn, Bs0),
-            CompFun(Bs2) ++ eval_generate(Rest, P, Bs2, CompFun, Ieval);
-	nomatch -> 
-	    eval_generate(Rest, P, Bs0, CompFun, Ieval)
-	end;
-eval_generate([], _P, _Bs0, _CompFun, _Ieval) ->
-    [];
-eval_generate(Term, _P, Bs, _CompFun, Ieval) ->
-    exception(error, {bad_generator,Term}, Bs, Ieval).
-
-eval_b_generate(<<_/bitstring>>=Bin, P, Bs0, CompFun, Ieval) ->
+eval_b_generate(<<_/bitstring>>=Bin, P, Bs0, CompFun) ->
     Mfun = fun(L, R, Bs) -> match1(L, R, Bs, Bs0) end,
     Efun = fun(Exp, Bs) -> expr(Exp, Bs, #ieval{}) end,
     case eval_bits:bin_gen(P, Bin, erl_eval:new_bindings(), Bs0, Mfun, Efun) of
 	{match,Rest,Bs1} ->
 	    Bs2 = add_bindings(Bs1, Bs0),
-	    CompFun(Bs2) ++ eval_b_generate(Rest, P, Bs0, CompFun, Ieval);
+	    CompFun(Bs2) ++ eval_b_generate(Rest, P, Bs0, CompFun);
 	{nomatch,Rest} ->
-	    eval_b_generate(Rest, P, Bs0, CompFun, Ieval);
+	    eval_b_generate(Rest, P, Bs0, CompFun);
 	done ->
 	    []
-    end;
-eval_b_generate(Term, _P, Bs, _CompFun, Ieval) ->
-    exception(error, {bad_generator,Term}, Bs, Ieval).
+    end.
 
 module_info(Mod, module) -> Mod;
 module_info(_Mod, compile) -> [];
@@ -1497,7 +1493,10 @@ guard(Gs, Bs) -> or_guard(Gs, Bs).
     
 or_guard([G|Gs], Bs) ->
     %% Short-circuit OR.
-    and_guard(G, Bs) orelse or_guard(Gs, Bs);
+    case and_guard(G, Bs) of
+	true -> true;
+	false -> or_guard(Gs, Bs)
+    end;
 or_guard([], _) -> false.
 
 and_guard([G|Gs], Bs) ->
@@ -1520,7 +1519,7 @@ guard_expr({'andalso',_,E1,E2}, Bs) ->
 	{value,false}=Res -> Res;
 	{value,true} ->
 	    case guard_expr(E2, Bs) of
-		{value,_Val}=Res -> Res
+		{value,Bool}=Res when is_boolean(Bool) -> Res
 	    end
     end;
 guard_expr({'orelse',_,E1,E2}, Bs) ->
@@ -1528,7 +1527,7 @@ guard_expr({'orelse',_,E1,E2}, Bs) ->
 	{value,true}=Res -> Res;
 	{value,false} ->
 	    case guard_expr(E2, Bs) of
-		{value,_Val}=Res -> Res
+		{value,Bool}=Res when is_boolean(Bool) -> Res
 	    end
     end;
 guard_expr({dbg,_,self,[]}, _) ->
@@ -1594,7 +1593,8 @@ match1({bin,_,Fs}, B, Bs0, BBs0) when is_bitstring(B) ->
     try eval_bits:match_bits(Fs, B, Bs1, BBs,
 			     fun(L, R, Bs) -> match1(L, R, Bs, BBs) end,
 			     fun(E, Bs) -> expr(E, Bs, #ieval{}) end,
-			     false)
+			     false) of
+	Match -> Match
     catch
 	_:_ -> throw(nomatch)
     end;
@@ -1682,7 +1682,7 @@ merge_bindings([{Name,V}|B1s], B2s, Ieval) ->
     case binding(Name, B2s) of
 	{value,V} -> % Already there, and the same
 	    merge_bindings(B1s, B2s, Ieval);
-	{value,_} when Name =:= '_' -> % Already there, but anonymous
+	{value,_} when Name=='_' -> % Already there, but anonymous
 	    B2s1 = lists:keydelete('_', 1, B2s),
 	    [{Name,V}|merge_bindings(B1s, B2s1, Ieval)];
 	{value,_} -> % Already there, but different => badmatch

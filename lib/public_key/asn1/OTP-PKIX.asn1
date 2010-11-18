@@ -313,7 +313,7 @@ SupportedPublicKeyAlgorithms PUBLIC-KEY-ALGORITHM-CLASS ::= {
 
    dsa-with-sha1 SIGNATURE-ALGORITHM-CLASS ::= {
 		 ID id-dsa-with-sha1 
-		 TYPE Dss-Parms } 
+		 TYPE NULL } -- XXX Must be empty and not NULL
 
 				  --
    --   RSA Keys and Signatures

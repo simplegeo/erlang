@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1999-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1999-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 -module(otp_internal).
@@ -236,137 +236,105 @@ obsolete_1(erlang, fault, 2) ->
 obsolete_1(file, rawopen, 2) ->
     {removed, "deprecated (will be removed in R13B); use file:open/2 with the raw option"};
 
-obsolete_1(http, request, 1) 	      -> {deprecated,{httpc,request,1},"R15B"};
-obsolete_1(http, request, 2) 	      -> {deprecated,{httpc,request,2},"R15B"};
-obsolete_1(http, request, 4) 	      -> {deprecated,{httpc,request,4},"R15B"};
-obsolete_1(http, request, 5) 	      -> {deprecated,{httpc,request,5},"R15B"};
-obsolete_1(http, cancel_request, 1)   -> {deprecated,{httpc,cancel_request,1},"R15B"};
-obsolete_1(http, cancel_request, 2)   -> {deprecated,{httpc,cancel_request,2},"R15B"};
-obsolete_1(http, set_option, 2)       -> {deprecated,{httpc,set_option,2},"R15B"};
-obsolete_1(http, set_option, 3)       -> {deprecated,{httpc,set_option,3},"R15B"};
-obsolete_1(http, set_options, 1)      -> {deprecated,{httpc,set_options,1},"R15B"};
-obsolete_1(http, set_options, 2)      -> {deprecated,{httpc,set_options,2},"R15B"};
-obsolete_1(http, verify_cookies, 2)   -> {deprecated,{httpc,verify_cookies,2},"R15B"};
-obsolete_1(http, verify_cookies, 3)   -> {deprecated,{httpc,verify_cookies,3},"R15B"};
-obsolete_1(http, cookie_header, 1)    -> {deprecated,{httpc,cookie_header,1},"R15B"};
-obsolete_1(http, cookie_header, 2)    -> {deprecated,{httpc,cookie_header,2},"R15B"};
-obsolete_1(http, stream_next, 1)      -> {deprecated,{httpc,stream_next,1},"R15B"};
-obsolete_1(http, default_profile, 0)  -> {deprecated,{httpc,default_profile,0},"R15B"};
-
-obsolete_1(httpd, start, 0) 	      -> {removed,{inets,start,[2,3]},"R14B"};
-obsolete_1(httpd, start, 1) 	      -> {removed,{inets,start,[2,3]},"R14B"};
-obsolete_1(httpd, start_link, 0)      -> {removed,{inets,start,[2,3]},"R14B"};
-obsolete_1(httpd, start_link, 1)      -> {removed,{inets,start,[2,3]},"R14B"};
-obsolete_1(httpd, start_child, 0)     -> {removed,{inets,start,[2,3]},"R14B"};
-obsolete_1(httpd, start_child, 1)     -> {removed,{inets,start,[2,3]},"R14B"};
-obsolete_1(httpd, stop, 0) 	      -> {removed,{inets,stop,2},"R14B"};
-obsolete_1(httpd, stop, 1)            -> {removed,{inets,stop,2},"R14B"};
-obsolete_1(httpd, stop, 2)            -> {removed,{inets,stop,2},"R14B"};
-obsolete_1(httpd, stop_child, 0)      -> {removed,{inets,stop,2},"R14B"};
-obsolete_1(httpd, stop_child, 1)      -> {removed,{inets,stop,2},"R14B"};
-obsolete_1(httpd, stop_child, 2)      -> {removed,{inets,stop,2},"R14B"};
-obsolete_1(httpd, restart, 0) 	      -> {removed,{httpd,reload_config,2},"R14B"};
-obsolete_1(httpd, restart, 1) 	      -> {removed,{httpd,reload_config,2},"R14B"};
-obsolete_1(httpd, restart, 2) 	      -> {removed,{httpd,reload_config,2},"R14B"};
-obsolete_1(httpd, block, 0) 	      -> {removed,{httpd,reload_config,2},"R14B"};
-obsolete_1(httpd, block, 1) 	      -> {removed,{httpd,reload_config,2},"R14B"};
-obsolete_1(httpd, block, 2) 	      -> {removed,{httpd,reload_config,2},"R14B"};
-obsolete_1(httpd, block, 3) 	      -> {removed,{httpd,reload_config,2},"R14B"};
-obsolete_1(httpd, block, 4)	      -> {removed,{httpd,reload_config,2},"R14B"};
-obsolete_1(httpd, unblock, 0) 	      -> {removed,{httpd,reload_config,2},"R14B"};
-obsolete_1(httpd, unblock, 1)         -> {removed,{httpd,reload_config,2},"R14B"};
-obsolete_1(httpd, unblock, 2)         -> {removed,{httpd,reload_config,2},"R14B"};
+obsolete_1(httpd, start, 0) 	  -> {deprecated,{inets,start,[2,3]},"R14B"};
+obsolete_1(httpd, start, 1) 	  -> {deprecated,{inets,start,[2,3]},"R14B"};
+obsolete_1(httpd, start_link, 1)  -> {deprecated,{inets,start,[2,3]},"R14B"};
+obsolete_1(httpd, start_child, 0) -> {deprecated,{inets,start,[2,3]},"R14B"};
+obsolete_1(httpd, start_child, 1) -> {deprecated,{inets,start,[2,3]},"R14B"};
+obsolete_1(httpd, stop, 0) 	  -> {deprecated,{inets,stop,2},"R14B"};
+obsolete_1(httpd, stop, 1)        -> {deprecated,{inets,stop,2},"R14B"};
+obsolete_1(httpd, stop, 2)        -> {deprecated,{inets,stop,2},"R14B"};
+obsolete_1(httpd, stop_child, 0)  -> {deprecated,{inets,stop,2},"R14B"};
+obsolete_1(httpd, stop_child, 1)  -> {deprecated,{inets,stop,2},"R14B"};
+obsolete_1(httpd, stop_child, 2)  -> {deprecated,{inets,stop,2},"R14B"};
+obsolete_1(httpd, restart, 0) 	  -> {deprecated,{httpd,reload_config,2},"R14B"};
+obsolete_1(httpd, restart, 1) 	  -> {deprecated,{httpd,reload_config,2},"R14B"};
+obsolete_1(httpd, restart, 2) 	  -> {deprecated,{httpd,reload_config,2},"R14B"};
+obsolete_1(httpd, block, 0) 	  -> {deprecated,{httpd,reload_config,2},"R14B"};
+obsolete_1(httpd, block, 1) 	  -> {deprecated,{httpd,reload_config,2},"R14B"};
+obsolete_1(httpd, block, 2) 	  -> {deprecated,{httpd,reload_config,2},"R14B"};
+obsolete_1(httpd, block, 3) 	  -> {deprecated,{httpd,reload_config,2},"R14B"};
+obsolete_1(httpd, block, 4)	  -> {deprecated,{httpd,reload_config,2},"R14B"};
+obsolete_1(httpd, unblock, 0) 	  -> {deprecated,{httpd,reload_config,2},"R14B"};
+obsolete_1(httpd, unblock, 1)     -> {deprecated,{httpd,reload_config,2},"R14B"};
+obsolete_1(httpd, unblock, 2)     -> {deprecated,{httpd,reload_config,2},"R14B"};
 obsolete_1(httpd_util, key1search, 2) -> {removed,{proplists,get_value,2},"R13B"};
 obsolete_1(httpd_util, key1search, 3) -> {removed,{proplists,get_value,3},"R13B"};
-obsolete_1(ftp, open, 3)              -> {removed,{inets,start,[2,3]},"R14B"};
-obsolete_1(ftp, force_active, 1)      -> {removed,{inets,start,[2,3]},"R14B"};
+obsolete_1(ftp, open, 3)          -> {deprecated,{inets,start,[2,3]},"R14B"};
+obsolete_1(ftp, force_active, 1)  -> {deprecated,{inets,start,[2,3]},"R14B"};
 
 %% Added in R12B-4.
 obsolete_1(ssh_cm, connect, A) when 1 =< A, A =< 3 ->
-    {removed,{ssh,connect,A},"R14B"};
+    {deprecated,{ssh,connect,A},"R14B"};
 obsolete_1(ssh_cm, listen, A) when 2 =< A, A =< 4 ->
-    {removed,{ssh,daemon,A},"R14B"};
+    {deprecated,{ssh,daemon,A},"R14B"};
 obsolete_1(ssh_cm, stop_listener, 1) ->
-    {removed,{ssh,stop_listener,[1,2]},"R14B"};
+    {deprecated,{ssh,stop_listener,[1,2]},"R14B"};
 obsolete_1(ssh_cm, session_open, A) when A =:= 2; A =:= 4 ->
-    {removed,{ssh_connection,session_channel,A},"R14B"};
+    {deprecated,{ssh_connection,session_channel,A},"R14B"};
 obsolete_1(ssh_cm, direct_tcpip, A) when A =:= 6; A =:= 8 ->
-    {removed,{ssh_connection,direct_tcpip,A}};
+    {deprecated,{ssh_connection,direct_tcpip,A}};
 obsolete_1(ssh_cm, tcpip_forward, 3) ->
-    {removed,{ssh_connection,tcpip_forward,3},"R14B"};
+    {deprecated,{ssh_connection,tcpip_forward,3},"R14B"};
 obsolete_1(ssh_cm, cancel_tcpip_forward, 3) ->
-    {removed,{ssh_connection,cancel_tcpip_forward,3},"R14B"};
+    {deprecated,{ssh_connection,cancel_tcpip_forward,3},"R14B"};
 obsolete_1(ssh_cm, open_pty, A) when A =:= 3; A =:= 7; A =:= 9 ->
-    {removed,{ssh_connection,open_pty,A},"R14"};
+    {deprecated,{ssh_connection,open_pty,A},"R14"};
 obsolete_1(ssh_cm, setenv, 5) ->
-    {removed,{ssh_connection,setenv,5},"R14B"};
+    {deprecated,{ssh_connection,setenv,5},"R14B"};
 obsolete_1(ssh_cm, shell, 2) ->
-    {removed,{ssh_connection,shell,2},"R14B"};
+    {deprecated,{ssh_connection,shell,2},"R14B"};
 obsolete_1(ssh_cm, exec, 4) ->
-    {removed,{ssh_connection,exec,4},"R14B"};
+    {deprecated,{ssh_connection,exec,4},"R14B"};
 obsolete_1(ssh_cm, subsystem, 4) ->
-    {removed,{ssh_connection,subsystem,4},"R14B"};
+    {deprecated,{ssh_connection,subsystem,4},"R14B"};
 obsolete_1(ssh_cm, winch, A) when A =:= 4; A =:= 6 ->
-    {removed,{ssh_connection,window_change,A},"R14B"};
+    {deprecated,{ssh_connection,window_change,A},"R14B"};
 obsolete_1(ssh_cm, signal, 3) ->
-    {removed,{ssh_connection,signal,3},"R14B"};
+    {deprecated,{ssh_connection,signal,3},"R14B"};
 obsolete_1(ssh_cm, attach, A) when A =:= 2; A =:= 3 ->
-    {removed,{ssh,attach,A}};
+    {deprecated,{ssh,attach,A}};
 obsolete_1(ssh_cm, detach, 2) ->
-    {removed,"no longer useful; will be removed in R14B"};
+    {deprecated,"no longer useful; will be removed in R14B"};
 obsolete_1(ssh_cm, set_user_ack, 4) ->
-    {removed,"no longer useful; will be removed in R14B"};
+    {deprecated,"no longer useful; will be removed in R14B"};
 obsolete_1(ssh_cm, adjust_window, 3) ->
-    {removed,{ssh_connection,adjust_window,3},"R14B"};
+    {deprecated,{ssh_connection,adjust_window,3},"R14B"};
 obsolete_1(ssh_cm, close, 2) ->
-    {removed,{ssh_connection,close,2},"R14B"};
+    {deprecated,{ssh_connection,close,2},"R14B"};
 obsolete_1(ssh_cm, stop, 1) ->
-    {removed,{ssh,close,1},"R14B"};
+    {deprecated,{ssh,close,1},"R14B"};
 obsolete_1(ssh_cm, send_eof, 2) ->
-    {removed,{ssh_connection,send_eof,2},"R14B"};
+    {deprecated,{ssh_connection,send_eof,2},"R14B"};
 obsolete_1(ssh_cm, send, A) when A =:= 3; A =:= 4 ->
-    {removed,{ssh_connection,send,A},"R14B"};
+    {deprecated,{ssh_connection,send,A},"R14B"};
 obsolete_1(ssh_cm, send_ack, A) when 3 =< A, A =< 5 ->
-    {removed,{ssh_connection,send,[3,4]},"R14B"};
+    {deprecated,{ssh_connection,send,[3,4]},"R14B"};
 obsolete_1(ssh_ssh, connect, A) when 1 =< A, A =< 3 ->
-    {removed,{ssh,shell,A},"R14B"};
+    {deprecated,{ssh,shell,A},"R14B"};
 obsolete_1(ssh_sshd, listen, A) when 0 =< A, A =< 3 ->
-    {removed,{ssh,daemon,[1,2,3]},"R14"};
+    {deprecated,{ssh,daemon,[1,2,3]},"R14"};
 obsolete_1(ssh_sshd, stop, 1) ->
-    {removed,{ssh,stop_listener,1}};
+    {deprecated,{ssh,stop_listener,1}};
 
 %% Added in R13A.
 obsolete_1(regexp, _, _) ->
     {deprecated, "the regexp module is deprecated (will be removed in R15A); use the re module instead"};
 
 obsolete_1(lists, flat_length, 1) ->
-    {removed,{lists,flatlength,1},"R14"};
+    {deprecated,{lists,flatlength,1},"R14"};
 
 obsolete_1(ssh_sftp, connect, A) when 1 =< A, A =< 3 ->
-    {removed,{ssh_sftp,start_channel,A},"R14B"};
+    {deprecated,{ssh_sftp,start_channel,A},"R14B"};
 obsolete_1(ssh_sftp, stop, 1) ->
-    {removed,{ssh_sftp,stop_channel,1},"R14B"};
+    {deprecated,{ssh_sftp,stop_channel,1},"R14B"};
 
 %% Added in R13B01.
 obsolete_1(ssl_pkix, decode_cert_file, A) when A =:= 1; A =:= 2 ->
-    {removed,"removed in R14A; use public_key:pem_to_der/1 and public_key:pkix_decode_cert/2 instead"};
+    {deprecated,"deprecated (will be removed in R14B); use public_key:pem_to_der/1 and public_key:pkix_decode_cert/2 instead"};
 obsolete_1(ssl_pkix, decode_cert, A) when A =:= 1; A =:= 2 ->
-    {removed,{public_key,pkix_decode_cert,2},"R14A"};
-
-%% Added in R13B04.
-obsolete_1(erlang, concat_binary, 1) ->
-    {deprecated,{erlang,list_to_binary,1},"R15B"};
-
-%% Added in R14A.
-obsolete_1(ssl, peercert, 2) ->
-    {deprecated,"deprecated (will be removed in R15A); use ssl:peercert/1 and public_key:pkix_decode_cert/2 instead"};
-
-%% Added in R14B.
-obsolete_1(public_key, pem_to_der, 1) ->
-    {deprecated,"deprecated (will be removed in R15A); use file:read_file/1 and public_key:pem_decode/1"};
-obsolete_1(public_key, decode_private_key, A) when A =:= 1; A =:= 2 ->
-    {deprecated,{public_key,pem_entry_decode,1},"R15A"};
-
+    {deprecated,{public_key,pkix_decode_cert,2},"R14B"};
+    
 obsolete_1(_, _, _) ->
     no.
 

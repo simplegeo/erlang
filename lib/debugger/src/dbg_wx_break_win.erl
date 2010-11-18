@@ -206,7 +206,11 @@ handle_event(#wx{id=OKorListBox, event=#wxCommand{type=OkorDoubleClick}},
        OkorDoubleClick =:= command_listbox_doubleclicked ->
     Mod = wxComboBox:getValue(Text),
     {_, IndexL} = wxListBox:getSelections(LB),
-    Breaks = [[list_to_atom(Mod)|lists:nth(Index+1, Funcs)] || Index <- IndexL],
+    Breaks = lists:map(fun(Index) ->
+			       Func = lists:nth(Index+1, Funcs),
+			       [list_to_atom(Mod) | Func]
+		       end,
+		       IndexL),
     wxDialog:destroy(Win),
     {break, Breaks, enable};
 handle_event(#wx{id=?wxID_OK},#winInfo{win=Win,text=Text, entries=Es, trigger=Trigger}) ->

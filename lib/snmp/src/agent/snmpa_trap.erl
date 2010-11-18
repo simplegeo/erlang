@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 -module(snmpa_trap).
@@ -23,18 +23,14 @@
 %%%-----------------------------------------------------------------
 %% External exports
 -export([construct_trap/2, 
-	 try_initialise_vars/2, 
-	 send_trap/6, send_trap/7]).
+	 try_initialise_vars/2, send_trap/6]).
 -export([send_discovery/5]).
 
 %% Internal exports
--export([init_v2_inform/9, 
-	 init_v3_inform/9, init_v3_inform/10, 
-	 send_inform/6]).
+-export([init_v2_inform/9, init_v3_inform/9, send_inform/6]).
 -export([init_discovery_inform/12, send_discovery_inform/5]).
 
 -include("snmp_types.hrl").
--include("snmpa_internal.hrl").
 -include("SNMPv2-MIB.hrl").
 -include("SNMPv2-TM.hrl").
 -include("SNMPv2-TC.hrl").
@@ -335,20 +331,13 @@ make_varbind_list(Varbinds) ->
 %%          SnmpTargetAddrTable (using the Tag).
 %%-----------------------------------------------------------------
 send_trap(TrapRec, NotifyName, ContextName, Recv, Vbs, NetIf) ->
-    LocalEngineID = ?DEFAULT_LOCAL_ENGINE_ID, 
-    send_trap(TrapRec, NotifyName, ContextName, Recv, Vbs, 
-	      LocalEngineID, NetIf).
+    (catch do_send_trap(TrapRec, NotifyName, ContextName, Recv, Vbs, NetIf)).
 
-send_trap(TrapRec, NotifyName, ContextName, Recv, Vbs, LocalEngineID, NetIf) ->
-    (catch do_send_trap(TrapRec, NotifyName, ContextName, Recv, Vbs, 
-			LocalEngineID, NetIf)).
-
-do_send_trap(TrapRec, NotifyName, ContextName, Recv, Vbs, 
-	     LocalEngineID, NetIf) ->
+do_send_trap(TrapRec, NotifyName, ContextName, Recv, Vbs, NetIf) ->
     VarbindList = make_varbind_list(Vbs),
     Dests       = find_dests(NotifyName),
     send_trap_pdus(Dests, ContextName, {TrapRec, VarbindList}, [], [], [],
-		   Recv, LocalEngineID, NetIf).
+		   Recv, NetIf).
 
 send_discovery(TargetName, Record, ContextName, Vbs, NetIf) ->
     case find_dest(TargetName) of
@@ -630,9 +619,7 @@ send_discovery_inform(Parent, Timeout, Retry, Msg, NetIf) ->
 %%-----------------------------------------------------------------
 send_trap_pdus([{DestAddr, TargetName, {MpModel, SecModel, SecName, SecLevel},
 		 Type} | T],
-	       ContextName, 
-	       {TrapRec, Vbs}, V1Res, V2Res, V3Res, Recv, 
-	       LocalEngineID, NetIf) ->
+	       ContextName,{TrapRec, Vbs}, V1Res, V2Res, V3Res, Recv, NetIf) ->
     ?vdebug("send trap pdus: "
 	    "~n   Destination address: ~p"
 	    "~n   Target name:         ~p"
@@ -647,7 +634,7 @@ send_trap_pdus([{DestAddr, TargetName, {MpModel, SecModel, SecName, SecLevel},
 	    case check_all_varbinds(TrapRec, Vbs, MibView) of
 		true when MpModel =:= ?MP_V1 ->
 		    ?vtrace("send_trap_pdus -> v1 mp model",[]),
-		    ContextEngineId = LocalEngineID, 
+		    ContextEngineId = snmp_framework_mib:get_engine_id(),
 		    case snmp_community_mib:vacm2community({SecName,
 							    ContextEngineId,
 							    ContextName},
@@ -657,18 +644,16 @@ send_trap_pdus([{DestAddr, TargetName, {MpModel, SecModel, SecName, SecLevel},
 				    [element(2, DestAddr)]),
 			    send_trap_pdus(T, ContextName, {TrapRec, Vbs},
 					   [{DestAddr, Community} | V1Res],
-					   V2Res, V3Res, Recv, 
-					   LocalEngineID, NetIf);
+					   V2Res, V3Res, Recv, NetIf);
 			undefined ->
 			    ?vdebug("No community found for v1 dest: ~p", 
 				    [element(2, DestAddr)]),
 			    send_trap_pdus(T, ContextName, {TrapRec, Vbs},
-					   V1Res, V2Res, V3Res, Recv, 
-					   LocalEngineID, NetIf)
+					   V1Res, V2Res, V3Res, Recv, NetIf)
 		    end;
 		true when MpModel =:= ?MP_V2C ->
 		    ?vtrace("send_trap_pdus -> v2c mp model",[]),
-		    ContextEngineId = LocalEngineID, 
+		    ContextEngineId = snmp_framework_mib:get_engine_id(),
 		    case snmp_community_mib:vacm2community({SecName,
 							    ContextEngineId,
 							    ContextName},
@@ -679,13 +664,12 @@ send_trap_pdus([{DestAddr, TargetName, {MpModel, SecModel, SecName, SecLevel},
 			    send_trap_pdus(T, ContextName, {TrapRec, Vbs},
 					   V1Res,
 					   [{DestAddr, Community, Type}|V2Res],
-					   V3Res, Recv, LocalEngineID, NetIf);
+					   V3Res, Recv, NetIf);
 			undefined ->
 			    ?vdebug("No community found for v2c dest: ~p", 
 				    [element(2, DestAddr)]),
 			    send_trap_pdus(T, ContextName, {TrapRec, Vbs},
-					   V1Res, V2Res, V3Res, Recv, 
-					   LocalEngineID, NetIf)
+					   V1Res, V2Res, V3Res, Recv, NetIf)
 		    end;
 		true when MpModel =:= ?MP_V3 ->
 		    ?vtrace("send_trap_pdus -> v3 mp model",[]),
@@ -694,20 +678,18 @@ send_trap_pdus([{DestAddr, TargetName, {MpModel, SecModel, SecName, SecLevel},
 		    send_trap_pdus(T, ContextName, {TrapRec, Vbs},
 				   V1Res, V2Res,
 				   [{DestAddr, MsgData, Type} | V3Res],
-				   Recv, LocalEngineID, NetIf);
+				   Recv, NetIf);
 		true ->
 		    ?vlog("bad MpModel ~p for dest ~p",
 			  [MpModel, element(2, DestAddr)]),
 		    send_trap_pdus(T, ContextName, {TrapRec, Vbs},
-				   V1Res, V2Res, V3Res, Recv, 
-				   LocalEngineID, NetIf);
+				   V1Res, V2Res, V3Res, Recv, NetIf);
 		_ ->
 		    ?vlog("no access for dest: "
 			  "~n   ~p in target ~p",
 			  [element(2, DestAddr), TargetName]),
 		    send_trap_pdus(T, ContextName, {TrapRec, Vbs},
-				   V1Res, V2Res, V3Res, Recv, 
-				   LocalEngineID, NetIf)
+				   V1Res, V2Res, V3Res, Recv, NetIf)
 	    end;
 	{discarded, Reason} ->
 	    ?vlog("mib view error ~p for"
@@ -715,10 +697,10 @@ send_trap_pdus([{DestAddr, TargetName, {MpModel, SecModel, SecName, SecLevel},
 		  "~n   SecName: ~w", 
 		  [Reason, element(2, DestAddr), SecName]),
 	    send_trap_pdus(T, ContextName, {TrapRec, Vbs},
-			   V1Res, V2Res, V3Res, Recv, LocalEngineID, NetIf)
+			   V1Res, V2Res, V3Res, Recv, NetIf)
     end;
 send_trap_pdus([], ContextName, {TrapRec, Vbs}, V1Res, V2Res, V3Res,
-	       Recv, LocalEngineID, NetIf) ->
+	       Recv, NetIf) ->
     SysUpTime = snmp_standard_mib:sys_up_time(),
     ?vdebug("send trap pdus with sysUpTime ~p", [SysUpTime]),
     InformRecvs   = get_inform_recvs(V2Res ++ V3Res),
@@ -726,8 +708,7 @@ send_trap_pdus([], ContextName, {TrapRec, Vbs}, V1Res, V2Res, V3Res,
     deliver_recv(Recv, snmp_targets, InformTargets),
     send_v1_trap(TrapRec, V1Res, Vbs, NetIf, SysUpTime),
     send_v2_trap(TrapRec, V2Res, Vbs, Recv, NetIf, SysUpTime),
-    send_v3_trap(TrapRec, V3Res, Vbs, Recv, LocalEngineID, NetIf, 
-		 SysUpTime, ContextName).
+    send_v3_trap(TrapRec, V3Res, Vbs, Recv, NetIf, SysUpTime, ContextName).
 
 send_v1_trap(_TrapRec, [], _Vbs, _NetIf, _SysUpTime) ->
     ok;
@@ -781,25 +762,21 @@ send_v2_trap(TrapRec, V2Res, Vbs, Recv, NetIf, SysUpTime) ->
     do_send_v2_trap(TrapRecvs, IVbs, NetIf),
     do_send_v2_inform(InformRecvs, IVbs, Recv, NetIf).
     
-send_v3_trap(_TrapRec, [], _Vbs, _Recv, _LocalEngineID, 
-	     _NetIf, _SysUpTime, _ContextName) ->
+send_v3_trap(_TrapRec, [], _Vbs, _Recv, _NetIf, _SysUpTime, _ContextName) ->
     ok;
-send_v3_trap(TrapRec, V3Res, Vbs, Recv, LocalEngineID, 
-	     NetIf, SysUpTime, ContextName) ->
+send_v3_trap(TrapRec, V3Res, Vbs, Recv, NetIf, SysUpTime, ContextName) ->
     ?vdebug("prepare to send v3 trap",[]),
     {_Oid, IVbs} = mk_v2_trap(TrapRec, Vbs, SysUpTime), % v2 refers to SMIv2;
-    TrapRecvs = get_trap_recvs(V3Res),                  % same SMI for v3
+    TrapRecvs = get_trap_recvs(V3Res),                 % same SMI for v3
     InformRecvs = get_inform_recvs(V3Res),
     do_send_v3_trap(TrapRecvs, ContextName, IVbs, NetIf),
-    do_send_v3_inform(InformRecvs, ContextName, IVbs, Recv, 
-		      LocalEngineID, NetIf).
+    do_send_v3_inform(InformRecvs, ContextName, IVbs, Recv, NetIf).
     
 
 mk_v2_trap(#notification{oid = Oid}, Vbs, SysUpTime) ->
     ?vtrace("make v2 notification '~p'",[Oid]),
     mk_v2_notif(Oid, Vbs, SysUpTime);
-mk_v2_trap(#trap{enterpriseoid = Enter, specificcode = Spec}, 
-	   Vbs, SysUpTime) ->
+mk_v2_trap(#trap{enterpriseoid = Enter, specificcode = Spec}, Vbs, SysUpTime) ->
     %% Use alg. in rfc1908 to map a v1 trap to a v2 trap
     ?vtrace("make v2 trap for '~p' with ~p",[Enter,Spec]),
     {Oid,Enterp} = 
@@ -868,16 +845,16 @@ do_send_v3_trap(Recvs, ContextName, Vbs, NetIf) ->
 		  end, Recvs),
     ok.
 
-do_send_v3_inform([], _ContextName, _Vbs, _Recv, _LocalEngineID, _NetIf) ->
+do_send_v3_inform([], _ContextName, _Vbs, _Recv, _NetIf) ->
     ok;
-do_send_v3_inform(Recvs, ContextName, Vbs, Recv, LocalEngineID, NetIf) ->
+do_send_v3_inform(Recvs, ContextName, Vbs, Recv, NetIf) ->
     lists:foreach(
       fun({Addr, MsgData, Timeout, Retry}) ->
 	      ?vtrace("~n   start inform sender to send v3 inform to ~p",
 		      [Addr]),
 	      proc_lib:spawn_link(?MODULE, init_v3_inform,
 				  [{Addr, MsgData}, Timeout, Retry, Vbs,
-				   Recv, LocalEngineID, NetIf, ContextName,
+				   Recv, NetIf, ContextName,
 				   get(verbosity), get(sname)])
       end, 
       Recvs).
@@ -897,13 +874,7 @@ init_v2_inform(Addr, Timeout, Retry, Vbs, Recv, NetIf, Community,V,S) ->
     
 
 %% New process
-init_v3_inform(Addr, Timeout, Retry, Vbs, Recv, NetIf, ContextName, V, S) ->
-    LocalEngineID = ?DEFAULT_LOCAL_ENGINE_ID, 
-    init_v3_inform(Addr, Timeout, Retry, Vbs, Recv, LocalEngineID, 
-		   NetIf, ContextName, V, S).
-
-init_v3_inform(Addr, Timeout, Retry, Vbs, Recv, LocalEngineID, 
-	       NetIf, ContextName, V, S) ->
+init_v3_inform(Addr, Timeout, Retry, Vbs, Recv, NetIf, ContextName,V,S) ->
     %% Make a new Inform for each recipient; they need unique
     %% request-ids!
     put(verbosity,V),
@@ -911,7 +882,7 @@ init_v3_inform(Addr, Timeout, Retry, Vbs, Recv, LocalEngineID,
     ?vdebug("~n   starting with timeout = ~p and retry = ~p",
 	    [Timeout,Retry]),
     InformPdu = make_v2_notif_pdu(Vbs, 'inform-request'), % Yes, v2
-    ContextEngineId = LocalEngineID, 
+    ContextEngineId = snmp_framework_mib:get_engine_id(),
     Msg = {send_pdu_req, 'version-3', InformPdu,
 	   {v3, ContextEngineId, ContextName}, [Addr], self()},
     ?MODULE:send_inform(Addr, Timeout*10, Retry, Msg, Recv, NetIf).

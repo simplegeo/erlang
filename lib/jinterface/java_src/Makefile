@@ -35,21 +35,7 @@ VSN=$(JINTERFACE_VSN)
 
 SPECIAL_TARGETS = 
 
-TARGET_FILES= $(POM_TARGET)
 
-SPECIAL_TARGETS =
-
-POM_FILE= pom.xml
-
-POM_TARGET= ../$(POM_FILE)
-POM_SRC= $(POM_FILE).src
-
-# ----------------------------------------------------
-# Special Build Targets
-# ----------------------------------------------------
-
-$(POM_TARGET): $(POM_SRC) ../vsn.mk
-	sed -e 's;%VSN%;$(VSN);' $< > $@
 
 # ----------------------------------------------------
 # Default Subdir Targets
@@ -57,7 +43,7 @@ $(POM_TARGET): $(POM_SRC) ../vsn.mk
 
 .PHONY: debug opt instr release docs release_docs tests release_tests clean depend
 
-debug opt instr release docs release_docs tests release_tests clean depend: $(TARGET_FILES)
+debug opt instr release docs release_docs tests release_tests clean depend:
 	set -e; set -x; \
 	case "$(MAKE)" in *clearmake*) tflag="-T";; *) tflag="";; esac; \
 	if test -f com/ericsson/otp/erlang/ignore_config_record.inf; then xflag=$$tflag; fi; \

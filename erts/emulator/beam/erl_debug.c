@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- *
- * Copyright Ericsson AB 1998-2010. All Rights Reserved.
- *
+ * 
+ * Copyright Ericsson AB 1998-2009. All Rights Reserved.
+ * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- *
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
+ * 
  * %CopyrightEnd%
  */
 
@@ -207,7 +207,11 @@ pdisplay1(int to, void *to_arg, Process* p, Eterm obj)
     case FLOAT_DEF: {
 	    FloatDef ff;
 	    GET_DOUBLE(obj, ff);
+#ifdef _OSE_
+	    erts_print(to, to_arg, "%e", ff.fd);
+#else
 	    erts_print(to, to_arg, "%.20e", ff.fd);
+#endif
 	}
 	break;
     case BINARY_DEF:
@@ -231,9 +235,9 @@ pps(Process* p, Eterm* stop)
     }
 
     while(sp >= stop) {
-	erts_print(to, to_arg, "%0*lx: ", PTR_SIZE, (UWord) sp);
+	erts_print(to, to_arg, "%0*lx: ", PTR_SIZE, (Eterm) sp);
 	if (is_catch(*sp)) {
-	    erts_print(to, to_arg, "catch %ld", (UWord)catch_pc(*sp));
+	    erts_print(to, to_arg, "catch %d", (Uint)catch_pc(*sp));
 	} else {
 	    paranoid_display(to, to_arg, p, *sp);
 	}
@@ -261,7 +265,7 @@ static int verify_eterm(Process *p,Eterm element)
             return 1;
 
         for (mbuf = p->mbuf; mbuf; mbuf = mbuf->next) {
-            if (WITHIN(ptr, &mbuf->mem[0], &mbuf->mem[0] + mbuf->used_size)) {
+            if (WITHIN(ptr, &mbuf->mem[0], &mbuf->mem[0] + mbuf->size)) {
                 return 1;
             }
         }
@@ -308,7 +312,7 @@ void erts_check_stack(Process *p)
 	if (IN_HEAP(p, ptr))
 	    continue;
 	for (mbuf = p->mbuf; mbuf; mbuf = mbuf->next)
-	    if (WITHIN(ptr, &mbuf->mem[0], &mbuf->mem[0] + mbuf->used_size)) {
+	    if (WITHIN(ptr, &mbuf->mem[0], &mbuf->mem[0] + mbuf->size)) {
 		in_mbuf = 1;
 		break;
 	    }
@@ -340,7 +344,7 @@ void erts_check_for_holes(Process* p)
 	if (hf == p->last_mbuf) {
 	    break;
 	}
-	check_memory(hf->mem, hf->mem+hf->used_size);
+	check_memory(hf->mem, hf->mem+hf->size);
     }
     p->last_mbuf = MBUF(p);
 }
@@ -382,7 +386,7 @@ void erts_check_heap(Process *p)
     }
 
     while (bp) {
-	erts_check_memory(p,bp->mem,bp->mem + bp->used_size);
+	erts_check_memory(p,bp->mem,bp->mem + bp->size);
         bp = bp->next;
     }
 }
@@ -746,7 +750,7 @@ static void print_process_memory(Process *p)
                     PTR_SIZE, "heap fragments",
                     dashes, dashes, dashes, dashes);
     while (bp) {
-	print_untagged_memory(bp->mem,bp->mem + bp->used_size);
+	print_untagged_memory(bp->mem,bp->mem + bp->size);
         bp = bp->next;
     }
 }
@@ -891,29 +895,5 @@ void print_memory_info(Process *p)
 #endif
     erts_printf("+-----------------%s-%s-%s-%s-+\n",dashes,dashes,dashes,dashes);
 }
-#if !HEAP_ON_C_STACK && defined(DEBUG)
-Eterm *erts_debug_allocate_tmp_heap(int size, Process *p)
-{
-    ErtsSchedulerData *sd = ((p == NULL) ? erts_get_scheduler_data() : ERTS_PROC_GET_SCHDATA(p));
-    int offset = sd->num_tmp_heap_used;
-
-    ASSERT(offset+size <= TMP_HEAP_SIZE);
-    return (sd->tmp_heap)+offset;
-}
-void erts_debug_use_tmp_heap(int size, Process *p)
-{
-    ErtsSchedulerData *sd = ((p == NULL) ? erts_get_scheduler_data() : ERTS_PROC_GET_SCHDATA(p));
-
-    sd->num_tmp_heap_used += size;
-    ASSERT(sd->num_tmp_heap_used <= TMP_HEAP_SIZE);
-}
-void erts_debug_unuse_tmp_heap(int size, Process *p)
-{
-    ErtsSchedulerData *sd = ((p == NULL) ? erts_get_scheduler_data() : ERTS_PROC_GET_SCHDATA(p));
-
-    sd->num_tmp_heap_used -= size;
-    ASSERT(sd->num_tmp_heap_used >= 0);
-}
-#endif
 #endif
 

@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- *
- * Copyright Ericsson AB 2008-2010. All Rights Reserved.
- *
+ * 
+ * Copyright Ericsson AB 2008-2009. All Rights Reserved.
+ * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- *
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
+ * 
  * %CopyrightEnd% 
  */
 
@@ -101,7 +101,7 @@ int start_native_gui(wxe_data *sd)
   init_caller = driver_connected(sd->port); 
 
   if((res = erl_drv_thread_create((char *)"wxwidgets",
-				  &wxe_thread,wxe_main_loop,(void *) sd->pdl,NULL)) == 0) {
+				  &wxe_thread,wxe_main_loop,NULL,NULL)) == 0) {
     erl_drv_mutex_lock(wxe_status_m);
     for(;wxe_status == WXE_NOT_INITIATED;) {
       erl_drv_cond_wait(wxe_status_c, wxe_status_m);
@@ -179,15 +179,12 @@ void meta_command(int what, wxe_data *sd) {
  *  wxWidgets Thread 
  * ************************************************************/
 
-void *wxe_main_loop(void *vpdl)
+void *wxe_main_loop(void * not_used)
 {
   int result; 
   int  argc = 1;
   char * temp = (char *) "Erlang\0";
   char ** argv = &temp;
-  ErlDrvPDL pdl = (ErlDrvPDL) vpdl;
-  
-  driver_pdl_inc_refc(pdl);
 
   // ErlDrvSysInfo einfo;
   // driver_system_info(&einfo, sizeof(ErlDrvSysInfo));
@@ -202,7 +199,6 @@ void *wxe_main_loop(void *vpdl)
   if(result >= 0 && wxe_status == WXE_INITIATED) {
     /* We are done try to make a clean exit */
     wxe_status = WXE_EXITED;
-    driver_pdl_dec_refc(pdl);
     erl_drv_thread_exit(NULL);
     return NULL;
   } else {
@@ -210,7 +206,6 @@ void *wxe_main_loop(void *vpdl)
     wxe_status = WXE_ERROR;
     erl_drv_cond_signal(wxe_status_c);
     erl_drv_mutex_unlock(wxe_status_m);
-    driver_pdl_dec_refc(pdl);
     return NULL;    
   }
 }
@@ -406,12 +401,11 @@ void WxeApp::dispatch_cb(wxList * batch, wxList * temp, ErlDrvTermData process) 
 	   node = batch->GetFirst())
 	{
 	  wxeCommand *event = (wxeCommand *)node->GetData();
-	  wxeMemEnv *memenv = getMemEnv(event->port);
 	  batch->Erase(node);
 	  if(event->caller == process ||  // Callbacks from CB process only 
 	     event->op == WXE_CB_START || // Recursive event callback allow
 	     // Allow connect_cb during CB i.e. msg from wxe_server.
-	     (memenv && event->caller == memenv->owner)) 
+	     event->caller == driver_connected(event->port)) 
 	    {
 	      switch(event->op) {
 	      case WXE_BATCH_END:
@@ -462,9 +456,6 @@ void WxeApp::dispatch_cb(wxList * batch, wxList * temp, ErlDrvTermData process) 
 
 void WxeApp::newMemEnv(wxeMetaCommand& Ecmd) {
   wxeMemEnv * memenv = new wxeMemEnv();
-
-  driver_pdl_inc_refc(Ecmd.pdl);
-
   for(int i = 0; i < global_me->next; i++) {
     memenv->ref2ptr[i] = global_me->ref2ptr[i];    
   }
@@ -585,7 +576,6 @@ void WxeApp::destroyMemEnv(wxeMetaCommand& Ecmd) {
 //   }
 //   fflush(stderr);
   delete memenv;
-  driver_pdl_dec_refc(Ecmd.pdl);
   refmap.erase((ErlDrvTermData) Ecmd.port);
 }
 
@@ -625,32 +615,27 @@ int WxeApp::getRef(void * ptr, wxeMemEnv *memenv) {
   ptrMap::iterator it = ptr2ref.find(ptr);
   if(it != ptr2ref.end()) {
     wxeRefData *refd = it->second;
-    if(refd->memenv == memenv) {
-      // Found it return
-      return refd->ref;
-    } // else
-    // Old reference to deleted object, release old and recreate in current memenv.
-    clearPtr(ptr);
-  }
-  int ref;
-  intList free = memenv->free;
+    return refd->ref;
+  } else { // New Ptr
+    int ref;
+    intList free = memenv->free;
+    
+    if(free.IsEmpty()) {
+      ref = memenv->next++;
+    } else {
+      ref = free.Pop();
+    };
+    if(ref >= memenv->max) {
+      memenv->max *= 2;
+      memenv->ref2ptr = 
+	(void **) driver_realloc(memenv->ref2ptr,memenv->max * sizeof(void*));
+    }
 
-  if(free.IsEmpty()) {
-    ref = memenv->next++;
-  } else {
-    ref = free.Pop();
-  };
-  if(ref >= memenv->max) {
-    memenv->max *= 2;
-    memenv->ref2ptr =
-      (void **) driver_realloc(memenv->ref2ptr,memenv->max * sizeof(void*));
+    memenv->ref2ptr[ref] = ptr;
+    ptr2ref[ptr] = new wxeRefData(ref, 0, false, memenv);
+    return ref;
   }
-
-  memenv->ref2ptr[ref] = ptr;
-  ptr2ref[ptr] = new wxeRefData(ref, 0, false, memenv);
-  return ref;
 }
-
 
 void WxeApp::clearPtr(void * ptr) {
   ptrMap::iterator it;
@@ -669,7 +654,7 @@ void WxeApp::clearPtr(void * ptr) {
       send_msg("debug", &msg);
     }
     
-    if(((int) refd->pid) != -1) {
+    if(refd->pid != -1) {  
       // Send terminate pid to owner
       wxeReturn rt = wxeReturn(WXE_DRV_PORT,refd->memenv->owner, false);
       rt.addAtom("_wxe_destroy_");
@@ -712,15 +697,13 @@ void WxeApp::clearPtr(void * ptr) {
 
 void * WxeApp::getPtr(char * bp, wxeMemEnv *memenv) {
   int index = *(int *) bp;
-  if(!memenv) {
+  if(!memenv) 
     throw wxe_badarg(index);
-  }
   void * temp = memenv->ref2ptr[index];
   if((index < memenv->next) && ((index == 0) || (temp > NULL)))
     return temp;
-  else {
+  else 
     throw wxe_badarg(index);
-  }
 }
 
 void WxeApp::registerPid(char * bp, ErlDrvTermData pid, wxeMemEnv * memenv) {

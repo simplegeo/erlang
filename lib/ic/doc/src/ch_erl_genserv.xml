@@ -168,18 +168,18 @@ handle_info(Info, State) ->
 %% IDL specification
 produce(State)  ->
     case catch random:uniform() of
-     {'EXIT',_} ->
-         {stop, normal, "random:uniform/0 - EXIT", State};
-     RUnif ->
+\\011{'EXIT',_} ->
+\\011    {stop, normal, "random:uniform/0 - EXIT", State};
+\\011RUnif ->
             {reply, RUnif, State}
      end.
 
 
 init(State, S1, S2, S3)  ->
     case catch random:seed(S1, S2, S3) of
-     {'EXIT',_} ->
-         {stop, normal, State};
-     _ ->
+\\011{'EXIT',_} ->
+\\011    {stop, normal, State};
+\\011_ ->
             {noreply, State}
     end.
       </code>

@@ -1,19 +1,19 @@
 /*
  * %CopyrightBegin%
- *
- * Copyright Ericsson AB 2002-2010. All Rights Reserved.
- *
+ * 
+ * Copyright Ericsson AB 2002-2009. All Rights Reserved.
+ * 
  * The contents of this file are subject to the Erlang Public License,
  * Version 1.1, (the "License"); you may not use this file except in
  * compliance with the License. You should have received a copy of the
  * Erlang Public License along with this software. If not, it can be
  * retrieved online at http://www.erlang.org/.
- *
+ * 
  * Software distributed under the License is distributed on an "AS IS"
  * basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
  * the License for the specific language governing rights and limitations
  * under the License.
- *
+ * 
  * %CopyrightEnd%
  */
 
@@ -38,6 +38,9 @@
 #include "erl_bits.h"
 #include "erl_instrument.h"
 #include "erl_mseg.h"
+#ifdef ELIB_ALLOC_IS_CLIB
+#include "erl_version.h"
+#endif
 #include "erl_monitors.h"
 #include "erl_bif_timer.h"
 #if defined(ERTS_ALC_T_DRV_SEL_D_STATE) || defined(ERTS_ALC_T_DRV_EV_D_STATE)
@@ -61,15 +64,8 @@
 
 #ifdef DEBUG
 static Uint install_debug_functions(void);
-#if 0
-#define HARD_DEBUG
-#ifdef __GNUC__
-#warning "* * * * * * * * * * * * * *"
-#warning "* HARD DEBUG IS ENABLED!  *"
-#warning "* * * * * * * * * * * * * *"
 #endif
-#endif
-#endif
+extern void elib_ensure_initialized(void);
 
 ErtsAllocatorFunctions_t erts_allctrs[ERTS_ALC_A_MAX+1];
 ErtsAllocatorInfo_t erts_allctrs_info[ERTS_ALC_A_MAX+1];
@@ -224,7 +220,7 @@ set_default_ll_alloc_opts(struct au_init *ip)
     ip->init.util.ramv		= 0;
     ip->init.util.mmsbc		= 0;
     ip->init.util.mmmbc		= 0;
-    ip->init.util.sbct		= ~((UWord) 0);
+    ip->init.util.sbct		= ~((Uint) 0);
     ip->init.util.name_prefix	= "ll_";
     ip->init.util.alloc_no	= ERTS_ALC_A_LONG_LIVED;
 #ifndef SMALL_MEMORY
@@ -395,14 +391,10 @@ refuse_af_strategy(struct au_init *init)
 
 static void init_thr_ix(int static_ixs);
 
-#ifdef HARD_DEBUG
-static void hdbg_init(void);
-#endif
-
 void
 erts_alloc_init(int *argc, char **argv, ErtsAllocInitOpts *eaiop)
 {
-    UWord extra_block_size = 0;
+    Uint extra_block_size = 0;
     int i;
     erts_alc_hndl_args_init_t init = {
 	0,
@@ -413,10 +405,6 @@ erts_alloc_init(int *argc, char **argv, ErtsAllocInitOpts *eaiop)
 	ERTS_DEFAULT_TOP_PAD,
 	ERTS_DEFAULT_ALCU_INIT
     };
-
-#ifdef HARD_DEBUG
-    hdbg_init();
-#endif
 
     erts_sys_alloc_init();
     init_thr_ix(erts_no_schedulers);
@@ -554,6 +542,7 @@ erts_alloc_init(int *argc, char **argv, ErtsAllocInitOpts *eaiop)
 
     sys_alloc_opt(SYS_ALLOC_OPT_TRIM_THRESHOLD, init.trim_threshold);
     sys_alloc_opt(SYS_ALLOC_OPT_TOP_PAD, init.top_pad);
+
     if (erts_allctrs_info[ERTS_FIX_CORE_ALLOCATOR].enabled)
 	erts_fix_core_allocator_ix = ERTS_FIX_CORE_ALLOCATOR;
     else
@@ -730,8 +719,8 @@ start_au_allocator(ErtsAlcType_t alctr_n,
 		     init->init.util.name_prefix);
 	tspec->allctr = (Allctr_t **) states;
 	states = ((char *) states) + sizeof(Allctr_t *) * (tspec->size + 1);
-	states = ((((UWord) states) & ERTS_CACHE_LINE_MASK)
-		  ? (void *) ((((UWord) states) & ~ERTS_CACHE_LINE_MASK)
+	states = ((((Uint) states) & ERTS_CACHE_LINE_MASK)
+		  ? (void *) ((((Uint) states) & ~ERTS_CACHE_LINE_MASK)
 			      + ERTS_CACHE_LINE_SIZE)
 		  : (void *) states);
 	tspec->allctr[0] = init->thr_spec > 0 ? (Allctr_t *) state : (Allctr_t *) NULL;
@@ -1616,13 +1605,12 @@ erts_memory(int *print_to_p, void *print_to_arg, void *proc, Eterm earg)
 
     }
     else {
-	DeclareTmpHeapNoproc(tmp_heap,2);
+	Eterm tmp_heap[2];
 	Eterm wanted_list;
 
 	if (is_nil(earg))
 	    return NIL;
 
-	UseTmpHeapNoproc(2);
 	if (is_not_atom(earg))
 	    wanted_list = earg;
 	else {
@@ -1702,18 +1690,15 @@ erts_memory(int *print_to_p, void *print_to_arg, void *proc, Eterm earg)
 			atoms[length] = am_maximum;
 			uintps[length++] = &size.maximum;
 		    }
-		} else {
-		    UnUseTmpHeapNoproc(2);
-		    return am_badarg;
 		}
+		else
+		    return am_badarg;
 		break;
 	    default:
-		UnUseTmpHeapNoproc(2);
 		return am_badarg;
 	    }
 	    wanted_list = CDR(list_val(wanted_list));
 	}
-	UnUseTmpHeapNoproc(2);
 	if (is_not_nil(wanted_list))
 	    return am_badarg;
     }
@@ -2300,8 +2285,8 @@ erts_allocator_info_term(void *proc, Eterm which_alloc, int only_sz)
 			SysAllocStat sas;
 			Eterm opts_am;
 			Eterm opts;
-			Eterm as[4]; /* Ok even if !HEAP_ON_C_STACK, not really heap data on stack */
-			Eterm ts[4]; /* Ok even if !HEAP_ON_C_STACK, not really heap data on stack */
+			Eterm as[4];
+			Eterm ts[4];
 			int l;
 
 			if (only_sz)
@@ -2317,8 +2302,13 @@ erts_allocator_info_term(void *proc, Eterm which_alloc, int only_sz)
 			l = 0;
 			as[l] = am_atom_put("e", 1);
 			ts[l++] = am_true;
+#ifdef ELIB_ALLOC_IS_CLIB
+			as[l] = am_atom_put("m", 1);
+			ts[l++] = am_atom_put("elib", 4);
+#else
 			as[l] = am_atom_put("m", 1);
 			ts[l++] = am_atom_put("libc", 4);
+#endif
 			if(sas.trim_threshold >= 0) {
 			    as[l] = am_atom_put("tt", 2);
 			    ts[l++] = erts_bld_uint(hpp, szp,
@@ -2472,7 +2462,11 @@ erts_allocator_info(int to, void *arg)
 		    case ERTS_ALC_A_SYSTEM: {
 			SysAllocStat sas;
 			erts_print(to, arg, "option e: true\n");
+#ifdef ELIB_ALLOC_IS_CLIB
+			erts_print(to, arg, "option m: elib\n");
+#else
 			erts_print(to, arg, "option m: libc\n");
+#endif
 			sys_alloc_stat(&sas);
 			if(sas.trim_threshold >= 0)
 			    erts_print(to, arg, "option tt: %d\n", sas.trim_threshold);
@@ -2576,8 +2570,13 @@ erts_allocator_options(void *proc)
 
 		switch (a) {
 		case ERTS_ALC_A_SYSTEM:
+#ifdef ELIB_ALLOC_IS_CLIB
+		    as[l] = am_atom_put("m", 1);
+		    ts[l++] = am_atom_put("elib", 4);
+#else
 		    as[l] = am_atom_put("m", 1);
 		    ts[l++] = am_atom_put("libc", 4);
+#endif
 		    if(sas.trim_threshold >= 0) {
 			as[l] = am_atom_put("tt", 2);
 			ts[l++] = erts_bld_uint(hpp, szp,
@@ -2648,7 +2647,23 @@ erts_allocator_options(void *proc)
 
     features = length ? erts_bld_list(hpp, szp, length, terms) : NIL;
 
-#if defined(__GLIBC__)
+#if defined(ELIB_ALLOC_IS_CLIB)
+    {
+	Eterm version;
+	int i;
+	int ver[5];
+	i = sscanf(ERLANG_VERSION,
+		   "%d.%d.%d.%d.%d",
+		   &ver[0], &ver[1], &ver[2], &ver[3], &ver[4]);
+
+	version = NIL;
+	for(i--; i >= 0; i--)
+	  version = erts_bld_cons(hpp, szp, make_small(ver[i]), version);
+
+	res = erts_bld_tuple(hpp, szp, 4,
+			     am_elib_malloc, version, features, settings);
+    }
+#elif defined(__GLIBC__)
     {
 	Eterm AM_glibc = am_atom_put("glibc", 5);
 	Eterm version;
@@ -2844,10 +2859,12 @@ unsigned long erts_alc_test(unsigned long op,
 	    break;
 	}
 	case 0xf0a:
-	    ethr_mutex_lock((ethr_mutex *) a1);
+	    if (ethr_mutex_lock((ethr_mutex *) a1) != 0)
+		ERTS_ALC_TEST_ABORT;
 	    break;
 	case 0xf0b:
-	    ethr_mutex_unlock((ethr_mutex *) a1);
+	    if (ethr_mutex_unlock((ethr_mutex *) a1) != 0)
+		ERTS_ALC_TEST_ABORT;
 	    break;
 	case 0xf0c: {
 	    ethr_cond *cnd = erts_alloc(ERTS_ALC_T_UNDEF, sizeof(ethr_cond));
@@ -2863,21 +2880,31 @@ unsigned long erts_alc_test(unsigned long op,
 	    break;
 	}
 	case 0xf0e:
-	    ethr_cond_broadcast((ethr_cond *) a1);
+	    if (ethr_cond_broadcast((ethr_cond *) a1) != 0)
+		ERTS_ALC_TEST_ABORT;
 	    break;
 	case 0xf0f: {
 	    int res;
 	    do {
 		res = ethr_cond_wait((ethr_cond *) a1, (ethr_mutex *) a2);
 	    } while (res == EINTR);
+	    if (res != 0)
+		ERTS_ALC_TEST_ABORT;
 	    break;
 	}
 	case 0xf10: {
 	    ethr_tid *tid = erts_alloc(ERTS_ALC_T_UNDEF, sizeof(ethr_tid));
+#ifdef ERTS_ENABLE_LOCK_COUNT
+	    if (erts_lcnt_thr_create(tid,
+				(void * (*)(void *)) a1,
+				(void *) a2,
+				NULL) != 0)
+#else
 	    if (ethr_thr_create(tid,
 				(void * (*)(void *)) a1,
 				(void *) a2,
 				NULL) != 0)
+#endif
 		ERTS_ALC_TEST_ABORT;
 	    return (unsigned long) tid;
 	}
@@ -2916,13 +2943,10 @@ unsigned long erts_alc_test(unsigned long op,
 #undef PRINT_OPS
 #endif
 
-#ifdef HARD_DEBUG
-#define FENCE_SZ		(4*sizeof(UWord))
-#else
-#define FENCE_SZ		(3*sizeof(UWord))
-#endif
 
-#if defined(ARCH_64)
+#define FENCE_SZ		(3*sizeof(Uint))
+
+#ifdef ARCH_64
 #define FENCE_PATTERN 0xABCDEF97ABCDEF97
 #else
 #define FENCE_PATTERN 0xABCDEF97
@@ -2932,7 +2956,7 @@ unsigned long erts_alc_test(unsigned long op,
 #define TYPE_PATTERN_SHIFT 16
 
 #define FIXED_FENCE_PATTERN_MASK \
-  (~((UWord) (TYPE_PATTERN_MASK << TYPE_PATTERN_SHIFT)))
+  (~((Uint) (TYPE_PATTERN_MASK << TYPE_PATTERN_SHIFT)))
 #define FIXED_FENCE_PATTERN \
   (FENCE_PATTERN & FIXED_FENCE_PATTERN_MASK)
 
@@ -2942,170 +2966,22 @@ unsigned long erts_alc_test(unsigned long op,
 #define GET_TYPE_OF_PATTERN(P) \
   (((P) >> TYPE_PATTERN_SHIFT) & TYPE_PATTERN_MASK)
 
-#ifdef HARD_DEBUG
-
-#define ERL_ALC_HDBG_MAX_MBLK 100000
-#define ERTS_ALC_O_CHECK -1
-
-typedef struct hdbg_mblk_ hdbg_mblk;
-struct hdbg_mblk_ {
-    hdbg_mblk *next;
-    hdbg_mblk *prev;
-    void *p;
-    Uint s;
-    ErtsAlcType_t n;
-};
-
-static hdbg_mblk hdbg_mblks[ERL_ALC_HDBG_MAX_MBLK];
-
-static hdbg_mblk *free_hdbg_mblks;
-static hdbg_mblk *used_hdbg_mblks;
-static erts_mtx_t hdbg_mblk_mtx;
-
-static void
-hdbg_init(void)
-{
-    int i;
-    for (i = 0; i < ERL_ALC_HDBG_MAX_MBLK-1; i++)
-	hdbg_mblks[i].next = &hdbg_mblks[i+1];
-    hdbg_mblks[ERL_ALC_HDBG_MAX_MBLK-1].next = NULL;
-    free_hdbg_mblks = &hdbg_mblks[0];
-    used_hdbg_mblks = NULL;
-    erts_mtx_init(&hdbg_mblk_mtx, "erts_alloc_hard_debug");
-}
-
-static void *check_memory_fence(void *ptr,
-				Uint *size,
-				ErtsAlcType_t n,
-				int func);
-void erts_hdbg_chk_blks(void);
-
-void
-erts_hdbg_chk_blks(void)
-{
-    hdbg_mblk *mblk;
-
-    erts_mtx_lock(&hdbg_mblk_mtx);
-    for (mblk = used_hdbg_mblks; mblk; mblk = mblk->next) {
-	Uint sz;
-	check_memory_fence(mblk->p, &sz, mblk->n, ERTS_ALC_O_CHECK);
-	ASSERT(sz == mblk->s);
-    }
-    erts_mtx_unlock(&hdbg_mblk_mtx);
-}
-
-static hdbg_mblk *
-hdbg_alloc(void *p, Uint s, ErtsAlcType_t n)
-{
-    hdbg_mblk *mblk;
-
-    erts_mtx_lock(&hdbg_mblk_mtx);
-    mblk = free_hdbg_mblks;
-    if (!mblk) {
-	erts_fprintf(stderr,
-		     "Ran out of debug blocks; please increase "
-		     "ERL_ALC_HDBG_MAX_MBLK=%d and recompile!\n",
-		     ERL_ALC_HDBG_MAX_MBLK);
-	abort();
-    }
-    free_hdbg_mblks = mblk->next;
-
-    mblk->p = p;
-    mblk->s = s;
-    mblk->n = n;
-
-    mblk->next = used_hdbg_mblks;
-    mblk->prev = NULL;
-    if (used_hdbg_mblks)
-	used_hdbg_mblks->prev = mblk;
-    used_hdbg_mblks = mblk;
-    erts_mtx_unlock(&hdbg_mblk_mtx);
-    return (void *) mblk;
-}
-
-static void
-hdbg_free(hdbg_mblk *mblk)
-{
-    erts_mtx_lock(&hdbg_mblk_mtx);
-    if (mblk->next)
-	mblk->next->prev = mblk->prev;
-    if (mblk->prev)
-	mblk->prev->next = mblk->next;
-    else
-	used_hdbg_mblks = mblk->next;
-
-    mblk->next = free_hdbg_mblks;
-    free_hdbg_mblks = mblk;
-    erts_mtx_unlock(&hdbg_mblk_mtx);
-}
-
-#endif
-
-#ifdef  ERTS_ALLOC_UTIL_HARD_DEBUG
-static void *check_memory_fence(void *ptr, Uint *size, ErtsAlcType_t n, int func);
-
-void check_allocated_block( Uint type, void *blk)
-{
-    Uint dummy;
-    check_memory_fence(blk, &dummy, ERTS_ALC_T2N(type), ERTS_ALC_O_FREE);
-}
-
-void check_allocators(void)
-{
-    int i;
-    if (!erts_initialized)
-	return;
-    for (i = ERTS_ALC_A_MIN; i <= ERTS_ALC_A_MAX; ++i) {
-	if (erts_allctrs_info[i].alloc_util) {
-	    ErtsAllocatorFunctions_t *real_af = (ErtsAllocatorFunctions_t *) erts_allctrs[i].extra;
-	    Allctr_t *allctr = real_af->extra;
-	    Carrier_t *ct;
-#ifdef USE_THREADS
-	if (allctr->thread_safe)
-	    erts_mtx_lock(&allctr->mutex);
-#endif
-
-	    if (allctr->check_mbc) {
-		for (ct = allctr->mbc_list.first; ct; ct = ct->next) {
-		    fprintf(stderr,"Checking allocator %d\r\n",i);
-		    allctr->check_mbc(allctr,ct);
-		}
-	    }
-#ifdef USE_THREADS
-	if (allctr->thread_safe)
-	    erts_mtx_unlock(&allctr->mutex);
-#endif
-	}
-    }
-}
-#endif
 
 static void *
 set_memory_fence(void *ptr, Uint sz, ErtsAlcType_t n)
 {
-    UWord *ui_ptr;
-    UWord pattern;
-#ifdef HARD_DEBUG
-    hdbg_mblk **mblkpp;
-#endif
+    Uint *ui_ptr;
+    Uint pattern;
 
     if (!ptr)
 	return NULL;
 
-    ui_ptr = (UWord *) ptr;
+    ui_ptr = (Uint *) ptr;
     pattern = MK_PATTERN(n);
-
-#ifdef HARD_DEBUG
-    mblkpp = (hdbg_mblk **) ui_ptr++;
-#endif
-
+    
     *(ui_ptr++) = sz;
     *(ui_ptr++) = pattern;
-    memcpy((void *) (((char *) ui_ptr)+sz), (void *) &pattern, sizeof(UWord));
-
-#ifdef HARD_DEBUG
-    *mblkpp = hdbg_alloc((void *) ui_ptr, sz, n);
-#endif
+    memcpy((void *) (((char *) ui_ptr)+sz), (void *) &pattern, sizeof(Uint));
 
     return (void *) ui_ptr;
 }
@@ -3115,22 +2991,16 @@ check_memory_fence(void *ptr, Uint *size, ErtsAlcType_t n, int func)
 {
     Uint sz;
     Uint found_type;
-    UWord pre_pattern;
-    UWord post_pattern;
-    UWord *ui_ptr;
-#ifdef HARD_DEBUG
-    hdbg_mblk *mblk;
-#endif
+    Uint pre_pattern;
+    Uint post_pattern;
+    Uint *ui_ptr;
 
     if (!ptr)
 	return NULL;
 
-    ui_ptr = (UWord *) ptr;
+    ui_ptr = (Uint *) ptr;
     pre_pattern = *(--ui_ptr);
     *size = sz = *(--ui_ptr);
-#ifdef HARD_DEBUG
-    mblk = (hdbg_mblk *) *(--ui_ptr);
-#endif
 
     found_type = GET_TYPE_OF_PATTERN(pre_pattern);
     if (pre_pattern != MK_PATTERN(n)) {
@@ -3141,7 +3011,7 @@ check_memory_fence(void *ptr, Uint *size, ErtsAlcType_t n, int func)
 		     (unsigned long) ptr);
     }
 
-    memcpy((void *) &post_pattern, (void *) (((char *)ptr)+sz), sizeof(UWord));
+    memcpy((void *) &post_pattern, (void *) (((char *)ptr)+sz), sizeof(Uint));
 
     if (post_pattern != MK_PATTERN(n)
 	|| pre_pattern != post_pattern) {
@@ -3186,17 +3056,6 @@ check_memory_fence(void *ptr, Uint *size, ErtsAlcType_t n, int func)
 		 (unsigned long) ptr, (unsigned long) sz, ftype, op_str, otype);
     }
 
-#ifdef HARD_DEBUG
-    switch (func) {
-    case ERTS_ALC_O_REALLOC:
-    case ERTS_ALC_O_FREE:
-	hdbg_free(mblk);
-	break;
-    default:
-	break;
-    }
-#endif
-
     return (void *) ui_ptr;
 }
 
@@ -3208,10 +3067,6 @@ debug_alloc(ErtsAlcType_t n, void *extra, Uint size)
     ErtsAllocatorFunctions_t *real_af = (ErtsAllocatorFunctions_t *) extra;
     Uint dsize;
     void *res;
-
-#ifdef HARD_DEBUG
-    erts_hdbg_chk_blks();
-#endif
 
     ASSERT(ERTS_ALC_N_MIN <= n && n <= ERTS_ALC_N_MAX);
     dsize = size + FENCE_SZ;
@@ -3242,17 +3097,13 @@ debug_realloc(ErtsAlcType_t n, void *extra, void *ptr, Uint size)
     dsize = size + FENCE_SZ;
     dptr = check_memory_fence(ptr, &old_size, n, ERTS_ALC_O_REALLOC);
 
-#ifdef HARD_DEBUG
-    erts_hdbg_chk_blks();
-#endif
-
     if (old_size > size)
 	sys_memset((void *) (((char *) ptr) + size),
 		   0xf,
 		   sizeof(Uint) + old_size - size);
 
     res = (*real_af->realloc)(n, real_af->extra, dptr, dsize);
-
+    
     res = set_memory_fence(res, size, n);
 
 #ifdef PRINT_OPS
@@ -3280,10 +3131,6 @@ debug_free(ErtsAlcType_t n, void *extra, void *ptr)
 
 #ifdef PRINT_OPS
     fprintf(stderr, "free(%s, 0x%lx)\r\n", ERTS_ALC_N2TD(n), (Uint) ptr);
-#endif
-
-#ifdef HARD_DEBUG
-    erts_hdbg_chk_blks();
 #endif
 
 }

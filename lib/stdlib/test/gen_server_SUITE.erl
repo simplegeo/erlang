@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 -module(gen_server_SUITE).
@@ -30,8 +30,7 @@
 	 call_remote_n1/1, call_remote_n2/1, call_remote_n3/1, spec_init/1,
 	 spec_init_local_registered_parent/1, 
 	 spec_init_global_registered_parent/1,
-	 otp_5854/1, hibernate/1, otp_7669/1, call_format_status/1,
-	 error_format_status/1, call_with_huge_message_queue/1
+	 otp_5854/1, hibernate/1, otp_7669/1
 	]).
 
 % spawn export
@@ -43,7 +42,7 @@
 
 % The gen_server behaviour
 -export([init/1, handle_call/3, handle_cast/2,
-	 handle_info/2, terminate/2, format_status/2]).
+	 handle_info/2, terminate/2]).
 
 all(suite) ->
     [start, crash, call, cast, cast_fast, info,
@@ -52,9 +51,7 @@ all(suite) ->
      call_remote_n2, call_remote_n3, spec_init,
      spec_init_local_registered_parent,
      spec_init_global_registered_parent,
-     otp_5854, hibernate, otp_7669,
-     call_format_status, error_format_status,
-     call_with_huge_message_queue].
+     otp_5854,hibernate,otp_7669].
 
 -define(default_timeout, ?t:minutes(1)).
  
@@ -854,7 +851,7 @@ otp_5854(Config) when is_list(Config) ->
     ok.
 
 %% If initialization fails (with ignore or {stop,Reason}),
-%% make sure that the process is not registered when gen_server:start()
+%% make sure that the process is not registered when gen_sever:start()
 %% returns.
 
 otp_7669(Config) when is_list(Config) ->
@@ -889,114 +886,6 @@ do_otp_7669_stop() ->
     ?line {error,stopped} = gen_server:start({global,?MODULE},
 					     ?MODULE, stop, []),
     ?line undefined = global:whereis_name(?MODULE).
-
-%% Verify that sys:get_status correctly calls our format_status/2 fun
-%%
-call_format_status(suite) ->
-    [];
-call_format_status(doc) ->
-    ["Test that sys:get_status/1,2 calls format_status/2"];
-call_format_status(Config) when is_list(Config) ->
-    ?line {ok, Pid} = gen_server:start_link({local, call_format_status},
-					    ?MODULE, [], []),
-    ?line Status1 = sys:get_status(call_format_status),
-    ?line {status, Pid, _Mod, [_PDict, running, _Parent, _, Data1]} = Status1,
-    ?line [format_status_called | _] = lists:reverse(Data1),
-    ?line Status2 = sys:get_status(call_format_status, 5000),
-    ?line {status, Pid, _Mod, [_PDict, running, _Parent, _, Data2]} = Status2,
-    ?line [format_status_called | _] = lists:reverse(Data2),
-
-    %% check that format_status can handle a name being a pid (atom is
-    %% already checked by the previous test)
-    ?line {ok, Pid3} = gen_server:start_link(gen_server_SUITE, [], []),
-    ?line Status3 = sys:get_status(Pid3),
-    ?line {status, Pid3, _Mod, [_PDict3, running, _Parent, _, Data3]} = Status3,
-    ?line [format_status_called | _] = lists:reverse(Data3),
-
-    %% check that format_status can handle a name being a term other than a
-    %% pid or atom
-    GlobalName1 = {global, "CallFormatStatus"},
-    ?line {ok, Pid4} = gen_server:start_link(GlobalName1,
-					     gen_server_SUITE, [], []),
-    ?line Status4 = sys:get_status(Pid4),
-    ?line {status, Pid4, _Mod, [_PDict4, running, _Parent, _, Data4]} = Status4,
-    ?line [format_status_called | _] = lists:reverse(Data4),
-    GlobalName2 = {global, {name, "term"}},
-    ?line {ok, Pid5} = gen_server:start_link(GlobalName2,
-					     gen_server_SUITE, [], []),
-    ?line Status5 = sys:get_status(GlobalName2),
-    ?line {status, Pid5, _Mod, [_PDict5, running, _Parent, _, Data5]} = Status5,
-    ?line [format_status_called | _] = lists:reverse(Data5),
-    ok.
-
-%% Verify that error termination correctly calls our format_status/2 fun
-%%
-error_format_status(suite) ->
-    [];
-error_format_status(doc) ->
-    ["Test that an error termination calls format_status/2"];
-error_format_status(Config) when is_list(Config) ->
-    ?line error_logger_forwarder:register(),
-    OldFl = process_flag(trap_exit, true),
-    State = "called format_status",
-    ?line {ok, Pid} = gen_server:start_link(?MODULE, {state, State}, []),
-    ?line {'EXIT',{crashed,_}} = (catch gen_server:call(Pid, crash)),
-    receive
-	{'EXIT', Pid, crashed} ->
-	    ok
-    end,
-    receive
-	{error,_GroupLeader,{Pid,
-			     "** Generic server"++_,
-			     [Pid,crash,State,crashed]}} ->
-	    ok;
-	Other ->
-	    ?line io:format("Unexpected: ~p", [Other]),
-	    ?line ?t:fail()
-    end,
-    ?t:messages_get(),
-    process_flag(trap_exit, OldFl),
-    ok.
-
-%% Test that the time for a huge message queue is not
-%% significantly slower than with an empty message queue.
-call_with_huge_message_queue(Config) when is_list(Config) ->
-    ?line Pid = spawn_link(fun echo_loop/0),
-
-    ?line {Time,ok} = tc(fun() -> calls(10, Pid) end),
-
-    ?line [self() ! {msg,N} || N <- lists:seq(1, 500000)],
-    erlang:garbage_collect(),
-    ?line {NewTime,ok} = tc(fun() -> calls(10, Pid) end),
-    io:format("Time for empty message queue: ~p", [Time]),
-    io:format("Time for huge message queue: ~p", [NewTime]),
-
-    case (NewTime+1) / (Time+1) of
-	Q when Q < 10 ->
-	    ok;
-	Q ->
-	    io:format("Q = ~p", [Q]),
-	    ?line ?t:fail()
-    end,
-    ok.
-
-calls(0, _) -> ok;
-calls(N, Pid) ->
-    {ultimate_answer,42} = call(Pid, {ultimate_answer,42}),
-    calls(N-1, Pid).
-
-call(Pid, Msg) ->
-    gen_server:call(Pid, Msg, infinity).
-
-tc(Fun) ->
-    timer:tc(erlang, apply, [Fun,[]]).
-
-echo_loop() ->
-    receive
-	{'$gen_call',{Pid,Ref},Msg} ->
-	    Pid ! {Ref,Msg},
-	    echo_loop()
-    end.
 
 %%--------------------------------------------------------------
 %% Help functions to spec_init_*
@@ -1157,7 +1046,4 @@ terminate({From, stopped_info}, _State) ->
 terminate(_Reason, _State) ->
     ok.
 
-format_status(terminate, [_PDict, State]) ->
-    State;
-format_status(normal, [_PDict, _State]) ->
-    format_status_called.
+

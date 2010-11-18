@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 1996-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 1996-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 -module(code).
@@ -63,10 +63,8 @@
 	 which/1,
 	 where_is_file/1,
 	 where_is_file/2,
-	 set_primary_archive/3,
+	 set_primary_archive/2,
 	 clash/0]).
-
--export_type([load_error_rsn/0, load_ret/0]).
 
 -include_lib("kernel/include/file.hrl").
 
@@ -103,7 +101,7 @@
 %% unstick_dir(Dir)             -> ok | error
 %% is_sticky(Module)            -> true | false
 %% which(Module)                -> Filename
-%% set_primary_archive((FileName, Bin, FileInfo)  -> ok | {error, Reason}
+%% set_primary_archive((FileName, Bin)  -> ok | {error, Reason}
 %% clash() ->                   -> print out
 
 %%----------------------------------------------------------------------------
@@ -304,8 +302,6 @@ do_start(Flags) ->
 			true ->
 			    ok
 		    end,
-		    % Quietly load the native code for all modules loaded so far.
-		    catch load_native_code_for_all_loaded(),
 		    Ok2;
 		Other ->
 		    Other
@@ -424,15 +420,11 @@ where_is_file(Path, File) when is_list(Path), is_list(File) ->
 	    which(File, ".", Path)
     end.
 
--spec set_primary_archive(ArchiveFile :: file:filename(),
-			  ArchiveBin :: binary(),
-			  FileInfo :: #file_info{})
-			 -> 'ok' | {'error', atom()}.
+-spec set_primary_archive(ArchiveFile :: file:filename(), ArchiveBin :: binary()) -> 'ok' | {'error', atom()}.
 
-set_primary_archive(ArchiveFile0, ArchiveBin, #file_info{} = FileInfo)
-  when is_list(ArchiveFile0), is_binary(ArchiveBin) ->
+set_primary_archive(ArchiveFile0, ArchiveBin) when is_list(ArchiveFile0), is_binary(ArchiveBin) ->
     ArchiveFile = filename:absname(ArchiveFile0),
-    case call({set_primary_archive, ArchiveFile, ArchiveBin, FileInfo}) of
+    case call({set_primary_archive, ArchiveFile, ArchiveBin}) of
 	{ok, []} ->
 	    ok;
 	{ok, _Mode, Ebins} ->
@@ -469,15 +461,14 @@ search([{Dir, File} | Tail]) ->
 
 build([]) -> [];
 build([Dir|Tail]) ->
-    Files = filter(objfile_extension(), Dir,
-		   erl_prim_loader:list_dir(Dir)),
+    Files = filter(objfile_extension(), Dir, file:list_dir(Dir)),
     [decorate(Files, Dir) | build(Tail)].
 
 decorate([], _) -> [];
 decorate([File|Tail], Dir) ->
     [{Dir, File} | decorate(Tail, Dir)].
 
-filter(_Ext, Dir, error) ->
+filter(_Ext, Dir, {error,_}) ->     
     io:format("** Bad path can't read ~s~n", [Dir]), [];
 filter(Ext, _, {ok,Files}) -> 
     filter2(Ext, length(Ext), Files).
@@ -498,19 +489,3 @@ has_ext(Ext, Extlen,File) ->
 
 to_path(X) ->
     filename:join(packages:split(X)).
-
--spec load_native_code_for_all_loaded() -> ok.
-load_native_code_for_all_loaded() ->
-    Architecture = erlang:system_info(hipe_architecture),
-    ChunkName = hipe_unified_loader:chunk_name(Architecture),
-    lists:foreach(fun({Module, BeamFilename}) ->
-        case code:is_module_native(Module) of
-            false ->
-                case beam_lib:chunks(BeamFilename, [ChunkName]) of
-                    {ok,{_,[{_,Bin}]}} when is_binary(Bin) ->
-                        load_native_partial(Module, Bin);
-                    {error, beam_lib, _} -> ok
-                end;
-            true -> ok
-        end
-    end, all_loaded()).

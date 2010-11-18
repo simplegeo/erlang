@@ -1,4 +1,4 @@
-#if defined(VXWORKS)
+#if defined(VXWORKS) || defined(__OSE__)
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -1,26 +1,28 @@
 %% -*- erlang-indent-level: 2 -*-
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2001-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2001-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 %%=======================================================================
 %% File        : hipe_beam_to_icode.erl
 %% Author      : Kostis Sagonas
 %% Description : Translates symbolic BEAM code to Icode
+%%=======================================================================
+%% $Id$
 %%=======================================================================
 %% @doc
 %%    This file translates symbolic BEAM code to Icode which is HiPE's
@@ -429,11 +431,6 @@ trans_fun([{wait_timeout,{_,Lbl},Reg}|Instructions], Env) ->
   SuspTmout = hipe_icode:mk_if(suspend_msg_timeout,[],
 			       map_label(Lbl),hipe_icode:label_name(DoneLbl)),
   Movs ++ [SetTmout, SuspTmout, DoneLbl | trans_fun(Instructions,Env1)];
-%%--- recv_mark/1 & recv_set/1 ---  XXX: Handle better??
-trans_fun([{recv_mark,{f,_}}|Instructions], Env) ->
-  trans_fun(Instructions,Env);
-trans_fun([{recv_set,{f,_}}|Instructions], Env) ->
-  trans_fun(Instructions,Env);
 %%--------------------------------------------------------------------
 %%--- Translation of arithmetics {bif,ArithOp, ...} ---
 %%--------------------------------------------------------------------
@@ -895,6 +892,11 @@ trans_fun([{bs_init_bits,{f,Lbl},Size,_Words,_LiveRegs,{field_flags,Flags0},X}|
     end,
   trans_bin_call({hipe_bs_primop,Name}, Lbl, Args, [Dst, Base, Offset],
 		 Base, Offset, Env, Instructions);
+trans_fun([{bs_bits_to_bytes2, Bits, Bytes}|Instructions], Env) ->
+  Src = trans_arg(Bits),
+  Dst = mk_var(Bytes),
+  [hipe_icode:mk_primop([Dst], 'bsl', [Src, hipe_icode:mk_const(3)])|
+   trans_fun(Instructions,Env)];
 trans_fun([{bs_add, {f,Lbl}, [Old,New,Unit], Res}|Instructions], Env) ->
   Dst = mk_var(Res),
   Temp = mk_var(new),
@@ -1123,6 +1125,13 @@ trans_fun([{gc_bif,Name,Fail,_Live,SrcRs,DstR}|Instructions], Env) ->
       %% A guard BIF.
       trans_fun([{bif,Name,Fail,SrcRs,DstR}|Instructions], Env)
   end;
+%%--------------------------------------------------------------------
+%% Instruction for constant pool added in February 2007 for R11B-4.
+%%--------------------------------------------------------------------
+trans_fun([{put_literal,{literal,Literal},DstR}|Instructions], Env) ->
+  DstV = mk_var(DstR),
+  Move = hipe_icode:mk_move(DstV, hipe_icode:mk_const(Literal)),
+  [Move | trans_fun(Instructions, Env)];
 %%--------------------------------------------------------------------
 %% New test instruction added in July 2007 for R12.
 %%--------------------------------------------------------------------

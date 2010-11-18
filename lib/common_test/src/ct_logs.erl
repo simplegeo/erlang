@@ -1,19 +1,19 @@
 %%
 %% %CopyrightBegin%
-%%
-%% Copyright Ericsson AB 2003-2010. All Rights Reserved.
-%%
+%% 
+%% Copyright Ericsson AB 2003-2009. All Rights Reserved.
+%% 
 %% The contents of this file are subject to the Erlang Public License,
 %% Version 1.1, (the "License"); you may not use this file except in
 %% compliance with the License. You should have received a copy of the
 %% Erlang Public License along with this software. If not, it can be
 %% retrieved online at http://www.erlang.org/.
-%%
+%% 
 %% Software distributed under the License is distributed on an "AS IS"
 %% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See
 %% the License for the specific language governing rights and limitations
 %% under the License.
-%%
+%% 
 %% %CopyrightEnd%
 %%
 
@@ -36,8 +36,7 @@
 -export([make_all_suites_index/1,make_all_runs_index/1]).
 
 %% Logging stuff directly from testcase
--export([tc_log/3,tc_print/3,tc_pal/3,
-	 basic_html/0]).
+-export([tc_log/3,tc_print/3,tc_pal/3]).
 
 %% Simulate logger process for use without ct environment running
 -export([simulate/0]).
@@ -58,7 +57,7 @@
 -define(table_color2,"#E4F0FE").
 -define(table_color3,"#F0F8FF").
 
--define(testname_width, 60).
+-define(testname_width, 70).
 
 -define(abs(Name), filename:absname(Name)).
 
@@ -81,7 +80,7 @@ init(Mode) ->
     MRef = erlang:monitor(process,Pid),
     receive 
 	{started,Pid,Result} -> 
-	    erlang:demonitor(MRef, [flush]),
+	    erlang:demonitor(MRef),
 	    Result;
 	{'DOWN',MRef,process,_,Reason} ->
 	    exit({could_not_start_process,?MODULE,Reason})
@@ -164,7 +163,7 @@ call(Msg) ->
 	    ?MODULE ! {Msg,{self(),Ref}},
 	    receive
 		{Ref, Result} -> 
-		    erlang:demonitor(MRef, [flush]),
+		    erlang:demonitor(MRef),
 		    Result;
 		{'DOWN',MRef,process,_,Reason}  -> 
 		    {error,{process_down,?MODULE,Reason}}
@@ -384,14 +383,11 @@ maybe_log_timestamp() ->
 		  [{"<i>~s</i>",[log_timestamp({MS,S,US})]}]})
     end.
 
-log_timestamp({MS,S,US}) ->
-    put(log_timestamp, {MS,S,US}),
-    {{Year,Month,Day}, {Hour,Min,Sec}} =
-        calendar:now_to_local_time({MS,S,US}),
-    MilliSec = trunc(US/1000),
-    lists:flatten(io_lib:format("~4.10.0B-~2.10.0B-~2.10.0B "
-                                "~2.10.0B:~2.10.0B:~2.10.0B.~3.10.0B",
-                                [Year,Month,Day,Hour,Min,Sec,MilliSec])).
+log_timestamp(Now) ->
+    put(log_timestamp,Now),
+    {_,{H,M,S}} = calendar:now_to_local_time(Now),
+    lists:flatten(io_lib:format("~2.2.0w:~2.2.0w:~2.2.0w",
+				[H,M,S])).
 
 %%%-----------------------------------------------------------------
 %%% The logger server
@@ -464,11 +460,9 @@ logger_loop(State) ->
 					    {'EXIT',_Reason} ->
 						Fd = State#logger_state.ct_log_fd,
 						io:format(Fd, 
-							  "Logging fails! "
-							  "Str: ~p, Args: ~p~n",
+							  "Logging fails! Str: ~p, Args: ~p~n",
 							  [Str,Args]),
-						%% stop the testcase, we need
-						%% to see the fault
+						%% stop the testcase, we need to see the fault
 						exit(Pid,logging_failed),
 						ok;
 					    IoStr when IoList == [] ->
@@ -511,7 +505,7 @@ logger_loop(State) ->
 	    logger_loop(State);
 	{set_stylesheet,TC,SSFile} ->
 	    Fd = State#logger_state.ct_log_fd,
-	    io:format(Fd, "~p loading external style sheet: ~s~n", [TC,SSFile]),
+	    io:format(Fd, "~p uses external style sheet: ~s~n", [TC,SSFile]),
 	    logger_loop(State#logger_state{stylesheet=SSFile});
 	{clear_stylesheet,_} when State#logger_state.stylesheet == undefined ->
 	    logger_loop(State);
@@ -722,7 +716,7 @@ make_last_run_index1(StartTime,IndexName) ->
 		[Log];
 	    Logs ->
 		case read_totals_file(?totals_name) of
-		    {_Node,_Lbl,Logs0,_Totals} ->
+		    {_Node,Logs0,_Totals} ->
 			insert_dirs(Logs,Logs0);
 		    _ ->
 			%% someone deleted the totals file!?
@@ -734,15 +728,10 @@ make_last_run_index1(StartTime,IndexName) ->
 	    {ok,Bin} -> binary_to_term(Bin);
 	    _ -> []
 	end,
-    Label = case application:get_env(common_test, test_label) of
-		{ok,Lbl} -> Lbl;
-		_ -> undefined
-	    end,
-    {ok,Index0,Totals} = make_last_run_index(Logs1,
-					     index_header(Label,StartTime),
+    {ok,Index0,Totals} = make_last_run_index(Logs1, index_header(StartTime),
 					     0, 0, 0, 0, 0, Missing),
     %% write current Totals to file, later to be used in all_runs log
-    write_totals_file(?totals_name,Label,Logs1,Totals),
+    write_totals_file(?totals_name,Logs1,Totals),
     Index = [Index0|index_footer()],
     case force_write_file(IndexName, Index) of
 	ok ->
@@ -772,7 +761,7 @@ make_last_run_index([Name|Rest], Result, TotSucc, TotFail, UserSkip, AutoSkip,
 				TotNotBuilt, Missing);
 	LastLogDir ->
 	    SuiteName = filename:rootname(filename:basename(Name)),
-	    case make_one_index_entry(SuiteName, LastLogDir, "-", false, Missing) of
+	    case make_one_index_entry(SuiteName, LastLogDir, false, Missing) of
 		{Result1,Succ,Fail,USkip,ASkip,NotBuilt} ->
 		    %% for backwards compatibility
 		    AutoSkip1 = case catch AutoSkip+ASkip of
@@ -791,18 +780,18 @@ make_last_run_index([], Result, TotSucc, TotFail, UserSkip, AutoSkip, TotNotBuil
     {ok, [Result|total_row(TotSucc, TotFail, UserSkip, AutoSkip, TotNotBuilt, false)],
      {TotSucc,TotFail,UserSkip,AutoSkip,TotNotBuilt}}.
 
-make_one_index_entry(SuiteName, LogDir, Label, All, Missing) ->
+make_one_index_entry(SuiteName, LogDir, All, Missing) ->
     case count_cases(LogDir) of
 	{Succ,Fail,UserSkip,AutoSkip} ->
 	    NotBuilt = not_built(SuiteName, LogDir, All, Missing),
-	    NewResult = make_one_index_entry1(SuiteName, LogDir, Label, Succ, Fail,
+	    NewResult = make_one_index_entry1(SuiteName, LogDir, Succ, Fail, 
 					      UserSkip, AutoSkip, NotBuilt, All),
 	    {NewResult,Succ,Fail,UserSkip,AutoSkip,NotBuilt};
 	error ->
 	    error
     end.
 
-make_one_index_entry1(SuiteName, Link, Label, Success, Fail, UserSkip, AutoSkip,
+make_one_index_entry1(SuiteName, Link, Success, Fail, UserSkip, AutoSkip, 
 		      NotBuilt, All) ->
     LogFile = filename:join(Link, ?suitelog_name ++ ".html"),
     CrashDumpName = SuiteName ++ "_erl_crash.dump",
@@ -814,7 +803,7 @@ make_one_index_entry1(SuiteName, Link, Label, Success, Fail, UserSkip, AutoSkip,
 	    false ->
 		""
 	end,
-    {Lbl,Timestamp,Node,AllInfo} =
+    {Timestamp,Node,AllInfo} = 
 	case All of
 	    {true,OldRuns} -> 
 		[_Prefix,NodeOrDate|_] = string:tokens(Link,"."),
@@ -822,21 +811,20 @@ make_one_index_entry1(SuiteName, Link, Label, Success, Fail, UserSkip, AutoSkip,
 			    0 -> "-";
 			    _ -> NodeOrDate
 			end,
-		N = ["<TD ALIGN=right><FONT SIZE=-1>",Node1,"</FONT></TD>\n"],
+		N = ["<TD ALIGN=right>",Node1,"</TD>\n"],
 		CtRunDir = filename:dirname(filename:dirname(Link)),
-		L = ["<TD ALIGN=center><FONT SIZE=-1><B>",Label,"</FONT></B></TD>\n"],
-		T = ["<TD><FONT SIZE=-1>",timestamp(CtRunDir),"</FONT></TD>\n"],
+		T = ["<TD>",timestamp(CtRunDir),"</TD>\n"],
 		CtLogFile = filename:join(CtRunDir,?ct_log_name),
 		OldRunsLink = 
 		    case OldRuns of
 			[] -> "none";
 			_ ->  "<A HREF=\""++?all_runs_name++"\">Old Runs</A>"
 		    end,
-		A=["<TD><FONT SIZE=-1><A HREF=\"",CtLogFile,"\">CT Log</A></FONT></TD>\n",
-		   "<TD><FONT SIZE=-1>",OldRunsLink,"</FONT></TD>\n"],
-		{L,T,N,A};
+		A=["<TD><A HREF=\"",CtLogFile,"\">CT Log</A></TD>\n",
+		   "<TD>",OldRunsLink,"</TD>\n"],
+		{T,N,A};
 	    false ->
-		{"","","",""}
+		{"","",""}
 	end,
     NotBuiltStr =
 	if NotBuilt == 0 ->
@@ -863,8 +851,7 @@ make_one_index_entry1(SuiteName, Link, Label, Success, Fail, UserSkip, AutoSkip,
 		{UserSkip+AutoSkip,integer_to_list(UserSkip),ASStr}
 	end,
     ["<TR valign=top>\n",
-     "<TD><FONT SIZE=-1><A HREF=\"",LogFile,"\">",SuiteName,"</A>",CrashDumpLink,"</FONT></TD>\n",
-     Lbl,
+     "<TD><A HREF=\"",LogFile,"\">",SuiteName,"</A>",CrashDumpLink,"</TD>\n",
      Timestamp,
      "<TD ALIGN=right>",integer_to_list(Success),"</TD>\n",
      "<TD ALIGN=right>",FailStr,"</TD>\n",
@@ -875,14 +862,12 @@ make_one_index_entry1(SuiteName, Link, Label, Success, Fail, UserSkip, AutoSkip,
      AllInfo,
      "</TR>\n"].
 total_row(Success, Fail, UserSkip, AutoSkip, NotBuilt, All) ->
-    {Label,TimestampCell,AllInfo} =
+    {TimestampCell,AllInfo} = 
 	case All of
-	    true ->
-		{"<TD>&nbsp;</TD>\n",
-		 "<TD>&nbsp;</TD>\n",
-		 "<TD>&nbsp;</TD>\n<TD>&nbsp;</TD>\n"};
+	    true -> 
+		{"<TD>&nbsp;</TD>\n","<TD>&nbsp;</TD>\n<TD>&nbsp;</TD>\n"};
 	    false ->
-		{"","",""}
+		{"",""}
 	end,
 
     {AllSkip,UserSkipStr,AutoSkipStr} =
@@ -892,7 +877,6 @@ total_row(Success, Fail, UserSkip, AutoSkip, NotBuilt, All) ->
 	end,
     ["<TR valign=top>\n",
      "<TD><B>Total</B></TD>",
-     Label,
      TimestampCell,
      "<TD ALIGN=right><B>",integer_to_list(Success),"<B></TD>\n",
      "<TD ALIGN=right><B>",integer_to_list(Fail),"<B></TD>\n",
@@ -953,21 +937,13 @@ term_to_text(Term) ->
 
 %%% Headers and footers.
 
-index_header(Label, StartTime) ->
-    Head =
-	case Label of
-	    undefined ->
-		header("Test Results", format_time(StartTime));
-	    _ ->
-		header("Test Results for \"" ++ Label ++ "\"",
-		       format_time(StartTime))
-	end,
-    [Head |
+index_header(StartTime) ->
+    [header("Test Results " ++ format_time(StartTime)) | 
      ["<CENTER>\n",
       "<P><A HREF=\"",?ct_log_name,"\">Common Test Framework Log</A></P>",
       "<TABLE border=\"3\" cellpadding=\"5\" "
       "BGCOLOR=\"",?table_color3,"\">\n"
-      "<th><B>Test Name</B></th>\n",
+      "<th><B>Name</B></th>\n",
             "<th><font color=\"",?table_color3,"\">_</font>Ok"
           "<font color=\"",?table_color3,"\">_</font></th>\n"
       "<th>Failed</th>\n",
@@ -976,17 +952,13 @@ index_header(Label, StartTime) ->
       "\n"]].
 
 all_suites_index_header() ->
-    {ok,Cwd} = file:get_cwd(),
-    LogDir = filename:basename(Cwd),
-    AllRuns = "All test runs in \"" ++ LogDir ++ "\"",
     [header("Test Results") | 
      ["<CENTER>\n",
-      "<A HREF=\"",?all_runs_name,"\">",AllRuns,"</A>\n",
+      "<A HREF=\"",?all_runs_name,"\">All Test Runs in this directory</A>\n",
       "<br><br>\n",
       "<TABLE border=\"3\" cellpadding=\"5\" "
       "BGCOLOR=\"",?table_color2,"\">\n"
-      "<th>Test Name</th>\n",
-      "<th>Label</th>\n",
+      "<th>Name</th>\n",
       "<th>Test Run Started</th>\n",
       "<th><font color=\"",?table_color2,"\">_</font>Ok"
           "<font color=\"",?table_color2,"\">_</font></th>\n"
@@ -999,17 +971,13 @@ all_suites_index_header() ->
       "\n"]].
 
 all_runs_header() ->
-    {ok,Cwd} = file:get_cwd(),
-    LogDir = filename:basename(Cwd),
-    Title = "All test runs in \"" ++ LogDir ++ "\"",
-    [header(Title) |
+    [header("All test runs in current directory") |
      ["<CENTER><TABLE border=\"3\" cellpadding=\"5\" "
       "BGCOLOR=\"",?table_color1,"\">\n"
       "<th><B>History</B></th>\n"
       "<th><B>Node</B></th>\n"
-      "<th><B>Label</B></th>\n"
       "<th>Tests</th>\n"
-      "<th><B>Test Names</B></th>\n"
+      "<th><B>Names</B></th>\n"
       "<th>Total</th>\n"
       "<th><font color=\"",?table_color1,"\">_</font>Ok"
           "<font color=\"",?table_color1,"\">_</font></th>\n"
@@ -1019,23 +987,12 @@ all_runs_header() ->
       "\n"]].
 
 header(Title) ->
-    header1(Title, "").
-header(Title, SubTitle) ->
-    header1(Title, SubTitle).
-
-header1(Title, SubTitle) ->
-    SubTitleHTML = if SubTitle =/= "" ->
-			   ["<CENTER>\n",
-			    "<H2>" ++ SubTitle ++ "</H2>\n",
-			    "</CENTER>\n<BR>\n"];
-		      true -> "<BR>\n"
-		   end,
     ["<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 3.2 Final//EN\">\n"
      "<!-- autogenerated by '"++atom_to_list(?MODULE)++"'. -->\n"
      "<HTML>\n",
      "<HEAD>\n",
 
-     "<TITLE>" ++ Title ++ " " ++ SubTitle ++ "</TITLE>\n",
+     "<TITLE>" ++ Title ++ "</TITLE>\n",
      "<META HTTP-EQUIV=\"CACHE-CONTROL\" CONTENT=\"NO-CACHE\">\n",
 
      "</HEAD>\n",
@@ -1047,7 +1004,6 @@ header1(Title, SubTitle) ->
      "<CENTER>\n",
      "<H1>" ++ Title ++ "</H1>\n",
      "</CENTER>\n",
-     SubTitleHTML,
 
      "<!-- ---- CONTENT ---- -->\n"].
 
@@ -1057,28 +1013,19 @@ index_footer() ->
 
 footer() ->
      ["<P><CENTER>\n"
-      "<BR><BR>\n"
-      "<HR>\n"
-      "<P><FONT SIZE=-1>\n"
-      "Copyright &copy; ", year(),
-      " <A HREF=\"http://erlang.ericsson.se\">Open Telecom Platform</A><BR>\n"
-      "Updated: <!date>", current_time(), "<!/date><BR>\n"
-      "</FONT>\n"
-      "</CENTER>\n"
-      "</body>\n"].
+     "<HR>\n"
+     "<P><FONT SIZE=-1>\n"
+     "Copyright &copy; ", year(),
+     " <A HREF=\"http://erlang.ericsson.se\">Open Telecom Platform</A><BR>\n"
+     "Updated: <!date>", current_time(), "<!/date><BR>\n"
+     "</FONT>\n"
+     "</CENTER>\n"
+     "</body>\n"].
 
 
 body_tag() ->
-    case basic_html() of
-	true ->
-	    "<body bgcolor=\"#FFFFFF\" text=\"#000000\" link=\"#0000FF\" "
-		"vlink=\"#800080\" alink=\"#FF0000\">\n";
-	false ->
-	    CTPath = code:lib_dir(common_test),
-	    TileFile = filename:join(filename:join(CTPath,"priv"),"tile1.jpg"),
-	    "<body background=\"" ++ TileFile ++ "\" bgcolor=\"#FFFFFF\" text=\"#000000\" link=\"#0000FF\" "
-		"vlink=\"#800080\" alink=\"#FF0000\">\n"
-    end.
+    "<body bgcolor=\"#FFFFFF\" text=\"#000000\" link=\"#0000FF\""
+	"vlink=\"#800080\" alink=\"#FF0000\">\n".
 
 current_time() ->
     format_time(calendar:local_time()).
@@ -1270,7 +1217,7 @@ runentry(Dir, BasicHtml) ->
     TotalsFile = filename:join(Dir,?totals_name),
     TotalsStr =
 	case read_totals_file(TotalsFile) of
-	    {Node,Label,Logs,{TotSucc,TotFail,UserSkip,AutoSkip,NotBuilt}} ->
+	    {Node,Logs,{TotSucc,TotFail,UserSkip,AutoSkip,NotBuilt}} ->
 		TotFailStr =
 		    if TotFail > 0 ->  
 			    ["<FONT color=\"red\">",
@@ -1316,7 +1263,6 @@ runentry(Dir, BasicHtml) ->
 		    end,
 		Total = TotSucc+TotFail+AllSkip,
 		A = ["<TD ALIGN=center><FONT SIZE=-1>",Node,"</FONT></TD>\n",
-		     "<TD ALIGN=center><FONT SIZE=-1><B>",Label,"</B></FONT></TD>\n",
 		     "<TD ALIGN=right>",NoOfTests,"</TD>\n"],
 		B = if BasicHtml ->
 			    ["<TD ALIGN=center><FONT SIZE=-1>",TestNamesTrunc,"</FONT></TD>\n"];
@@ -1337,19 +1283,17 @@ runentry(Dir, BasicHtml) ->
 	end,	    
     Index = filename:join(Dir,?index_name),
     ["<TR>\n"
-     "<TD><FONT SIZE=-1><A HREF=\"",Index,"\">",timestamp(Dir),"</A>",TotalsStr,"</FONT></TD>\n"
+     "<TD><A HREF=\"",Index,"\">",timestamp(Dir),"</A>",TotalsStr,"</TD>\n"
      "</TR>\n"].
 
-write_totals_file(Name,Label,Logs,Totals) ->
+write_totals_file(Name,Logs,Totals) ->
     AbsName = ?abs(Name),
     notify_and_lock_file(AbsName),
     force_write_file(AbsName,
 		     term_to_binary({atom_to_list(node()),
-				     Label,Logs,Totals})),
+				     Logs,Totals})),
     notify_and_unlock_file(AbsName).
 
-%% this function needs to convert from old formats to new so that old
-%% test results (prev ct versions) can be listed together with new
 read_totals_file(Name) ->
     AbsName = ?abs(Name),
     notify_and_lock_file(AbsName),
@@ -1359,23 +1303,12 @@ read_totals_file(Name) ->
 		case catch binary_to_term(Bin) of
 		    {'EXIT',_Reason} ->		% corrupt file
 			{"-",[],undefined};
-		    {Node,Label,Ls,Tot} ->	% all info available
-			Label1 = case Label of
-				     undefined -> "-";
-				     _         -> Label
-				 end,
+		    R = {Node,Ls,Tot} -> 
 			case Tot of
-			    {_Ok,_Fail,_USkip,_ASkip,_NoBuild} ->  % latest format
-				{Node,Label1,Ls,Tot};
+			    {_,_,_,_,_} ->	% latest format
+				R;		
 			    {TotSucc,TotFail,AllSkip,NotBuilt} ->
-				{Node,Label1,Ls,{TotSucc,TotFail,AllSkip,undefined,NotBuilt}}
-			end;
-		    {Node,Ls,Tot} ->		% no label found
-			case Tot of
-			    {_Ok,_Fail,_USkip,_ASkip,_NoBuild} ->  % latest format
-				{Node,"-",Ls,Tot};
-			    {TotSucc,TotFail,AllSkip,NotBuilt} ->
-				{Node,"-",Ls,{TotSucc,TotFail,AllSkip,undefined,NotBuilt}}
+				{Node,Ls,{TotSucc,TotFail,AllSkip,undefined,NotBuilt}}
 			end;
 		    %% for backwards compatibility
 		    {Ls,Tot}    -> {"-",Ls,Tot};
@@ -1478,7 +1411,7 @@ make_all_suites_index1(When,AllSuitesLogDirs) ->
 make_all_suites_index2(IndexName,AllSuitesLogDirs) ->
     {ok,Index0,_Totals} = make_all_suites_index3(AllSuitesLogDirs,
 						 all_suites_index_header(),
-						 0, 0, 0, 0, 0, []),
+						 0, 0, 0, 0, 0),
     Index = [Index0|index_footer()],
     case force_write_file(IndexName, Index) of
 	ok ->
@@ -1488,25 +1421,14 @@ make_all_suites_index2(IndexName,AllSuitesLogDirs) ->
     end.
 
 make_all_suites_index3([{SuiteName,[LastLogDir|OldDirs]}|Rest],
-		       Result, TotSucc, TotFail, UserSkip, AutoSkip, TotNotBuilt,
-		       Labels) ->
+		       Result, TotSucc, TotFail, UserSkip, AutoSkip, TotNotBuilt) ->
     [EntryDir|_] = filename:split(LastLogDir),
     Missing = 
 	case file:read_file(filename:join(EntryDir,?missing_suites_info)) of
 	    {ok,Bin} -> binary_to_term(Bin);
 	    _ -> []
 	end,
-    {Label,Labels1} =
-	case proplists:get_value(EntryDir, Labels) of
-	    undefined ->
-		case read_totals_file(filename:join(EntryDir,?totals_name)) of
-		    {_,Lbl,_,_} -> {Lbl,[{EntryDir,Lbl}|Labels]};
-		    _           -> {"-",[{EntryDir,"-"}|Labels]}
-		end;
-	    Lbl ->
-		{Lbl,Labels}
-	end,
-    case make_one_index_entry(SuiteName, LastLogDir, Label, {true,OldDirs}, Missing) of
+    case make_one_index_entry(SuiteName, LastLogDir, {true,OldDirs}, Missing) of
 	{Result1,Succ,Fail,USkip,ASkip,NotBuilt} ->
 	    %% for backwards compatibility
 	    AutoSkip1 = case catch AutoSkip+ASkip of
@@ -1515,13 +1437,13 @@ make_all_suites_index3([{SuiteName,[LastLogDir|OldDirs]}|Rest],
 			end,
 	    make_all_suites_index3(Rest, [Result|Result1], TotSucc+Succ, 
 				   TotFail+Fail, UserSkip+USkip, AutoSkip1,
-				   TotNotBuilt+NotBuilt,Labels1);
+				   TotNotBuilt+NotBuilt);
 	error ->
 	    make_all_suites_index3(Rest, Result, TotSucc, TotFail, 
-				   UserSkip, AutoSkip, TotNotBuilt,Labels1)
+				   UserSkip, AutoSkip, TotNotBuilt)
     end;
 make_all_suites_index3([], Result, TotSucc, TotFail, UserSkip, AutoSkip, 
-		       TotNotBuilt,_) ->
+		       TotNotBuilt) ->
     {ok, [Result|total_row(TotSucc, TotFail, UserSkip, AutoSkip, TotNotBuilt,true)], 
      {TotSucc,TotFail,UserSkip,AutoSkip,TotNotBuilt}}.
 
